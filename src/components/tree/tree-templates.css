@@ -1,0 +1,123 @@
+/* ---------- shared structure ---------- */
+.pj-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--pj-bg);
+  color: var(--pj-fg);
+  font-family: ui-sans-serif, system-ui, "Segoe UI", "Noto Sans Devanagari", "Nirmala UI", sans-serif;
+  touch-action: none;
+}
+.pj-frame .pj-deco { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.pj-frame .pj-deco svg { position: absolute; }
+.pj-frame .f3.pj-chart { position: absolute; inset: 0; z-index: 1; display: block; }
+
+.pj-frame .f3 div.card { color: var(--pj-fg); }
+.pj-frame .f3 div.card .card-inner.pj-card {
+  position: relative;
+  box-sizing: border-box;
+  width: 164px;
+  height: 104px;
+  padding: 22px 8px 6px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 1px;
+  border-radius: var(--pj-radius);
+  background: var(--pj-card);
+  border: var(--pj-card-border);
+  box-shadow: var(--pj-card-shadow);
+  outline: 0;
+  overflow: visible;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.pj-frame .f3 div.card:hover .card-inner.pj-card { transform: translateY(-2px); }
+.pj-frame .f3 div.card-main .card-inner.pj-card,
+.pj-frame .f3 div.card:hover .card-inner.pj-card { outline: 0; }
+
+.pj-card .pj-avatar {
+  position: absolute;
+  top: -17px;
+  left: 50%;
+  margin-left: -17px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  overflow: hidden;
+}
+.pj-card .pj-avatar svg { width: 100%; height: 100%; display: block; }
+.pj-card .pj-avatar > svg { flex: none; }
+.pj-card .pj-name { font-size: 13px; font-weight: 650; line-height: 17px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pj-card .pj-deva { font-size: 12px; line-height: 16px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .85; }
+.pj-card .pj-years { font-size: 10.5px; line-height: 14px; opacity: .7; }
+.pj-card .pj-panji { font-size: 10px; line-height: 13px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .01em; opacity: .85; }
+.pj-card .pj-badge { position: absolute; right: 8px; top: -7px; }
+.pj-card .pj-badge svg { display: block; }
+.pj-card .pj-cardframe { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+.pj-card .pj-name, .pj-card .pj-deva, .pj-card .pj-years, .pj-card .pj-panji { position: relative; z-index: 1; }
+.pj-card .pj-avatar, .pj-card .pj-badge { z-index: 2; }
+
+.pj-frame .f3 svg.main_svg { width: 100%; height: 100%; }
+.pj-frame .f3 .link { stroke-linecap: round; }
+
+/* ---------- Classic: warm neutral, portrait, photo circles ---------- */
+.tpl-classic {
+  --pj-bg: #faf6ee;
+  --pj-fg: #3a2f22;
+  --pj-card: #fffdf8;
+  --pj-radius: 10px;
+  --pj-card-border: 1px solid #dccfb6;
+  --pj-card-shadow: 0 1px 2px rgba(80, 60, 30, .08), 0 4px 10px rgba(80, 60, 30, .06);
+}
+.tpl-classic .pj-card.pj-male { border-top: 3px solid #7a8f6a; }
+.tpl-classic .pj-card.pj-female { border-top: 3px solid #b5707a; }
+.tpl-classic .pj-card.pj-male .pj-avatar { background: #e6ecdf; color: #4a5d3b; border: 2px solid #fffdf8; box-shadow: 0 0 0 1px #c9d4bd; }
+.tpl-classic .pj-card.pj-female .pj-avatar { background: #f4e2e4; color: #8b4452; border: 2px solid #fffdf8; box-shadow: 0 0 0 1px #e3c3c8; }
+.tpl-classic .pj-card.pj-root { box-shadow: 0 0 0 2px #c2693f, 0 6px 14px rgba(150, 80, 40, .22); }
+
+/* ---------- Modern Minimal: monochrome, thin lines ---------- */
+.tpl-minimal {
+  --pj-bg: #ffffff;
+  --pj-fg: #111111;
+  --pj-card: #ffffff;
+  --pj-radius: 0px;
+  --pj-card-border: 1px solid #111;
+  --pj-card-shadow: none;
+}
+.tpl-minimal .pj-card { padding-top: 14px !important; }
+.tpl-minimal .pj-card .pj-avatar { display: none; }
+.tpl-minimal .pj-card .pj-name { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.tpl-minimal .pj-card .pj-deva, .tpl-minimal .pj-card .pj-years, .tpl-minimal .pj-card .pj-panji { color: #555; opacity: 1; }
+.tpl-minimal .pj-card.pj-female { border-style: solid; border-radius: 0; }
+.tpl-minimal .pj-card.pj-female .pj-name::after { content: ""; }
+.pj-frame.tpl-minimal .f3 div.card .card-inner.pj-card.pj-root { background: #111; color: #fff; }
+.pj-frame.tpl-minimal .f3 div.card .pj-card.pj-root .pj-deva,
+.pj-frame.tpl-minimal .f3 div.card .pj-card.pj-root .pj-years,
+.pj-frame.tpl-minimal .f3 div.card .pj-card.pj-root .pj-panji { color: #ccc; }
+
+/* ---------- Mithila Madhubani: signature template ---------- */
+.tpl-madhubani {
+  --pj-bg: #f3e2b3;
+  --pj-fg: #1f2a5c;
+  --pj-card: #fbf0d2;
+  --pj-radius: 4px;
+  --pj-card-border: 0;
+  --pj-card-shadow: none;
+}
+.tpl-madhubani .pj-card { padding-top: 24px !important; }
+.tpl-madhubani .pj-card .pj-avatar { top: -20px; margin-left: -20px; width: 40px; height: 40px; background: #fbf0d2; border-radius: 50%; }
+.tpl-madhubani .pj-card .pj-name { font-family: Georgia, "Times New Roman", serif; font-size: 13.5px; font-weight: 700; }
+.tpl-madhubani .pj-card.pj-root .pj-cardframe .pj-glow { stroke: #a63a1d; stroke-width: 3.5; }
+
+
+/* html2canvas draws text a hair low; never clip it in the print render */
+.pj-export .pj-card .pj-name, .pj-export .pj-card .pj-deva, .pj-export .pj-card .pj-panji { overflow: visible; text-overflow: clip; }
