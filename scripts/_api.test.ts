@@ -56,8 +56,33 @@ const post = (path: string, body: unknown, method = "POST") => j(path, { method,
   assert.equal((await post(`/api/trees/${id}/members`, { k: token, memberId: helper.id }, "DELETE")).status, 200);
   assert.equal((await j(`/api/trees/${id}?k=${hk}`)).status, 404);
 
+  // flat tables (only checked when the mock PostgREST is the backend: DUMP=http://localhost:3999/__dump)
+  if (process.env.DUMP) {
+    const d = await (await fetch(process.env.DUMP)).json() as { persons: Record<string, any>[]; rels: Record<string, any>[]; consents: Record<string, any>[] }; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const mine3 = d.persons.filter((x) => x.tree_id === id);
+    assert.deepEqual(mine3.map((x) => x.name_roman).sort(), ["Aarav", "Neha", "Rohan Jha"]);
+    assert.equal(mine3.find((x) => x.name_roman === "Rohan Jha")!.mool, "Zzqxplo");
+    assert.equal(mine3.find((x) => x.name_roman === "Rohan Jha")!.mool_custom, true);
+    assert.equal(mine3.find((x) => x.name_roman === "Rohan Jha")!.has_photo, true);
+    assert.ok(!JSON.stringify(mine3).includes("data:image"));
+    assert.ok(d.rels.filter((x) => x.tree_id === id).length >= 2);
+    assert.equal(d.consents.filter((x) => x.tree_id === id).length, 1);
+  }
+
   // bad payloads
   assert.equal((await post("/api/trees", { family: { persons: [], rels: [], next: 1 } })).status, 400);
   assert.equal((await post(`/api/trees/${id}`, { k: token, baseRev: 3, family: "nope" }, "PUT")).status, 400);
+  // only the owner can delete; afterwards the link is dead
+  const c2 = await post("/api/trees", { family: fam, ownerName: "Tmp" });
+  const inv2 = await post(`/api/trees/${c2.body.id}/members`, { k: c2.body.token, name: "H" });
+  assert.equal((await post(`/api/trees/${c2.body.id}`, { k: inv2.body.token }, "DELETE")).status, 403);
+  assert.equal((await post(`/api/trees/${c2.body.id}`, { k: "bad" }, "DELETE")).status, 404);
+  assert.equal((await post(`/api/trees/${c2.body.id}`, { k: c2.body.token }, "DELETE")).body.deleted, true);
+  assert.equal((await j(`/api/trees/${c2.body.id}?k=${c2.body.token}`)).status, 404);
+  if (process.env.DUMP) {
+    const d = await (await fetch(process.env.DUMP)).json() as { persons: { tree_id: string }[] };
+    assert.ok(!d.persons.some((x) => x.tree_id === c2.body.id));
+    assert.ok(d.persons.some((x) => x.tree_id === id));
+  }
   console.log("api tests passed");
 })().catch((e) => { console.error(e); process.exit(1); });

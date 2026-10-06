@@ -14,7 +14,6 @@ const p = (
   dod: string | undefined,
   gotra: string,
   mool: string,
-  moolgrama: string,
   current_village?: string,
 ): Person => ({
   person_id: id,
@@ -26,35 +25,34 @@ const p = (
   is_living: !dod,
   gotra,
   mool,
-  moolgrama,
   current_village,
   source: "user_input",
 });
 
 const persons: Person[] = [
   // Paternal great-grandparents
-  p("baidyanath", "Baidyanath Jha", "बैद्यनाथ झा", "male", "1902", "1976", "Kashyap", "Sodarpur", "Karion"),
-  p("savitri", "Savitri Devi", "सावित्री देवी", "female", "1908", "1985", "Bharadwaj", "Pali", "Tarauni"),
+  p("baidyanath", "Baidyanath Jha", "बैद्यनाथ झा", "male", "1902", "1976", "Kashyap", "Sodarpur"),
+  p("savitri", "Savitri Devi", "सावित्री देवी", "female", "1908", "1985", "Bharadwaj", "Pali"),
   // Paternal grandparents + siblings
-  p("harinath", "Harinath Jha", "हरिनाथ झा", "male", "1930", "2008", "Kashyap", "Sodarpur", "Karion"),
-  p("kamla", "Kamla Devi", "कमला देवी", "female", "1936", undefined, "Vatsa", "Bahera", "Rahika", "Madhubani"),
-  p("shivnath", "Shivnath Jha", "शिवनाथ झा", "male", "1935", "2003", "Kashyap", "Sodarpur", "Karion"),
+  p("harinath", "Harinath Jha", "हरिनाथ झा", "male", "1930", "2008", "Kashyap", "Sodarpur"),
+  p("kamla", "Kamla Devi", "कमला देवी", "female", "1936", undefined, "Vatsa", "Bahera", "Madhubani"),
+  p("shivnath", "Shivnath Jha", "शिवनाथ झा", "male", "1935", "2003", "Kashyap", "Sodarpur"),
   // Father's generation (paternal)
-  p("ramakant", "Ramakant Jha", "रमाकांत झा", "male", "1958", undefined, "Kashyap", "Sodarpur", "Karion", "Patna"),
-  p("mahesh", "Mahesh Jha", "महेश झा", "male", "1955", undefined, "Kashyap", "Sodarpur", "Karion", "Darbhanga"),
-  p("rekha", "Rekha Devi", "रेखा देवी", "female", "1960", undefined, "Gautam", "Majhaura", "Sijauli", "Darbhanga"),
-  p("sunita", "Sunita Jha", "सुनीता झा", "female", "1962", undefined, "Kashyap", "Sodarpur", "Karion", "Samastipur"),
+  p("ramakant", "Ramakant Jha", "रमाकांत झा", "male", "1958", undefined, "Kashyap", "Sodarpur", "Patna"),
+  p("mahesh", "Mahesh Jha", "महेश झा", "male", "1955", undefined, "Kashyap", "Sodarpur", "Darbhanga"),
+  p("rekha", "Rekha Devi", "रेखा देवी", "female", "1960", undefined, "Gautam", "Majhaura", "Darbhanga"),
+  p("sunita", "Sunita Jha", "सुनीता झा", "female", "1962", undefined, "Kashyap", "Sodarpur", "Samastipur"),
   // Maternal side
-  p("gopal", "Gopal Mishra", "गोपाल मिश्र", "male", "1932", "2015", "Shandilya", "Khandbala", "Laukahi"),
-  p("radha", "Radha Devi", "राधा देवी", "female", "1938", "2019", "Parashar", "Pali", "Bhaur"),
-  p("meena", "Meena Jha", "मीना झा", "female", "1963", undefined, "Shandilya", "Khandbala", "Laukahi", "Patna"),
+  p("gopal", "Gopal Mishra", "गोपाल मिश्र", "male", "1932", "2015", "Shandilya", "Khandbala"),
+  p("radha", "Radha Devi", "राधा देवी", "female", "1938", "2019", "Parashar", "Pali"),
+  p("meena", "Meena Jha", "मीना झा", "female", "1963", undefined, "Shandilya", "Khandbala", "Patna"),
   // Root generation
-  p("rohan", "Rohan Jha", "रोहन झा", "male", "1990", undefined, "Kashyap", "Sodarpur", "Karion", "Zurich, Switzerland"),
-  p("nisha", "Nisha Jha", "निशा झा", "female", "1994", undefined, "Kashyap", "Sodarpur", "Karion", "Bengaluru"),
-  p("vikram", "Vikram Jha", "विक्रम झा", "male", "1984", undefined, "Kashyap", "Sodarpur", "Karion", "Delhi"),
-  p("anjali", "Anjali Jha", "अंजलि झा", "female", "1992", undefined, "Kaushik", "Bahera", "Ujan", "Zurich, Switzerland"),
+  p("rohan", "Rohan Jha", "रोहन झा", "male", "1990", undefined, "Kashyap", "Sodarpur", "Zurich, Switzerland"),
+  p("nisha", "Nisha Jha", "निशा झा", "female", "1994", undefined, "Kashyap", "Sodarpur", "Bengaluru"),
+  p("vikram", "Vikram Jha", "विक्रम झा", "male", "1984", undefined, "Kashyap", "Sodarpur", "Delhi"),
+  p("anjali", "Anjali Jha", "अंजलि झा", "female", "1992", undefined, "Kaushik", "Bahera", "Zurich, Switzerland"),
   // Next generation
-  p("aarav", "Aarav Jha", "आरव झा", "male", "2020", undefined, "Kashyap", "Sodarpur", "Karion", "Zurich, Switzerland"),
+  p("aarav", "Aarav Jha", "आरव झा", "male", "2020", undefined, "Kashyap", "Sodarpur", "Zurich, Switzerland"),
 ];
 
 let n = 0;

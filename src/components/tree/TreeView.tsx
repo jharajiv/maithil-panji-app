@@ -116,7 +116,7 @@ export function TreeView() {
         onClose={() => setSelected(undefined)}
         onCentre={(id) => mounted.current?.centreOn(id)}
       />
-      <ExportSheet open={exportOpen} onClose={() => setExportOpen(false)} data={data} template={template} />
+      <ExportSheet open={exportOpen} onClose={() => setExportOpen(false)} data={data} template={template} sample />
     </div>
   );
 }

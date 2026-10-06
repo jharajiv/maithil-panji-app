@@ -115,7 +115,7 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
   }, [share?.treeId, pull]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const create = useCallback(async (ownerName: string) => {
-    const res = await fetch("/api/trees", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ family: famRef.current, ownerName }) });
+    const res = await fetch("/api/trees", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ family: famRef.current, ownerName, consentVersion: "v1" }) });
     const j = await res.json();
     if (!res.ok) throw new Error(j.error ?? "Could not save.");
     base.current = famRef.current;
@@ -141,8 +141,15 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
     if (res.ok) setMembers(j.members);
   }, []);
 
+  const deleteOnline = useCallback(async () => {
+    const s = shareRef.current!;
+    const res = await fetch(`/api/trees/${s.treeId}`, { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ k: s.token }) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Could not delete.");
+    update(null); base.current = null; setStatus("off"); setMembers([]);
+  }, []);
+
   const ownerLink = share ? `${typeof location !== "undefined" ? location.origin : ""}/build?t=${share.treeId}&k=${share.token}` : "";
   const leave = useCallback(() => { update(null); base.current = null; setStatus("off"); setMembers([]); }, []);
 
-  return { enabled, share, status, members, adopted, create, invite, revoke, ownerLink, leave };
+  return { enabled, share, status, members, adopted, create, invite, revoke, deleteOnline, ownerLink, leave };
 }

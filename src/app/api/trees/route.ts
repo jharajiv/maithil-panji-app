@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sanitizeFamily } from "@/lib/sanitize";
-import { customRefs, getStore, hashToken, newMemberId, newToken, newTreeId } from "@/lib/store";
+import { getStore, hashToken, newMemberId, newToken, newTreeId, syncAll } from "@/lib/store";
 import { clientIp, limited } from "@/lib/ratelimit";
 
 export const dynamic = "force-dynamic";
@@ -25,10 +25,12 @@ export async function POST(req: Request) {
   const token = newToken();
   const id = newTreeId();
   const now = new Date().toISOString();
+  const memberId = newMemberId();
   await store.createTree({
     id, family, rev: 1, updated_at: now,
-    members: [{ id: newMemberId(), name: name || "Owner", role: "owner", token_hash: hashToken(token), person_id: family.persons.find((p) => p.is_me)?.id, created_at: now }],
+    members: [{ id: memberId, name: name || "Owner", role: "owner", token_hash: hashToken(token), person_id: family.persons.find((p) => p.is_me)?.id, created_at: now }],
   });
-  store.addRefs(customRefs(family)).catch(() => {});
+  await store.addConsent({ tree_id: id, member_id: memberId, kind: "share-and-store", version: typeof body.consentVersion === "string" ? body.consentVersion.slice(0, 20) : "v1", given_at: now }).catch(() => {});
+  await syncAll(store, id, family);
   return NextResponse.json({ id, token, rev: 1 });
 }

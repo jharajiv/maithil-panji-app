@@ -1,4 +1,5 @@
 "use client";
+import { useEffect } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,12 @@ export function Sheet({
   children: React.ReactNode;
   className?: string;
 }) {
+  useEffect(() => {
+    if (!open) return;
+    const on = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, [open, onClose]);
   return (
     <>
       <div

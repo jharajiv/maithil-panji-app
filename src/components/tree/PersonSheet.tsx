@@ -54,7 +54,6 @@ export function PersonSheet({
           <dl className="mt-3">
             <Row k="Gotra" v={person.gotra} />
             <Row k="Mool" v={person.mool} />
-            <Row k="Moolgrama" v={person.moolgrama} />
             <Row k="Pravara" v={person.pravara} />
             <Row k="Lives in" v={person.current_village} />
             <Row k="Parents" v={names(rel.parents)} />

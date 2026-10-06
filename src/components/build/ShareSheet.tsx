@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Link2, Loader2, MessageCircle, Users } from "lucide-react";
+import { Check, Copy, Link2, Loader2, MessageCircle, Trash2, Users } from "lucide-react";
 import { parsePhoneNumberFromString } from "libphonenumber-js/min";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ interface Props {
   onRevoke: (memberId: string) => void;
   onRememberPhone: (personId: string, e164: string) => void;
   onLeave: () => void;
+  onDeleteOnline: () => Promise<void>;
 }
 
 const STATUS_TEXT: Record<SyncStatus, string> = { off: "", synced: "Saved online", saving: "Saving…", offline: "Offline — will retry", invalid: "This link is no longer valid" };
@@ -27,6 +28,7 @@ export function ShareSheet(p: Props) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [confirmDel, setConfirmDel] = useState(false);
   const [who, setWho] = useState<string>("");
   const [custom, setCustom] = useState("");
   const [phone, setPhone] = useState<PhoneValue>({ country: "IN", national: "" });
@@ -131,6 +133,21 @@ export function ShareSheet(p: Props) {
             <h3 className="font-medium">Open on another phone or computer</h3>
             <p className="text-sm text-muted-foreground">This is your private link. Keep it to yourself — anyone who has it can edit and invite.</p>
             <Button variant="outline" className="w-full" onClick={() => copy(p.ownerLink, "own")}>{copied === "own" ? <Check /> : <Copy />} Copy my private link</Button>
+          </section>
+
+          <section aria-label="Delete online copy" className="space-y-2 border-t pt-4">
+            <h3 className="font-medium">Delete my online copy</h3>
+            <p className="text-sm text-muted-foreground">Removes this tree from our database and stops all shared links. The tree on this device is kept.</p>
+            {!confirmDel ? (
+              <Button variant="outline" className="w-full text-terracotta" onClick={() => setConfirmDel(true)}><Trash2 /> Delete online copy…</Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setConfirmDel(false)}>Keep it</Button>
+                <Button className="flex-1 bg-terracotta text-white" disabled={busy} onClick={async () => { setBusy(true); setErr(""); try { await p.onDeleteOnline(); setConfirmDel(false); } catch (e) { setErr(e instanceof Error ? e.message : "Could not delete."); } finally { setBusy(false); } }}>
+                  {busy ? <Loader2 className="animate-spin" /> : <Trash2 />} Yes, delete
+                </Button>
+              </div>
+            )}
           </section>
         </div>
       )}

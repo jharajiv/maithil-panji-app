@@ -29,9 +29,9 @@ function Choice<T extends string>({
 }
 
 export function ExportSheet({
-  open, onClose, data, template,
-}: { open: boolean; onClose: () => void; data: FamilyData; template: TemplateId }) {
-  const [scope, setScope] = useState<ExportScope>("full");
+  open, onClose, data, template, defaultScope = "full", sample = false,
+}: { open: boolean; onClose: () => void; data: FamilyData; template: TemplateId; defaultScope?: ExportScope; sample?: boolean }) {
+  const [scope, setScope] = useState<ExportScope>(defaultScope);
   const [format, setFormat] = useState<PageFormat>("a3-landscape");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export function ExportSheet({
     setError(null);
     setBusy("Preparing…");
     try {
-      await exportTreePdf({ data, scope, template, format, onProgress: setBusy });
+      await exportTreePdf({ data, scope, template, format, sample, onProgress: setBusy });
       onClose();
     } catch (e) {
       console.error(e);
@@ -57,7 +57,7 @@ export function ExportSheet({
 
       <div role="radiogroup" aria-label="What to include" className="space-y-2">
         <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What to include</div>
-        <Choice value="full" current={scope} onSelect={setScope} title="Full family tree" hint="Both sides of the family, as you entered them." />
+        <Choice value="full" current={scope} onSelect={setScope} title="Full family tree" hint="Centred on you: your parents and grandparents, and your children." />
         <Choice value="paternal" current={scope} onSelect={setScope} title="Paternal lineage (Panji-style)" hint="The traditional chart: father’s line, brothers’ lines, spouses attached, daughters as leaves." />
       </div>
 

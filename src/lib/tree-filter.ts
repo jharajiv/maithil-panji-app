@@ -43,7 +43,7 @@ export function scopeData(data: FamilyData, scope: ExportScope): ScopedData {
  * Paternal lineage (Panji-style):
  *  - patriline from root upward (father, father's father, …), with siblings at each generation
  *  - spouses of patriline males attached as nodes (no expansion into their family)
- *  - descendants of patriline males through sons, recursively; daughters are leaf nodes
+ *  - descendants of patriline males through sons, recursively; daughters are leaf nodes, with their husband shown beside them
  *  - mother's side and in-married women's families are excluded
  */
 export function paternalLineage(data: FamilyData): ScopedData {
@@ -66,7 +66,10 @@ export function paternalLineage(data: FamilyData): ScopedData {
     for (const c of children.get(id) ?? []) {
       if (roles[c]) continue;
       if (byId.get(c)?.gender === "male") visit(c);
-      else roles[c] = "daughter"; // leaf
+      else {
+        roles[c] = "daughter"; // leaf: her children belong to her husband's lineage
+        for (const sp of spouses.get(c) ?? []) if (!roles[sp]) roles[sp] = "spouse"; // husband shown, not expanded
+      }
     }
   };
   visit(apex);
@@ -109,8 +112,8 @@ export function toChartData(scoped: ScopedData): Datum[] {
       years: lifespan(p),
       gotra: p.gotra ?? "",
       mool: p.mool ?? "",
-      moolgrama: p.moolgrama ?? "",
       village: p.current_village ?? "",
+      photo: p.photo ?? "",
       living: p.is_living,
       role: scoped.roles?.[p.person_id] ?? "",
     },

@@ -11,15 +11,15 @@ const TEMPLATES = [
 ] as const;
 
 const STEPS = [
-  { icon: ListChecks, title: "Answer a few questions", text: "One question at a time, on your phone. Skip anything you don’t know." },
-  { icon: Sprout, title: "See your tree grow", text: "Pick a template and tap any person to explore both sides of the family." },
+  { icon: ListChecks, title: "Chat with our assistant", text: "A friendly interviewer asks one question at a time — in English, Hindi or Hinglish. Skip anything you don’t know." },
+  { icon: Sprout, title: "Watch your tree grow", text: "Your Panji-style tree appears as you talk. Tap anyone to correct details or add a photo, and pick a style." },
   { icon: Printer, title: "Download and share", text: "A print-ready PDF in A3 or A4, and a WhatsApp invite for relatives." },
 ];
 
 function Cta({ className }: { className?: string }) {
   return (
     <Button asChild size="lg" className={`h-14 px-7 text-base ${className ?? ""}`}>
-      <Link href="/intake">Start building your family tree <ArrowRight /></Link>
+      <Link href="/build">Start building your family tree <ArrowRight /></Link>
     </Button>
   );
 }
@@ -39,10 +39,10 @@ export default function Home() {
             <br />Build a tree. Join the lineage.
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-lg text-indigo/80">
-            A free community project built around the Panji Prabandh tradition: gotra, mool, moolgrama and pravara are first-class, not footnotes.
+            A free community project built around the Panji Prabandh tradition: gotra, mool and pravara are first-class, not footnotes.
           </p>
           <p className="mx-auto mt-3 max-w-xl text-indigo/70">
-            Answer a few questions on your phone, get a tree you can print and frame, and invite relatives to add their own branches.
+            Chat with our assistant on your phone, watch your tree grow, print and frame it, and invite relatives to add their own branches.
           </p>
           <div className="mt-8"><Cta /></div>
           <p className="mt-3 text-sm text-indigo/70">No marketing. Your data is never sold or shared.</p>
@@ -92,7 +92,7 @@ export default function Home() {
         <div className="relative mx-auto max-w-3xl px-5 py-14 text-center">
           <h2 className="font-display text-2xl font-semibold sm:text-4xl">Your family’s story, in your family’s tradition.</h2>
           <div className="mt-6 flex justify-center">
-            <Button asChild size="lg" variant="secondary" className="h-14 px-7 text-base"><Link href="/intake">Start building your family tree <ArrowRight /></Link></Button>
+            <Button asChild size="lg" variant="secondary" className="h-14 px-7 text-base"><Link href="/build">Start building your family tree <ArrowRight /></Link></Button>
           </div>
           <p className="mt-6 text-sm text-cream/70">A community project preserving the Panji Prabandh. Day 1 preview — sample data only.</p>
         </div>

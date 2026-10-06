@@ -200,7 +200,7 @@ export function BuildApp() {
         onAdd={addRelative} canInvite={sh.enabled === true && sh.share?.role !== "editor"} onInvite={(id) => { setInviteFor(id); setShareOpen(true); }} />
       {data && <ExportSheet open={exportOpen} onClose={() => setExportOpen(false)} data={data} template={template} defaultScope="paternal" />}
       <ShareSheet open={shareOpen} onClose={() => setShareOpen(false)} family={family} enabled={sh.enabled} share={sh.share} status={sh.status} members={sh.members} ownerLink={sh.ownerLink}
-        invitePersonId={inviteFor} onCreate={sh.create} onInvite={sh.invite} onRevoke={sh.revoke} onRememberPhone={rememberPhone} onLeave={() => { sh.leave(); setShareOpen(false); }} />
+        invitePersonId={inviteFor} onCreate={sh.create} onInvite={sh.invite} onRevoke={sh.revoke} onRememberPhone={rememberPhone} onLeave={() => { sh.leave(); setShareOpen(false); }} onDeleteOnline={sh.deleteOnline} />
       <Sheet open={resetOpen} onClose={() => setResetOpen(false)} title="Start over">
         <h2 className="font-display text-xl font-semibold">Start over?</h2>
         <p className="mt-1 text-sm text-muted-foreground">This clears the tree and the conversation on this device. It cannot be undone.{sh.share ? " The online copy is not deleted, but this device stops syncing with it — copy your private link from Share first if you want to open it again." : ""}</p>

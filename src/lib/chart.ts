@@ -69,8 +69,10 @@ function cardInner(
   const panji = origin ? (role === "spouse" ? `from ${origin}` : origin) : "";
   const badge: "YOU" | "SPOUSE" | "" = isRoot ? "YOU" : role === "spouse" ? "SPOUSE" : "";
   let avatar = "";
-  if (tpl === "classic") avatar = `<div class="pj-avatar">${esc(initials(name))}</div>`;
-  if (tpl === "madhubani") avatar = `<div class="pj-avatar">${gender === "female" ? MOTIFS.lotus(40) : MOTIFS.sun(40)}</div>`;
+  const photo = typeof x.photo === "string" && x.photo.startsWith("data:image/") ? x.photo : "";
+  if (tpl === "classic") avatar = photo ? `<div class="pj-avatar pj-photo"><img src="${photo}" alt=""/></div>` : `<div class="pj-avatar">${esc(initials(name))}</div>`;
+  if (tpl === "minimal" && photo) avatar = `<div class="pj-avatar pj-photo"><img src="${photo}" alt=""/></div>`;
+  if (tpl === "madhubani") avatar = photo ? `<div class="pj-avatar pj-photo"><img src="${photo}" alt=""/></div>` : `<div class="pj-avatar">${gender === "female" ? MOTIFS.lotus(40) : MOTIFS.sun(40)}</div>`;
   const frame =
     tpl === "madhubani"
       ? `<svg class="pj-cardframe" viewBox="0 0 164 104" xmlns="http://www.w3.org/2000/svg" fill="none">

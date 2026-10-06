@@ -95,6 +95,7 @@
 }
 .tpl-minimal .pj-card { padding-top: 14px !important; }
 .tpl-minimal .pj-card .pj-avatar { display: none; }
+.tpl-minimal .pj-card .pj-avatar.pj-photo { display: block; border: 1px solid #111; }
 .tpl-minimal .pj-card .pj-name { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
 .tpl-minimal .pj-card .pj-deva, .tpl-minimal .pj-card .pj-years, .tpl-minimal .pj-card .pj-panji { color: #555; opacity: 1; }
 .tpl-minimal .pj-card.pj-female { border-style: solid; border-radius: 0; }
@@ -121,3 +122,8 @@
 
 /* html2canvas draws text a hair low; never clip it in the print render */
 .pj-export .pj-card .pj-name, .pj-export .pj-card .pj-deva, .pj-export .pj-card .pj-panji { overflow: visible; text-overflow: clip; }
+
+/* photos on cards */
+.pj-card .pj-avatar.pj-photo { overflow: hidden; padding: 0; }
+.pj-card .pj-avatar.pj-photo img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+.tpl-madhubani .pj-card .pj-avatar.pj-photo { border: 2px solid #1f2a5c; box-shadow: 0 0 0 2px #d99a2b; }

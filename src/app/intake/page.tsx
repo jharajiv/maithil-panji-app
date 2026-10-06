@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import { IntakeFlow } from "@/components/intake/IntakeFlow";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Build your family tree — Maithil Panji" };
-
+// The guided form was replaced by the interview chat.
 export default function IntakePage() {
-  return <IntakeFlow />;
+  redirect("/build");
 }

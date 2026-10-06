@@ -14,10 +14,10 @@ export interface Person {
   is_living: boolean;
   gotra?: string;
   mool?: string;
-  moolgrama?: string;
   pravara?: string;
   current_village?: string;
   notes?: string;
+  photo?: string; // data URL or storage URL
   source: "user_input" | "corpus" | "merged";
 }
 
