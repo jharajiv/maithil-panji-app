@@ -38,4 +38,14 @@ assert.equal(me(r.family)!.mool?.roman, "Sarisaba"); assert.equal(me(r.family)!.
 registerExtras([{ kind: "mool", roman: "Zzqxplo", dev: "" }]);
 const h = searchMools("zzqxplo");
 assert.equal(classify(h).status, "exact"); assert.equal(h[0]!.item.extra, true);
+// free-text replies: only the names are taken, sentences are never turned into people
+import { parseNames } from "../src/lib/basic";
+const names = (t: string) => parseNames(t).map((x) => `${x.name}${x.gender ? `/${x.gender[0]}` : ""}`).join("|");
+assert.equal(names("One Son and he is Arihantt Bharadwaj"), "Arihantt Bharadwaj/m");
+assert.equal(names("you have got an error - you need to read what I am saying. I have one son and his name is Arihantt bharadwaj"), "Arihantt bharadwaj/m");
+assert.equal(names("you have got an error - you need to read what I am saying"), "");
+assert.equal(names("I have one son"), "");
+assert.equal(names("two daughters Anika and Riya"), "Anika/f|Riya/f");
+assert.equal(names("Aarav - son, Anika - daughter"), "Aarav/m|Anika/f");
+assert.equal(names("Aarav, Anika"), "Aarav|Anika");
 console.log("basic tests passed");

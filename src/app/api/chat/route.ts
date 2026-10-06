@@ -22,7 +22,19 @@ async function loadExtras() {
   try { const s = getStore(); if (s) registerExtras(await s.listRefs()); } catch { /* optional */ }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  // ?test=1 makes one tiny real call so you can see WHY the AI is not answering (wrong key, no credit, wrong model…)
+  if (hasKey() && new URL(req.url).searchParams.get("test")) {
+    if (limited("chat-test", clientIp(req), 10, 10 * 60_000)) return NextResponse.json({ error: "Too many requests." }, { status: 429 });
+    try {
+      const client = new Anthropic({ timeout: 20_000, maxRetries: 0 });
+      await client.messages.create({ model: MODEL, max_tokens: 8, messages: [{ role: "user", content: "Say OK" }] });
+      return NextResponse.json({ ai: true, model: MODEL, ok: true });
+    } catch (e) {
+      const err = e as { status?: number; message?: string };
+      return NextResponse.json({ ai: true, model: MODEL, ok: false, status: err.status ?? null, error: String(err.message ?? e).slice(0, 220) });
+    }
+  }
   return NextResponse.json({ ai: hasKey(), model: hasKey() ? MODEL : null });
 }
 

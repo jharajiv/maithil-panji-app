@@ -10,26 +10,45 @@ import { romanToDevanagari } from "./translit";
 const SKIP = /^\s*(i\s+)?(skip|pass|don'?t know|do not know|dont know|don'?t remember|do not remember|dont remember|not sure|no idea|pata nahi|pata nhi|nahi pata|नहीं पता|पता नहीं|याद नहीं|नहीं मालूम)\b/i;
 const NO = /^\s*(no|none|nope|nahi|nahin|नहीं|not married|no children|no brothers|no sisters|none are married|no grandchildren|unmarried)\b/i;
 const YES = /^\s*(yes|yeah|yep|ha|haan|हाँ|हां|married|same|same as (my )?mool)\b/i;
-const FEMALE = /\b(daughter|sister|girl|female|wife|beti|behen|bahan|didi|bua|बेटी|बहन|दीदी)\b/i;
-const MALE = /\b(son|brother|boy|male|husband|beta|bhai|बेटा|भाई)\b/i;
+const FEMALE = /\b(daughters?|sisters?|girl|female|wife|beti|behen|bahan|didi|bua|बेटी|बहन|दीदी)\b/i;
+const MALE = /\b(sons?|brothers?|boy|male|husband|beta|bhai|बेटा|भाई)\b/i;
 
 export const isSkip = (t: string) => SKIP.test(t);
 export const isNo = (t: string) => NO.test(t);
 
 export interface ParsedName { name: string; gender?: "male" | "female" }
 
+const NUMBER_WORDS = "one|two|three|four|five|six|seven|eight|nine|ten|ek|do|teen|char|paanch|1|2|3|4|5|6|7|8|9|10";
+/** words that are never part of a name — removed from the front/back/middle of a reply like "one son and he is Arihantt" */
+const FILLER = new RegExp(`\\b(${NUMBER_WORDS}|my|his|her|their|our|its|it's|it|he|she|they|we|i|you|have|has|had|got|also|just|only|with|who|whose|which|that|this|there|here|is|are|am|was|were|named|called|name|names|naam|the|an|a|of|son|sons|daughter|daughters|brother|brothers|sister|sisters|elder|younger|older|bhai|beti|beta|behen|didi|child|children|kids|kid)\\b`, "gi");
+/** a reply that talks about the conversation itself, not about names */
+const TALKING = /\b(error|wrong|mistake|mistaken|please|what|why|how|because|should|would|could|can't|cannot|need|read|reading|saying|said|understand|listen|correct|again|sorry|stupid|bad)\b/i;
+const CUE = /^([\s\S]*)\b(?:his name is|her name is|their names are|their name is|names are|name is|named|called|naam hai|he is|she is|they are)\s+([\s\S]+)$/i;
+
 export function parseNames(text: string): ParsedName[] {
-  return text
+  const whole = text.trim();
+  const tail = CUE.exec(whole)?.[2] ?? whole;
+  const cued = tail !== whole;
+  const cued0 = cued;
+  // a gender word right at the start ("two daughters Anika and Riya", "my son Aarav") applies to every name in the reply
+  const lead = /^\W*(?:\w+\s+){0,2}(sons?|daughters?|brothers?|sisters?|beta|beti|bhai|behen)\b/i.exec(whole)?.[1];
+  const only = FEMALE.test(whole) !== MALE.test(whole) ? (FEMALE.test(whole) ? "female" : "male") : undefined;
+  const wholeGender: "male" | "female" | undefined = lead ? (FEMALE.test(lead) ? "female" : "male") : cued0 ? only : undefined;
+  // "I have one son and his name is Arihantt" → only the part after the cue holds names
+
+  if (TALKING.test(tail) || (!cued && tail.split(/\s+/).length > 12 && !/[,;]/.test(tail))) return [];
+  return tail
     .split(/[,;\n]| and | aur | और /i)
     .map((raw) => {
-      const gender: "male" | "female" | undefined = FEMALE.test(raw) ? "female" : MALE.test(raw) ? "male" : undefined;
+      const gender: "male" | "female" | undefined = FEMALE.test(raw) ? "female" : MALE.test(raw) ? "male" : wholeGender;
       const name = raw
         .replace(/\(.*?\)/g, " ").replace(/[-–—:].*$/, " ")
-        .replace(/\b(my|his|her|son|daughter|brother|sister|elder|younger|older|bhai|beti|beta|behen|didi|is|are|named|called|name|names|the)\b/gi, " ")
+        .replace(FILLER, " ")
+        .replace(/[.!?]+$/g, "")
         .replace(/\s+/g, " ").trim();
       return { name, gender };
     })
-    .filter((x) => x.name && !/^\d+$/.test(x.name));
+    .filter((x) => x.name && !/^\d+$/.test(x.name) && x.name.split(" ").length <= 5);
 }
 
 const ref = <T extends { id: string; roman: string; dev: string }>(x: T): PanjiRef => ({ id: x.id, roman: plainRoman(x.roman), dev: x.dev });
