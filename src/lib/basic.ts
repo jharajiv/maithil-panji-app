@@ -110,23 +110,6 @@ export function basicParse(f: DFamily, goal: Goal, text: string, pending?: Pendi
     }
     case "self_place":
       return isSkip(t) ? { ops: goal.skip, ack: "Okay." } : { ops: [{ op: "update_person", id: m!.id, set: { place: t } }], ack: "Noted." };
-    case "spouse": {
-      if (isNo(t) || isSkip(t)) return { ops: goal.skip, ack: "Noted." };
-      const [p] = parseNames(t.replace(/^(yes|haan|हाँ)[,.]?\s*/i, ""));
-      return p ? { ops: [personOp(p, { type: "spouse_of", to: sub! }), done(sub!, "spouse")], ack: `Noted — ${p.name}.` } : { ops: [], ack: "" };
-    }
-    case "children":
-    case "children_of": {
-      if (isNo(t) || isSkip(t)) return { ops: goal.skip, ack: "Noted." };
-      const people = parseNames(t);
-      if (!people.length) return { ops: [], ack: "" };
-      return { ops: [...people.map((p) => personOp(p, { type: "child_of", to: sub! })), done(sub!, "children")], ack: `Added ${people.map((p) => p.name).join(", ")}.` };
-    }
-    case "spouses_of": {
-      if (isNo(t) || isSkip(t)) return { ops: goal.skip, ack: "Noted." };
-      const [p] = parseNames(t.replace(/^(yes|haan|हाँ)[,.]?\s*/i, ""));
-      return p ? { ops: [personOp(p, { type: "spouse_of", to: sub! }), done(sub!, "spouse")], ack: `Noted — ${p.name}.` } : { ops: [], ack: "" };
-    }
     case "father":
     case "mother": {
       if (isSkip(t) || isNo(t)) return { ops: goal.skip, ack: "That’s fine." };
@@ -146,12 +129,8 @@ export function basicParse(f: DFamily, goal: Goal, text: string, pending?: Pendi
       if (village) set.place = village;
       return { ops: [...(Object.keys(set).length ? [{ op: "update_person", id: sub!, set } as Op] : []), done(sub!, "details")], ack: "Thank you." };
     }
-    case "siblings": {
-      if (isNo(t) || isSkip(t)) return { ops: goal.skip, ack: "Noted." };
-      const people = parseNames(t);
-      if (!people.length) return { ops: [], ack: "" };
-      return { ops: [...people.map((p) => personOp(p, { type: "sibling_of", to: sub! })), done(sub!, "siblings")], ack: `Added ${people.map((p) => p.name).join(", ")}.` };
-    }
+    case "brothers": case "sisters": case "wife": case "husband": case "sons": case "daughters":
+      return { ops: [], ack: "" }; // handled by list-turn.ts, which knows the exact role of everyone it adds
   }
 }
 

@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Camera, Crosshair, MessageCircle, Plus, Trash2 } from "lucide-react";
+import { Camera, Crosshair, MessageCircle, Plus, Shuffle, Trash2 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { fatherOf, labels, motherOf, spousesOf, type DFamily, type DPerson, type Gender, type PersonFields, type RelationSpec } from "@/lib/family";
+import { fatherOf, labels, motherOf, RELATION_WORDS, spousesOf, type DFamily, type DPerson, type Gender, type PersonFields, type RelationSpec, type RelationWord } from "@/lib/family";
 import { romanToDevanagari } from "@/lib/translit";
 import { DateField, Label, NameField, PlaceField, SearchSelect, inputCls } from "./widgets";
 
@@ -77,11 +77,14 @@ function relativeChoices(family: DFamily, p: DPerson): Rel[] {
   return out;
 }
 
-export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, onCentre, onAdd, canInvite, onInvite }: {
+export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, onCentre, onAdd, canInvite, onInvite, openRelation, onChangeRelation }: {
   family: DFamily; personId?: string; onClose: () => void;
   onSave: (id: string, set: PersonFields) => void; onDelete: (id: string) => void; onCentre: (id: string) => void;
   onAdd: (toId: string, type: RelationSpec["type"], name: string, gender?: Gender) => void;
   canInvite?: boolean; onInvite?: (id: string) => void;
+  /** open the "wrong relationship" panel straight away (from the tree menu) */
+  openRelation?: boolean;
+  onChangeRelation?: (id: string, toId: string, word: RelationWord) => { ok: boolean; message: string };
 }) {
   const person = family.persons.find((p) => p.id === personId);
   const [draft, setDraft] = useState<DPerson | undefined>(person);
@@ -90,8 +93,12 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
   const [newName, setNewName] = useState("");
   const [added, setAdded] = useState("");
   const [photoErr, setPhotoErr] = useState("");
+  const [relOpen, setRelOpen] = useState(!!openRelation);
+  const [relWord, setRelWord] = useState<RelationWord | "">("");
+  const [relTo, setRelTo] = useState("");
+  const [relMsg, setRelMsg] = useState<{ ok: boolean; message: string } | null>(null);
   const file = useRef<HTMLInputElement>(null);
-  useEffect(() => { setDraft(person ? structuredClone(person) : undefined); setConfirmDel(false); setAdding(null); setNewName(""); setAdded(""); }, [personId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setDraft(person ? structuredClone(person) : undefined); setConfirmDel(false); setAdding(null); setNewName(""); setAdded(""); setRelOpen(!!openRelation); setRelWord(""); setRelTo(""); setRelMsg(null); }, [personId, openRelation]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!person || !draft) return <Sheet open={false} onClose={onClose}>{null}</Sheet>;
 
   const lab = labels(family)[person.id];
@@ -103,6 +110,7 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
     onSave(person.id, {
       name_roman: draft.name_roman, name_dev: draft.name_dev ?? "", gender: draft.gender, birth: draft.birth ?? "", death: draft.death ?? "",
       status: person.is_me ? "living" : draft.status, place: draft.place ?? "", gotra: draft.gotra ?? null, mool: draft.mool ?? null, photo: draft.photo ?? null,
+      ...(draft.gender === "female" ? { married_to: draft.married_to ?? "" } : {}),
     });
     onClose();
   };
@@ -136,6 +144,13 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
         {draft.status === "deceased" && <DateField label="Passed away" helper="Year is enough." value={draft.death ?? ""} onChange={(v) => set({ death: v })} />}
         <PlaceField value={draft.place ?? ""} onChange={(v) => set({ place: v })} helper="Village, district and state where they live or lived — no street address needed." />
 
+        {draft.gender === "female" && spousesOf(family, person.id).length === 0 && !person.is_me && (
+          <div>
+            <Label>Husband (name and village)</Label>
+            <input className={inputCls} value={draft.married_to ?? ""} maxLength={120} autoComplete="off" placeholder="for example: Rajesh Jha, Darbhanga" onChange={(e) => set({ married_to: e.target.value })} />
+            <p className="mt-1 text-xs text-muted-foreground">Shown on her card as a short note. His own family is recorded on his chart.</p>
+          </div>
+        )}
         <details className="rounded-xl border p-3" open={!!(draft.gotra || draft.mool)}>
           <summary className="cursor-pointer text-sm font-medium">Panji details — gotra and mool</summary>
           <div className="mt-3 space-y-4">
@@ -168,6 +183,29 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
             )}
           </div>
         </details>
+
+        {onChangeRelation && !person.is_me && (
+          <details className="rounded-xl border p-3" open={relOpen} onToggle={(e) => setRelOpen((e.currentTarget as HTMLDetailsElement).open)}>
+            <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium"><Shuffle className="size-4" /> Wrong relationship? Change it</summary>
+            <div className="mt-3 space-y-3">
+              <p className="text-sm">{person.name_roman.split(" ")[0] || "This person"} is really the…</p>
+              <div className="grid grid-cols-4 gap-2" role="group" aria-label="New relationship">
+                {RELATION_WORDS.map((w) => (
+                  <button key={w} type="button" aria-pressed={relWord === w} onClick={() => { setRelWord(w); setRelMsg(null); }}
+                    className={cn("h-11 rounded-xl border text-sm font-medium capitalize", relWord === w ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card hover:bg-secondary")}>{w}</button>
+                ))}
+              </div>
+              <label className="block text-sm" htmlFor="rel-to">…of</label>
+              <select id="rel-to" className={inputCls} value={relTo} onChange={(e) => { setRelTo(e.target.value); setRelMsg(null); }}>
+                <option value="">Choose a person</option>
+                {family.persons.filter((x) => x.id !== person.id && !x.placeholder).map((x) => <option key={x.id} value={x.id}>{x.name_roman} — {labels(family)[x.id]}</option>)}
+              </select>
+              <Button type="button" className="h-11 w-full" disabled={!relWord || !relTo} onClick={() => { if (!relWord || !relTo) return; const r = onChangeRelation(person.id, relTo, relWord); setRelMsg(r); if (r.ok) set({ gender: ["brother", "husband", "son", "father"].includes(relWord) ? "male" : "female" }); }}>Change relationship</Button>
+              {relMsg && <p role="status" className={cn("rounded-lg px-3 py-2 text-sm", relMsg.ok ? "bg-green-50 text-green-900" : "bg-red-50 text-red-900")}>{relMsg.message}</p>}
+              <p className="text-xs text-muted-foreground">Their old connections to parents and spouse are replaced by the new one. Children who have another parent stay with that parent.</p>
+            </div>
+          </details>
+        )}
 
         {canInvite && !person.is_me && person.status !== "deceased" && (
           <button type="button" onClick={() => { onSave(person.id, { name_roman: draft.name_roman, name_dev: draft.name_dev ?? "", gender: draft.gender, birth: draft.birth ?? "", status: draft.status, place: draft.place ?? "", gotra: draft.gotra ?? null, mool: draft.mool ?? null, photo: draft.photo ?? null }); onClose(); onInvite?.(person.id); }}

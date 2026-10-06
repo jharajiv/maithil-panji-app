@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { ExportSheet } from "@/components/tree/ExportSheet";
 import { cn } from "@/lib/utils";
-import { applyOps, emptyFamily, toFamilyData, type DFamily, type Gender, type Pending, type PersonFields, type RelationSpec } from "@/lib/family";
+import { applyOps, changeRelation, emptyFamily, toFamilyData, type DFamily, type Gender, type Pending, type PersonFields, type RelationSpec, type RelationWord } from "@/lib/family";
 import { mergeFamilies } from "@/lib/merge";
 import { registerExtras, type ExtraRef } from "@/lib/lookup";
 import { romanToDevanagari } from "@/lib/translit";
-import { nextGoal } from "@/lib/interview";
+import { goalById, isListKind, nextGoal, type ListKind } from "@/lib/interview";
 import type { TemplateId } from "@/lib/types";
-import { ChatPane, type ChatMessage } from "./ChatPane";
+import { ChatPane, type ChatMessage, type ReplyCtx } from "./ChatPane";
+import { TreeMenu, type TreeMenuState } from "./TreeMenu";
 import { LiveTree, type LiveTreeHandle } from "./LiveTree";
 import { FreeformEditor } from "./FreeformEditor";
 import { HelperPane } from "./HelperPane";
@@ -27,6 +28,18 @@ import { useAccount } from "@/components/account/useAccount";
 const KEY = "maithil-panji.session.v1";
 type Tab = "chat" | "tree" | "matches";
 interface Session { family: DFamily; messages: ChatMessage[]; goalId?: string; section?: string; repeats: number; template: TemplateId; pending?: Pending }
+
+/** everything the chat needs to step back one answer */
+interface Snap { family: DFamily; messages: ChatMessage[]; goalId?: string; section?: string; repeats: number; pending?: Pending }
+
+const POSS: Record<ListKind, string> = { brothers: "brothers", sisters: "sisters", wife: "wife", husband: "husband", sons: "sons", daughters: "daughters" };
+/** "Your sisters" / "Ramesh’s sons" — what a reply is about */
+function replyTitle(f: DFamily, goalId: string): string {
+  const [kind, id] = goalId.split(":");
+  const p = f.persons.find((x) => x.id === id);
+  if (!kind || !isListKind(kind) || !p) return "an earlier question";
+  return `${p.is_me ? "Your" : `${p.name_roman.split(" ")[0]}’s`} ${POSS[kind]}`;
+}
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const GREETING = "Namaste! I will help you record your family’s lineage, one simple question at a time. You can answer in English, Hindi or Hinglish — and skip anything you don’t know.";
@@ -77,6 +90,11 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const [inviteFor, setInviteFor] = useState<string | undefined>();
   const [resetOpen, setResetOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [replyCtx, setReplyCtx] = useState<ReplyCtx | null>(null);
+  const [undo, setUndo] = useState<Snap[]>([]);
+  const [menu, setMenu] = useState<TreeMenuState | null>(null);
+  const [relFor, setRelFor] = useState<string | undefined>();
+  const afterTurn = useRef("");
   const tree = useRef<LiveTreeHandle>(null);
   const famRef = useRef(family); famRef.current = family;
   const sh = useShare(family, setFamily, ready, { treeId });
@@ -122,27 +140,34 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   useEffect(() => { fetch("/api/chat").then((r) => r.json()).then((j: { ai: boolean }) => setMode(j.ai ? "ai" : "basic")).catch(() => {}); }, []);
   useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(null), 4000); return () => clearTimeout(t); }, [notice]);
 
+  useEffect(() => { if (undo.length && JSON.stringify(family) !== afterTurn.current) setUndo([]); }, [family]); // eslint-disable-line react-hooks/exhaustive-deps
   const data = useMemo(() => toFamilyData(family), [family]);
   const people = family.persons.length;
 
   const send = useCallback(async (text: string) => {
     const history = messages.slice(-10).map((m) => ({ role: m.role, content: m.text }));
-    setMessages((m) => [...m, { id: uid(), role: "user", text }]);
+    const ctx = replyCtx;
+    const snap: Snap = { family: famRef.current, messages, goalId, section, repeats, pending };
+    setMessages((m) => [...m, { id: uid(), role: "user", text, replyTo: ctx ? { title: ctx.title, mode: ctx.mode } : undefined }]);
     setBusy(true);
     const sent = stripPrivate(famRef.current);
     try {
       const res = await fetch("/api/chat", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ family: sent, history, text, prevGoalId: goalId, repeats, pending }),
+        body: JSON.stringify({ family: sent, history, text, prevGoalId: goalId, repeats, pending, answerGoal: ctx?.goalId, mode: ctx?.mode }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j?.error ?? "Something went wrong.");
       // someone else may have edited the tree while the assistant was thinking: merge instead of overwriting
       const next = mergeFamilies(sent, j.family as DFamily, famRef.current);
       if (next.persons.length !== famRef.current.persons.length && !desktop && tab === "chat") setUnseen((n) => n + 1);
+      afterTurn.current = JSON.stringify(next);
       setFamily(next);
-      setMessages((m) => [...m, { id: uid(), role: "assistant", text: j.reply, quick: j.quick }]);
+      const listGoal = j.goal && isListKind(j.goal.kind) ? (j.goal.id as string) : undefined;
+      setMessages((m) => [...m, { id: uid(), role: "assistant", text: j.reply, quick: j.quick, goalId: listGoal }]);
       setGoalId(j.goal?.id); setSection(j.goal?.section); setRepeats(j.repeats ?? 0); setPending(j.pending);
+      if (j.ops > 0) setUndo((u) => [...u.slice(-14), snap]);
+      if (ctx && j.ops > 0) setReplyCtx(null); // an answer that was not understood keeps the reply open
       if (j.mode) setMode(j.mode);
       if (j.notice) setNotice(j.notice);
     } catch (e) {
@@ -150,7 +175,28 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
     } finally {
       setBusy(false);
     }
-  }, [messages, goalId, repeats, pending, desktop, tab]);
+  }, [messages, goalId, section, repeats, pending, desktop, tab, replyCtx]);
+
+  const undoLast = () => {
+    const snap = undo[undo.length - 1];
+    if (!snap) return;
+    afterTurn.current = JSON.stringify(snap.family);
+    setUndo((u) => u.slice(0, -1));
+    setFamily(snap.family); setMessages(snap.messages); setGoalId(snap.goalId); setSection(snap.section); setRepeats(snap.repeats); setPending(snap.pending); setReplyCtx(null);
+    setNotice("Your last answer was undone.");
+  };
+  /** reply to an earlier question (chat message or tree box): the next answer goes to THAT question */
+  const replyTo = (goal: string, quote?: string) => {
+    const g = goalById(famRef.current, goal);
+    if (!g) return;
+    setReplyCtx({ goalId: goal, title: replyTitle(famRef.current, goal), quote: (quote ?? g.question).slice(0, 220), mode: "add" });
+    setTab("chat");
+  };
+  const changeRel = (id: string, toId: string, word: RelationWord) => {
+    const r = changeRelation(famRef.current, id, toId, word);
+    if (r.ok) { afterTurn.current = ""; setFamily(r.family); }
+    return { ok: r.ok, message: r.message };
+  };
 
   const saveEdit = (id: string, set: PersonFields) => {
     const ops: Parameters<typeof applyOps>[1] = [{ op: "update_person", id, set: { ...set, name_roman: set.name_roman?.trim() || undefined } }];
@@ -163,7 +209,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const reset = () => {
     const f = firstMessage();
     sh.leave();
-    setFamily(emptyFamily()); setMessages(f.messages); setGoalId(f.goalId); setSection(f.section); setRepeats(0); setPending(undefined); setSelected(undefined); setResetOpen(false);
+    setFamily(emptyFamily()); setMessages(f.messages); setGoalId(f.goalId); setSection(f.section); setRepeats(0); setPending(undefined); setSelected(undefined); setResetOpen(false); setReplyCtx(null); setUndo([]);
   };
   const goTab = (t: Tab) => { setTab(t); if (t === "tree") setUnseen(0); };
 
@@ -178,8 +224,9 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
 
   const leftPane = (cls: string) => isHelper
     ? <HelperPane className={cls} name={sh.share?.memberName} onOpenShare={() => { setInviteFor(undefined); setShareOpen(true); }} ownTreeHref={inAccount ? "/app" : undefined} />
-    : <ChatPane className={cls} messages={messages} busy={busy} onSend={send} section={section} mode={mode} />;
-  const treePane = <LiveTree ref={tree} family={family} template={template} onTemplate={setTemplate} onSelect={setSelected} className="flex min-h-0 flex-1 flex-col"
+    : <ChatPane className={cls} messages={messages} busy={busy} onSend={send} section={section} mode={mode}
+      reply={replyCtx} onReply={(m) => m.goalId && replyTo(m.goalId, m.text)} onMode={(md) => setReplyCtx((c) => (c ? { ...c, mode: md } : c))} onClearReply={() => setReplyCtx(null)} canUndo={undo.length > 0} onUndo={undoLast} />;
+  const treePane = <LiveTree ref={tree} family={family} template={template} onTemplate={setTemplate} onSelect={setSelected} onContext={(id, x, y, touch) => setMenu({ id, x, y, touch })} className="flex min-h-0 flex-1 flex-col"
     extra={data ? <Button size="sm" variant="outline" onClick={() => setFreeOpen(true)} aria-label="Edit freely with boxes and connectors"><Pencil /> <span className="hidden min-[420px]:inline">Edit freely</span></Button> : undefined} />;
 
   return (
@@ -195,6 +242,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
         {!isHelper && !inAccount && <Button size="icon" variant="ghost" onClick={() => setResetOpen(true)} aria-label="Start over"><RotateCcw /></Button>}
       </header>
 
+      {!inAccount && ready && !auth.loading && auth.enabled && !sh.share && !exportOpen && !shareOpen && <SavePrompt people={family.persons.length} signedIn={!!auth.account} />}
       {notice && <div role="status" className="border-b bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">{notice}</div>}
 
       {desktop ? (
@@ -223,10 +271,10 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
       )}
 
       <FreeformEditor open={freeOpen} onClose={() => setFreeOpen(false)} family={family} onFamily={setFamily} onEdit={setSelected} />
-      <PersonEditSheet family={family} personId={selected} onClose={() => setSelected(undefined)} onSave={saveEdit} onDelete={deletePerson} onCentre={(id) => tree.current?.centreOn(id)}
+      <TreeMenu family={family} menu={menu} onClose={() => setMenu(null)} onChat={(kind, id) => replyTo(`${kind}:${id}`)} onEdit={(id) => { setRelFor(undefined); setSelected(id); }} onChange={(id) => { setRelFor(id); setSelected(id); }} />
+      <PersonEditSheet family={family} personId={selected} openRelation={!!selected && relFor === selected} onChangeRelation={changeRel} onClose={() => { setSelected(undefined); setRelFor(undefined); }} onSave={saveEdit} onDelete={deletePerson} onCentre={(id) => tree.current?.centreOn(id)}
         onAdd={addRelative} canInvite={(sh.enabled === true || auth.enabled) && sh.share?.role !== "editor"} onInvite={(id) => { setInviteFor(id); setShareOpen(true); }} />
       {data && <ExportSheet open={exportOpen} onClose={() => setExportOpen(false)} data={data} template={template} defaultScope="paternal" viewUrl={sh.viewUrl || undefined} saveHref={auth.enabled && !sh.share ? `/login?next=${encodeURIComponent("/app?import=1")}` : undefined} />}
-      {!inAccount && ready && !auth.loading && auth.enabled && !sh.share && !exportOpen && !shareOpen && <SavePrompt people={family.persons.length} signedIn={!!auth.account} />}
       <ShareSheet open={shareOpen} onClose={() => setShareOpen(false)} family={family} enabled={sh.enabled} share={sh.share} status={sh.status} members={sh.members} ownerLink={sh.ownerLink}
         invitePersonId={inviteFor} onCreate={sh.create} onInvite={sh.invite} onRevoke={sh.revoke} onRememberPhone={rememberPhone} onLeave={() => { sh.leave(); setShareOpen(false); }}
         onDeleteOnline={async () => { await sh.deleteOnline(); if (inAccount) router.replace("/app"); }}

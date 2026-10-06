@@ -31,7 +31,7 @@ export function sanitizeFamily(raw: unknown, opts: { stored?: boolean } = {}): D
       id, name_roman: s(o.name_roman, 80) ?? "", name_dev: s(o.name_dev, 80),
       gender: o.gender === "male" || o.gender === "female" || o.gender === "other" ? o.gender : undefined,
       birth: s(o.birth, 10), death: s(o.death, 10), status: o.status === "living" || o.status === "deceased" ? o.status : undefined,
-      place: s(o.place, 120), notes: s(o.notes, 200),
+      place: s(o.place, 120), notes: s(o.notes, 200), married_to: s(o.married_to, 120),
       gotra: ref(o.gotra), mool: ref(o.mool),
       photo: opts.stored ? photo(o.photo) : undefined,
       whatsapp: opts.stored && typeof o.whatsapp === "string" && /^\+\d{6,15}$/.test(o.whatsapp) ? o.whatsapp : undefined,

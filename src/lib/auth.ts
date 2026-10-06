@@ -6,7 +6,7 @@
  * A mobile number is collected at sign-up (needed for WhatsApp invitations) but is NOT verified — only the email is.
  * A signed-in browser holds an opaque random token in an httpOnly cookie; only its SHA-256 hash is stored.
  */
-import { createHash, randomBytes, randomInt } from "node:crypto";
+import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { parsePhoneNumberFromString } from "libphonenumber-js/min";
 import { getStore, hashToken, newAccountId, type AccountRow, type Member, type Store, type TreeRow } from "./store";
 
@@ -22,8 +22,16 @@ const resend = () => {
 };
 
 export const otpProvider = (): "resend" | "dev" | null => (resend() ? "resend" : process.env.NODE_ENV !== "production" ? "dev" : null);
+/**
+ * Tester list: friends you approve can sign in WITHOUT an email. Set TEST_LOGIN_EMAILS (comma separated) and TEST_LOGIN_CODE
+ * (6–10 digits; 8 or more is better) and hand the code to each person yourself. Everyone else still gets a normal email code.
+ */
+const testerCode = () => { const c = (process.env.TEST_LOGIN_CODE ?? "").trim(); return /^\d{6,10}$/.test(c) ? c : null; };
+const testerEmails = () => new Set((process.env.TEST_LOGIN_EMAILS ?? "").split(/[,;\s]+/).map((e) => normalizeEmail(e)).filter((e): e is string => !!e));
+export const isTester = (email: string) => !!testerCode() && testerEmails().has(email);
+
 /** AUTH_OFF=1 switches accounts off (used to test the guest/private-link flow) */
-export const authEnabled = () => !process.env.AUTH_OFF && !!getStore() && !!otpProvider();
+export const authEnabled = () => !process.env.AUTH_OFF && !!getStore() && (!!otpProvider() || !!testerCode());
 
 /** any way of typing an email → lower-case address, or null when it cannot be one */
 export function normalizeEmail(raw: unknown): string | null {
@@ -59,7 +67,8 @@ async function sendEmail(to: string, code: string): Promise<boolean> {
   return res.ok;
 }
 
-export async function sendLoginCode(store: Store, email: string): Promise<{ ok: boolean; error?: string }> {
+export async function sendLoginCode(store: Store, email: string): Promise<{ ok: boolean; error?: string; tester?: boolean }> {
+  if (isTester(email)) return { ok: true, tester: true }; // approved tester: no email, they use the access code they were given
   const prov = otpProvider();
   if (!prov) return { ok: false, error: "Sign-in is not switched on yet." };
   const code = prov === "dev" ? DEV_CODE : String(randomInt(0, 1_000_000)).padStart(6, "0");
@@ -70,6 +79,10 @@ export async function sendLoginCode(store: Store, email: string): Promise<{ ok: 
 
 /** true once, for the right unexpired code; the code is used up on success and after too many wrong guesses */
 export async function checkLoginCode(store: Store, email: string, code: string): Promise<boolean> {
+  if (isTester(email)) {
+    const want = Buffer.from(testerCode()!), got = Buffer.from(code);
+    return want.length === got.length && timingSafeEqual(want, got);
+  }
   const row = await store.getLoginCode(email);
   if (!row || new Date(row.expires_at).getTime() < Date.now() || row.attempts >= MAX_ATTEMPTS) return false;
   if (row.code_hash !== codeHash(email, code)) { await store.setLoginAttempts(email, row.attempts + 1); return false; }

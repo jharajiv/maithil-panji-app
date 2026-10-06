@@ -1,8 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
-import { runTurn, type ChatMsg } from "@/lib/agent";
+import type { ChatMsg } from "@/lib/agent";
+import { takeTurn } from "@/lib/turn";
 import type { Pending } from "@/lib/family";
-import { basicTurn } from "@/lib/basic-turn";
 import { sanitizeFamily } from "@/lib/sanitize";
 import { clientIp, limited } from "@/lib/ratelimit";
 import { registerExtras } from "@/lib/lookup";
@@ -61,18 +61,20 @@ export async function POST(req: Request) {
     prevGoalId: typeof body.prevGoalId === "string" ? body.prevGoalId : undefined,
     repeats: typeof body.repeats === "number" ? Math.min(5, Math.max(0, body.repeats)) : 0,
     pending: cleanPending(body.pending),
+    // set when the user replied to an earlier chat message or to a person's box in the tree
+    answerGoal: typeof body.answerGoal === "string" && /^[a-z]+:p\d+$/.test(body.answerGoal) ? body.answerGoal : undefined,
+    mode: body.mode === "replace" ? ("replace" as const) : ("add" as const),
   };
   await loadExtras();
 
   if (hasKey()) {
     try {
       const client = new Anthropic({ timeout: 40_000, maxRetries: 1 });
-      const out = await runTurn({ client, model: MODEL }, input);
-      return NextResponse.json({ ...out, mode: "ai" });
+      return NextResponse.json(await takeTurn({ client, model: MODEL }, input));
     } catch (e) {
       console.error("AI turn failed, falling back to basic mode:", e instanceof Error ? e.message : e);
-      return NextResponse.json({ ...basicTurn(input), mode: "basic", notice: "The AI assistant is unavailable right now, so I switched to simple questions." });
+      return NextResponse.json({ ...(await takeTurn(null, input)), notice: "The AI assistant is unavailable right now, so I switched to simple questions." });
     }
   }
-  return NextResponse.json({ ...basicTurn(input), mode: "basic" });
+  return NextResponse.json(await takeTurn(null, input));
 }

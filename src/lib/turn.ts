@@ -1,0 +1,19 @@
+import type { AgentDeps, TurnOutput } from "./agent";
+import { runTurn } from "./agent";
+import { basicTurn } from "./basic-turn";
+import { goalById, isListGoal, nextGoal } from "./interview";
+import { listTurn, type ListInput } from "./list-turn";
+
+export type TurnResult = TurnOutput & { mode: "ai" | "basic" };
+
+/**
+ * One chat turn. The fixed step-by-step questions go through list-turn (the AI only reads names); everything else
+ * (name, gender, gotra, mool, the father chain) is the AI interview, or the plain interviewer when there is no `deps`.
+ */
+export async function takeTurn(deps: AgentDeps | null, input: ListInput): Promise<TurnResult> {
+  const asked = input.answerGoal ? goalById(input.family, input.answerGoal) : null;
+  const goal = asked ?? nextGoal(input.family, { batch: false });
+  if (isListGoal(goal)) return { ...(await listTurn(deps, input, goal)), mode: deps ? "ai" : "basic" };
+  if (deps) return { ...(await runTurn(deps, input)), mode: "ai" };
+  return { ...(await basicTurn(input)), mode: "basic" };
+}

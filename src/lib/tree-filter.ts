@@ -110,6 +110,7 @@ export function toChartData(scoped: ScopedData): Datum[] {
       gotra: p.gotra ?? "",
       mool: p.mool ?? "",
       village: p.current_village ?? "",
+      married: p.married_to ?? "",
       photo: p.photo ?? "",
       living: p.is_living,
       role: scoped.roles?.[p.person_id] ?? "",

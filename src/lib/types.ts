@@ -17,6 +17,8 @@ export interface Person {
   pravara?: string;
   current_village?: string;
   notes?: string;
+  /** a sister's / daughter's husband, as one short note */
+  married_to?: string;
   photo?: string; // data URL or storage URL
   source: "user_input" | "corpus" | "merged";
 }

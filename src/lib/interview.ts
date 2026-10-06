@@ -10,8 +10,9 @@ import {
 
 export type GoalKind =
   | "self_name" | "self_gender" | "self_gotra" | "self_mool" | "self_birth" | "self_place"
-  | "spouse" | "children" | "spouses_of" | "children_of"
-  | "father" | "mother" | "details" | "siblings" | "gender";
+  | "father" | "mother" | "details" | "gender"
+  /** the fixed step-by-step questions (see LIST_SPEC) */
+  | "brothers" | "sisters" | "wife" | "husband" | "sons" | "daughters";
 
 export interface Goal {
   /** stable id; used to detect a question that keeps repeating */
@@ -48,12 +49,12 @@ function generation(f: DFamily, id: string): number {
 }
 
 export interface PlanOptions {
-  /** group "which of them are married?" into one question (AI mode). Basic mode asks one person at a time. */
+  /** kept for older callers; every step now asks about one person at a time */
   batch?: boolean;
 }
 
 export function nextGoal(f: DFamily, opts: PlanOptions = {}): Goal | null {
-  const batch = opts.batch ?? true;
+  void opts;
   const m = me(f);
   const lab = labels(f);
 
@@ -145,83 +146,177 @@ export function nextGoal(f: DFamily, opts: PlanOptions = {}): Goal | null {
     instruction: `Ask whether ${who(needGender, lab)} is male or female, and save it with update_person {gender}.`,
   };
 
-  // ── 2. brothers and sisters of the user ──
-  if (!m.flags.siblings) return {
-    id: `siblings:${m.id}`, kind: "siblings", section: "Your brothers and sisters", subjects: [m.id], optional: true,
-    quick: ["I have no brothers or sisters"], skip: flagOps([m.id], "siblings", "done"),
-    question: "Do you have brothers or sisters? Please tell me each name, and whether brother or sister.",
-    instruction: `Ask for ALL of the user's brothers and sisters (${m.id}) — each name and whether brother or sister (older/younger is nice but optional). Add each with add_person relation sibling_of ${m.id}. Sisters are recorded by NAME ONLY: never ask about a sister's husband or children — the Panji keeps those in her husband's family chart. Then set_flag siblings=done on ${m.id}. If none, set_flag siblings=done.`,
-  };
+  // ── 2. the user's own brothers and sisters: a fixed order of steps, one group at a time ──
+  const g1 = siblingBlock(f, m, { lab, withChildren: true });
+  if (g1) return g1;
 
-  // ── 3. the user's own household and the sons' lines (daughters stop at their own name) ──
+  // ── 3. the user's own household (wife, sons, daughters, then the sons' households) ──
   if (m.gender !== "female") {
-    const g0 = lineGoal(f, [m], { batch, lab, section: "Your family", personal: true, withChildren: true });
+    const g0 = household(f, m, { lab, section: "Your family" }, 0);
     if (g0) return g0;
   }
-  // brothers' households
-  const brothers = siblingsOf(f, m.id).filter((s) => s.gender !== "female" && !s.placeholder);
-  const gb = lineGoal(f, brothers, { batch, lab, section: "Your brothers’ families", withChildren: true });
-  if (gb) return gb;
+  // ── 4. the households of the brothers' sons ──
+  for (const b of bros(f, m.id)) {
+    for (const son of sonsOf(f, b.id)) {
+      const gs = household(f, son, { lab, section: "Your brothers’ families" }, 0);
+      if (gs) return gs;
+    }
+  }
 
-  // ── 4. the ancestors' brothers and sisters, one generation at a time ──
+  // ── 5. the ancestors' brothers and sisters, one generation at a time, the same fixed steps ──
   for (let i = 1; i < chain.length; i++) {
     const c = chain[i]!;
-    const g = generation(f, c.id);
-    const cLabel = lab[c.id] ?? "relative";
-    const sect = "Your ancestors’ families";
-    if (!c.flags.siblings) return {
-      id: `siblings:${c.id}`, kind: "siblings", section: sect, subjects: [c.id], optional: true,
-      quick: ["He had no brothers or sisters", "I don’t know"], skip: flagOps([c.id], "siblings", "done"),
-      question: `Did ${firstName(c)} (your ${cLabel}) have brothers or sisters? Please list their names.`,
-      instruction: `Ask for ALL brothers and sisters of ${who(c, lab)} (the user's ${cLabel}'s siblings — i.e. ${g === 1 ? "the user's uncles and aunts on the father's side" : "great-uncles and great-aunts"}). Names and brother/sister. Add each with add_person relation sibling_of ${c.id}. Sisters by NAME ONLY — never ask about a sister's husband or children. Then set_flag siblings=done on ${c.id}. If none/unknown, set_flag siblings=done.`,
-    };
-    const bro = siblingsOf(f, c.id).filter((s) => s.gender !== "female" && !s.placeholder);
-    const gl = lineGoal(f, bro, { batch, lab, section: sect, withChildren: g <= 1, oneLevel: true });
-    if (gl) return gl;
+    const gc = siblingBlock(f, c, { lab, withChildren: generation(f, c.id) <= 1 });
+    if (gc) return gc;
   }
   return null;
 }
 
-interface LineOpts { batch: boolean; lab: Record<string, string>; section: string; personal?: boolean; withChildren: boolean; oneLevel?: boolean }
+/* ───────────────────────── the fixed steps ───────────────────────── */
 
 /**
- * The sons' lines. For these men (and then their sons, and so on) we ask: wife's name, then children. Daughters are recorded by
- * name and stop there; a wife is recorded by name only, with no questions about her family.
+ * Every question about a group of relatives is its own step, and the app — not the AI — decides who that group is.
+ * A reply to the "brothers" question can only ever add brothers; the "sisters" question only sisters; and so on.
+ * That is what stops an aunt being filed as an uncle's wife.
  */
-function lineGoal(f: DFamily, roots: DPerson[], o: LineOpts): Goal | null {
-  const { batch, lab } = o;
-  let level = roots.filter((p) => !p.placeholder && p.gender !== "female");
-  for (let depth = 0; level.length && depth < 10; depth++) {
-    const needSp = level.filter((p) => !p.flags.spouse && spousesOf(f, p.id).length === 0);
-    if (needSp.length) {
-      const subs = o.personal && depth === 0 ? [needSp[0]!] : batch ? needSp : [needSp[0]!];
-      const isMe = o.personal && depth === 0 && subs[0]!.id === me(f)?.id;
-      return {
-        id: isMe ? `spouse:${subs[0]!.id}` : `spouses_of:${subs.map((s) => s.id).join(",")}`, kind: isMe ? "spouse" : "spouses_of", section: o.section, subjects: subs.map((s) => s.id),
-        optional: true, quick: isMe ? ["Not married"] : ["None are married", "I don’t know"], skip: flagOps(subs.map((s) => s.id), "spouse", "done"),
-        question: isMe ? "Are you married? If yes, what is your wife’s (or husband’s) name?"
-          : subs.length === 1 ? `Is ${nm(subs[0]!)} married? What is his wife’s name?` : "Who among them is married? Tell me each wife’s name.",
-        instruction: `Ask ${isMe ? "if the user is married and the spouse's name" : "which of these men are married and their wives' names"}: ${subs.map((s) => who(s, lab)).join("; ")}. Add each with add_person relation spouse_of <person id>. Record the NAME only — NEVER ask about the wife's parents or family. set_flag spouse=done on every man you asked about (including unmarried ones).`,
-      };
+export type ListKind = "brothers" | "sisters" | "wife" | "husband" | "sons" | "daughters";
+export const LIST_SPEC: Record<ListKind, { flag: Flag; gender?: "male" | "female"; relation?: "sibling_of" | "spouse_of" | "child_of"; note?: boolean }> = {
+  brothers: { flag: "brothers", gender: "male", relation: "sibling_of" },
+  sisters: { flag: "sisters", gender: "female", relation: "sibling_of" },
+  wife: { flag: "spouse", gender: "female", relation: "spouse_of" },
+  husband: { flag: "husband", note: true },
+  sons: { flag: "sons", gender: "male", relation: "child_of" },
+  daughters: { flag: "daughters", gender: "female", relation: "child_of" },
+};
+export const isListKind = (k: string): k is ListKind => k in LIST_SPEC;
+export const isListGoal = (g: Goal | null | undefined): g is Goal & { kind: ListKind } => !!g && isListKind(g.kind);
+export const SKIP_REST = "Skip the rest of this step";
+
+/** a flag is "answered" — older saved trees used one flag for brothers+sisters and one for sons+daughters */
+const answered = (p: DPerson, flag: Flag) =>
+  !!p.flags[flag] || ((flag === "brothers" || flag === "sisters") && !!p.flags.siblings) || ((flag === "sons" || flag === "daughters") && !!p.flags.children);
+
+export const bros = (f: DFamily, id: string) => siblingsOf(f, id).filter((s) => s.gender === "male" && !s.placeholder);
+export const sis = (f: DFamily, id: string) => siblingsOf(f, id).filter((s) => s.gender === "female" && !s.placeholder);
+export const sonsOf = (f: DFamily, id: string) => childrenOf(f, id).filter((c) => c.gender === "male" && !c.placeholder);
+export const daughtersOf = (f: DFamily, id: string) => childrenOf(f, id).filter((c) => c.gender === "female" && !c.placeholder);
+
+/** the people who already belong to this group (what "Replace this" clears) */
+export function groupMembers(f: DFamily, kind: ListKind, id: string): DPerson[] {
+  switch (kind) {
+    case "brothers": return bros(f, id);
+    case "sisters": return sis(f, id);
+    case "wife": return spousesOf(f, id);
+    case "sons": return sonsOf(f, id);
+    case "daughters": return daughtersOf(f, id);
+    default: return [];
+  }
+}
+
+const rel = (lab: string | undefined) => (!lab || lab === "relative" ? "relative" : /^your\b/.test(lab) ? lab : `your ${lab}`);
+
+interface Ctx { lab: Record<string, string>; withChildren?: boolean; section?: string }
+
+/** Build one list question. `section` is the label shown above the chat (e.g. "Step 2 of 5 · Your sisters"). */
+export function listGoal(f: DFamily, kind: ListKind, subject: DPerson, section: string, lab: Record<string, string>, more = 0): Goal {
+  const spec = LIST_SPEC[kind];
+  const isMe = !!subject.is_me;
+  const you = isMe ? "you" : `${firstName(subject)} (${rel(lab[subject.id])})`;
+  const your = isMe ? "your" : `${firstName(subject)}’s`;
+  const qs: Record<ListKind, [string, string[]]> = {
+    brothers: [isMe ? "Do you have brothers? Please type the names of all your brothers (sons of your father), separated by commas — or tap “No brothers”. Sisters come in the next step."
+      : `Did ${you} have brothers? Please type the names of all his brothers, separated by commas — or tap “No brothers”. Sisters come in the next step.`, ["No brothers"]],
+    sisters: [isMe ? "Do you have sisters? Please type the names of all your sisters, separated by commas — or tap “No sisters”."
+      : `Did ${you} have sisters? Please type the names of all his sisters, separated by commas — or tap “No sisters”.`, ["No sisters"]],
+    wife: [isMe ? "Are you married? Please type your wife’s name — or tap “Not married”."
+      : `Is ${you} married? Please type his wife’s name — or tap “Not married”.`, ["Not married"]],
+    husband: [`Do you know whom ${firstName(subject)} (${rel(lab[subject.id])}) is married to? Write his name and village in one line, for example “Rajesh Jha, Darbhanga” — it is kept as a short note on her card, and his own family is recorded on his chart. Or tap “Skip”.`, ["Skip"]],
+    sons: [isMe ? "Do you have sons? Please type their names, separated by commas — or tap “No sons”. Daughters come next."
+      : `Does ${you} have sons? Please type their names, separated by commas — or tap “No sons”. Daughters come next.`, ["No sons"]],
+    daughters: [isMe ? "Do you have daughters? Please type their names, separated by commas — or tap “No daughters”."
+      : `Does ${you} have daughters? Please type their names, separated by commas — or tap “No daughters”.`, ["No daughters"]],
+  };
+  const [question, quick0] = qs[kind];
+  const quick = [...quick0];
+  if (!isMe && (kind === "brothers" || kind === "sisters")) quick.push("I don’t know");
+  if (more > 1) quick.push(SKIP_REST);
+  return {
+    id: `${kind}:${subject.id}`, kind, section, subjects: [subject.id], optional: true, quick,
+    skip: flagOps([subject.id], spec.flag, kind === "brothers" || kind === "sisters" ? "unknown" : "skipped"),
+    question,
+    instruction: `Ask exactly this question, word for word, and nothing else: "${question}" (${your} ${kind}).`,
+  };
+}
+
+/**
+ * The fixed order for one man's brothers and sisters:
+ *   1 brothers → 2 sisters → 3 the brothers' wives → 4 the sisters' husbands (a one-line note) → 5 the brothers' sons and daughters.
+ * Ancestors' blocks have four steps (their brothers' children are not asked beyond the user's uncles).
+ */
+function siblingBlock(f: DFamily, owner: DPerson, o: Ctx): Goal | null {
+  const { lab } = o;
+  const total = o.withChildren ? 5 : 4;
+  const poss = owner.is_me ? "Your" : `Your ${lab[owner.id] ?? "relative"}’s`;
+  const sec = (n: number, title: string) => `Step ${n} of ${total} · ${poss} ${title}`;
+
+  if (!answered(owner, "brothers") && bros(f, owner.id).length === 0) return listGoal(f, "brothers", owner, sec(1, "brothers"), lab);
+  if (!answered(owner, "sisters") && sis(f, owner.id).length === 0) return listGoal(f, "sisters", owner, sec(2, "sisters"), lab);
+
+  const brothers = bros(f, owner.id);
+  const needW = brothers.filter((b) => !b.flags.spouse && spousesOf(f, b.id).length === 0);
+  if (needW.length) return listGoal(f, "wife", needW[0]!, sec(3, "brothers’ wives"), lab, needW.length);
+
+  const needH = sis(f, owner.id).filter((x) => !x.flags.husband && !x.married_to);
+  if (needH.length) return listGoal(f, "husband", needH[0]!, sec(4, "sisters’ husbands"), lab, needH.length);
+
+  if (o.withChildren) {
+    for (const b of brothers) {
+      const left = brothers.filter((x) => !answered(x, "sons") || !answered(x, "daughters")).length;
+      if (!answered(b, "sons") && sonsOf(f, b.id).length === 0) return listGoal(f, "sons", b, sec(5, "brothers’ children"), lab, left);
+      if (!answered(b, "daughters") && daughtersOf(f, b.id).length === 0) return listGoal(f, "daughters", b, sec(5, "brothers’ children"), lab, left);
     }
-    if (o.withChildren) {
-      const needCh = level.filter((p) => !p.flags.children && childrenOf(f, p.id).length === 0);
-      if (needCh.length) {
-        const subs = o.personal && depth === 0 ? [needCh[0]!] : batch ? needCh : [needCh[0]!];
-        const isMe = o.personal && depth === 0 && subs[0]!.id === me(f)?.id;
-        return {
-          id: isMe ? `children:${subs[0]!.id}` : `children_of:${subs.map((s) => s.id).join(",")}`, kind: isMe ? "children" : "children_of", section: o.section, subjects: subs.map((s) => s.id),
-          optional: true, quick: isMe ? ["No children"] : ["None / don’t know"], skip: flagOps(subs.map((s) => s.id), "children", "done"),
-          question: isMe ? "Do you have children? Please tell me their names, and whether each is a son or a daughter."
-            : subs.length === 1 ? `Does ${nm(subs[0]!)} have children? Please tell me their names, and son or daughter.` : "Which of them have children? Please tell me the children’s names, son or daughter, and whose they are.",
-          instruction: `Ask for the children of: ${subs.map((s) => who(s, lab)).join("; ")} — names, and son or daughter. Add each child with add_person relation child_of <father's id> (the app links the mother automatically when the father has one wife; pass to2 if he has several). Daughters are recorded by NAME ONLY: never ask about a daughter's husband or children. set_flag children=done on everyone asked${isMe ? "" : "; the user may not know — that is fine"}.`,
-        };
-      }
-    }
-    if (o.oneLevel) return null;
-    level = [...new Map(level.flatMap((p) => childrenOf(f, p.id)).filter((k) => !k.placeholder && k.gender !== "female").map((k) => [k.id, k])).values()];
   }
   return null;
+}
+
+/** One man's household: wife, sons, daughters — then each son's household, and so on. */
+function household(f: DFamily, man: DPerson, o: { lab: Record<string, string>; section: string }, depth: number): Goal | null {
+  if (man.placeholder || man.gender === "female" || depth > 8) return null;
+  const { lab, section } = o;
+  if (!man.flags.spouse && spousesOf(f, man.id).length === 0) return listGoal(f, "wife", man, section, lab);
+  if (!answered(man, "sons") && sonsOf(f, man.id).length === 0) return listGoal(f, "sons", man, section, lab);
+  if (!answered(man, "daughters") && daughtersOf(f, man.id).length === 0) return listGoal(f, "daughters", man, section, lab);
+  for (const son of sonsOf(f, man.id)) {
+    const g = household(f, son, o, depth + 1);
+    if (g) return g;
+  }
+  return null;
+}
+
+/** Rebuild the question behind an earlier chat message ("brothers:p3"), whether or not it is still open. */
+export function goalById(f: DFamily, id: string): Goal | null {
+  const [kind, subject] = id.split(":");
+  if (!kind || !subject || !isListKind(kind)) return null;
+  const p = f.persons.find((x) => x.id === subject);
+  if (!p) return null;
+  return listGoal(f, kind, p, "Earlier answer", labels(f));
+}
+
+/** The operations for a list answer: add exactly these people, in exactly this role, and mark the question answered. */
+export function listOps(goal: Goal, names: { name: string; dev?: string }[], note?: string): Op[] {
+  if (!isListKind(goal.kind)) return [];
+  const spec = LIST_SPEC[goal.kind];
+  const sub = goal.subjects[0]!;
+  const ops: Op[] = [];
+  if (spec.note) {
+    if (note) ops.push({ op: "update_person", id: sub, set: { married_to: note } });
+  } else {
+    for (const n of names) {
+      ops.push({ op: "add_person", name_roman: n.name, ...(n.dev ? { name_dev: n.dev } : {}), gender: spec.gender, relation: { type: spec.relation!, to: sub } });
+    }
+  }
+  ops.push({ op: "set_flag", id: sub, flag: spec.flag, value: "done" });
+  return ops;
 }
 
 /** Short human summary of progress for the UI. */

@@ -9,7 +9,7 @@
  */
 import type Anthropic from "@anthropic-ai/sdk";
 import { applyOps, type DFamily, type Op, type PanjiRef, type Pending } from "./family";
-import { describeFamily, nextGoal, type Goal } from "./interview";
+import { describeFamily, isListGoal, nextGoal, type Goal } from "./interview";
 import {
   classify, gotraById, moolById, plainRoman, searchGotras, searchMools,
 } from "./lookup";
@@ -59,10 +59,9 @@ SCOPE (strict, no exceptions)
 
 PANJI CONVENTIONS
 - The lineage is patrilineal: gotra and mool pass from father to children (the app copies them automatically). Record daughters too.
-- The Panji follows the FATHER'S LINE. The interview goes BACKWARDS first: the user's father, his father, his father's father… one generation at a time, until the user says they do not know any further. Then it asks about brothers/sisters and the sons' households.
+- The Panji follows the FATHER'S LINE. The interview goes BACKWARDS first: the user's father, his father, his father's father… one generation at a time, until the user says they do not know any further. Then the app itself runs a fixed series of steps — brothers, sisters, brothers' wives, sisters' husbands, brothers' children — as separate questions; you are not involved in those, you only ever see the questions before them.
 - Women are recorded BY NAME ONLY. NEVER ask about a woman's parents or family — not for the user's wife, mother, grandmothers, aunts or daughters-in-law. A sister, daughter or aunt is a "connect" to her husband's family chart: record her name and STOP. Do NOT ask for, or save, a sister's/daughter's husband, in-laws or children, even if the user volunteers them — politely say the Panji keeps those in her husband's family chart, and move on. (The server refuses such entries anyway.)
-- Record each married man's wife (an uncle AND his wife), name only. Record sons' wives and the sons' children; daughters stop at their own name.
-- Collect ALL brothers and sisters at each generation the plan asks about.
+- NEVER decide a relationship yourself. Never record a brother's or uncle's sibling as a wife, or a sister as anything but a sister. If the user's words are unclear about how someone is related, ask once — do not guess.
 - A mool is a lineage named after an ancestral village (e.g. Sarisaba, Sodarapura, Khandabala).
 
 HOW TO INTERVIEW
@@ -146,7 +145,7 @@ export const TOOLS = [
                 required: ["type", "to"],
               },
               set: { type: "object", properties: personFields },
-              flag: { type: "string", enum: ["spouse", "children", "siblings", "father", "mother", "details", "gotra", "mool", "place", "birth"] },
+              flag: { type: "string", enum: ["father", "mother", "details", "gotra", "mool", "place", "birth"] },
               value: { type: "string", enum: ["done", "unknown", "skipped"] },
               placeholder: { type: "boolean", description: "person whose name is unknown" },
               ...personFields,
@@ -177,7 +176,7 @@ export const TOOLS = [
 
 const str = (v: unknown, max = 80) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : undefined);
 const GENDERS = new Set(["male", "female", "other"]);
-const FLAGS = new Set(["spouse", "children", "siblings", "father", "mother", "details", "gotra", "mool", "place", "birth"]);
+const FLAGS = new Set(["father", "mother", "details", "gotra", "mool", "place", "birth"]);
 const VALUES = new Set(["done", "unknown", "skipped"]);
 const REL = new Set(["father_of", "mother_of", "child_of", "spouse_of", "sibling_of"]);
 const yearish = (v: unknown) => { const s = str(v, 10); return s && /^\d{4}(-\d{2}(-\d{2})?)?$/.test(s) ? s : undefined; };
@@ -252,7 +251,8 @@ function runLookup(name: string, input: Record<string, unknown>): unknown {
 }
 
 const nextBlock = (g: Goal | null) =>
-  g ? `NEXT QUESTION (ask this next, in your own words):\n${g.instruction}\nOptional quick replies to offer: ${JSON.stringify(g.quick)}`
+  g && isListGoal(g) ? `NEXT QUESTION — the app asks this one itself in fixed wording; just call say with a one-sentence acknowledgement.`
+    : g ? `NEXT QUESTION (ask this next, in your own words):\n${g.instruction}\nOptional quick replies to offer: ${JSON.stringify(g.quick)}`
     : "INTERVIEW COMPLETE — every question in the plan has been asked or skipped.";
 
 export async function runTurn(deps: AgentDeps, input: TurnInput): Promise<TurnOutput> {
@@ -308,7 +308,9 @@ export async function runTurn(deps: AgentDeps, input: TurnInput): Promise<TurnOu
       if (!msg) { messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: use.id, is_error: true, content: "message was empty" }] }); continue; }
       offTopic = inp.off_topic === true;
       const quick = Array.isArray(inp.quick_replies) ? inp.quick_replies.map((q) => str(q, 40)).filter((q): q is string => !!q).slice(0, 4) : [];
-      say = { message: msg, quick: quick.length ? quick : (g?.quick ?? []) };
+      // the fixed steps are asked in the app's own words, never rephrased: the relationship in each question must not drift
+      if (g && isListGoal(g)) say = { message: `${totalOps ? "Noted. " : ""}${g.question}`, quick: g.quick };
+      else say = { message: msg, quick: quick.length ? quick : (g?.quick ?? []) };
       break;
     }
 

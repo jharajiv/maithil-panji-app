@@ -19,5 +19,5 @@ export async function POST(req: Request) {
   const sent = await sendLoginCode(store, email);
   if (!sent.ok) return NextResponse.json({ error: sent.error }, { status: 502 });
   const isNew = !(await store.getAccountByEmail(email));
-  return NextResponse.json({ ok: true, isNew, email, ...(otpProvider() === "dev" ? { devCode: DEV_CODE } : {}) });
+  return NextResponse.json({ ok: true, isNew, email, ...(sent.tester ? { tester: true } : {}), ...(otpProvider() === "dev" && !sent.tester ? { devCode: DEV_CODE } : {}) });
 }

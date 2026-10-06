@@ -8,6 +8,8 @@ export type Gender = "male" | "female" | "other";
 export type Flag =
   | "spouse" | "children" | "siblings" | "father" | "mother" | "details"
   | "gotra" | "mool" | "place" | "birth"
+  /** the step-by-step interview asks these one group at a time (older saved trees used siblings/children for two of them) */
+  | "brothers" | "sisters" | "sons" | "daughters" | "husband"
   /** set when someone deliberately removed a parent connection: stops the app re-adding the other parent's spouse */
   | "parents";
 export type FlagVal = "done" | "unknown" | "skipped";
@@ -35,6 +37,8 @@ export interface DPerson {
   mool?: PanjiRef;
   photo?: string; // data URL (Day 2, local) → storage URL (Day 3)
   notes?: string;
+  /** a sister's or daughter's husband, kept as one short note ("Rajesh Jha, Darbhanga") — his own family is recorded on his chart */
+  married_to?: string;
   /** E.164 number, only if the owner chose to invite this person on WhatsApp */
   whatsapp?: string;
   is_me?: boolean;
@@ -64,7 +68,7 @@ export type RelationSpec = {
 };
 
 export type PersonFields = Partial<
-  Pick<DPerson, "name_roman" | "name_dev" | "gender" | "birth" | "status" | "death" | "place" | "notes">
+  Pick<DPerson, "name_roman" | "name_dev" | "gender" | "birth" | "status" | "death" | "place" | "notes" | "married_to">
 > & { gotra?: PanjiRef | null; mool?: PanjiRef | null; /** client-only (never from the AI) */ photo?: string | null; whatsapp?: string | null };
 
 export type Op =
@@ -110,6 +114,23 @@ const inherit = (from: DPerson | undefined, to: DPerson) => {
   to.mool ??= from.mool;
 };
 
+
+/**
+ * Brothers and sisters must share a father. If this person's father is not recorded yet (the user does not know his name),
+ * create an unnamed one — and marry him to the mother when only she is known — so the siblings hang from the same couple.
+ */
+function ensureFather(f: DFamily, anchor: DPerson): DPerson[] {
+  const parents = parentsOf(f, anchor.id);
+  if (parents.some((x) => x.gender === "male")) return parents;
+  const ph: DPerson = { id: `p${f.next++}`, name_roman: "(name not known)", gender: "male", placeholder: true, flags: { father: "unknown" } };
+  inherit(anchor, ph); f.persons.push(ph);
+  link(f, "parent_of", ph.id, anchor.id);
+  const mother = parents.find((x) => x.gender !== "male");
+  if (mother) link(f, "spouse_of", ph.id, mother.id);
+  anchor.flags.father = "unknown";
+  return [ph, ...parents];
+}
+
 function setFields(p: DPerson, s: PersonFields) {
   if (s.name_roman !== undefined) p.name_roman = clean(s.name_roman);
   if (s.name_dev !== undefined) p.name_dev = clean(s.name_dev) || undefined;
@@ -120,6 +141,7 @@ function setFields(p: DPerson, s: PersonFields) {
   if (s.death) p.status = "deceased";
   if (s.place !== undefined) p.place = clean(s.place) || undefined;
   if (s.notes !== undefined) p.notes = clean(s.notes) || undefined;
+  if (s.married_to !== undefined) p.married_to = clean(s.married_to).slice(0, 120) || undefined;
   if (s.gotra !== undefined) p.gotra = s.gotra ?? undefined;
   if (s.mool !== undefined) p.mool = s.mool ?? undefined;
   if (s.photo !== undefined) p.photo = s.photo ?? undefined;
@@ -221,13 +243,7 @@ export function applyOps(prev: DFamily, ops: Op[], opts: ApplyOptions = {}): { f
               break;
             case "sibling_of": {
               f.persons.push(p);
-              let parents = parentsOf(f, anchor.id);
-              if (!parents.length) {
-                // anchor has no recorded parents yet: create an unnamed father so the siblings share a parent
-                const ph: DPerson = { id: `p${f.next++}`, name_roman: "(name not known)", gender: "male", placeholder: true, flags: { father: "unknown" } };
-                inherit(anchor, ph); f.persons.push(ph); link(f, "parent_of", ph.id, anchor.id); parents = [ph];
-                anchor.flags.father = "unknown";
-              }
+              const parents = ensureFather(f, anchor);
               for (const par of parents) link(f, "parent_of", par.id, p.id);
               inherit(anchor, p);
               break;
@@ -284,6 +300,102 @@ export function applyOps(prev: DFamily, ops: Op[], opts: ApplyOptions = {}): { f
     }
   }
   return { family: normalizeCouples(f), results };
+}
+
+/* ───────────────────────── repairing a wrong tree ───────────────────────── */
+
+/** Everyone below `id` in the family line: the person, their spouses and all descendants (and their spouses). */
+export function familyOf(f: DFamily, ids: string[]): Set<string> {
+  const out = new Set<string>();
+  const stack = [...ids];
+  while (stack.length) {
+    const x = stack.pop()!;
+    if (out.has(x)) continue;
+    out.add(x);
+    for (const r of f.rels) {
+      if (r.type === "parent_of" && r.a === x) stack.push(r.b);
+      else if (r.type === "spouse_of" && (r.a === x || r.b === x)) stack.push(r.a === x ? r.b : r.a);
+    }
+  }
+  return out;
+}
+
+/** Remove people together with the spouses and descendants that hang from them. Never removes "me". */
+export function removeWithFamily(prev: DFamily, ids: string[]): { family: DFamily; removed: string[] } {
+  const f: DFamily = structuredClone(prev);
+  const meId = me(f)?.id;
+  const drop = familyOf(f, ids);
+  if (meId) drop.delete(meId);
+  // a spouse who also belongs to someone we keep (e.g. "me") stays
+  f.persons = f.persons.filter((p) => !drop.has(p.id));
+  f.rels = f.rels.filter((r) => !drop.has(r.a) && !drop.has(r.b));
+  return { family: f, removed: [...drop] };
+}
+
+export type RelationWord = "brother" | "sister" | "wife" | "husband" | "son" | "daughter" | "father" | "mother";
+export const RELATION_WORDS: RelationWord[] = ["brother", "sister", "wife", "husband", "son", "daughter", "father", "mother"];
+
+const ancestorsOf = (f: DFamily, id: string) => {
+  const anc = new Set<string>(); const stack = [id];
+  while (stack.length) { const x = stack.pop()!; for (const r of f.rels) if (r.type === "parent_of" && r.b === x && !anc.has(r.a)) { anc.add(r.a); stack.push(r.a); } }
+  return anc;
+};
+
+/**
+ * Repair a wrong relationship: "this person is really the <word> of <other person>".
+ * Their old connections to parents and spouses are removed and the new one is made. Children stay attached,
+ * except children who have another parent when the person becomes a sibling or child (a sister is recorded as a leaf).
+ */
+export function changeRelation(prev: DFamily, id: string, toId: string, word: RelationWord): { family: DFamily; ok: boolean; message: string } {
+  const f: DFamily = structuredClone(prev);
+  const p = get(f, id), q = get(f, toId);
+  if (!p || !q) return { family: prev, ok: false, message: "Person not found." };
+  if (p.id === q.id) return { family: prev, ok: false, message: "Choose a different person." };
+  if (p.is_me) return { family: prev, ok: false, message: "This is you — change the other person’s relationship instead." };
+  if (word === "son" || word === "daughter") { if (ancestorsOf(f, q.id).has(p.id) || false) { /* p is q's ancestor: q cannot be p's parent */ return { family: prev, ok: false, message: `${p.name_roman} is an ancestor of ${q.name_roman}, so they cannot be a child.` }; } }
+  if (word === "father" || word === "mother") { if (ancestorsOf(f, p.id).has(q.id)) return { family: prev, ok: false, message: `${q.name_roman} is an ancestor of ${p.name_roman}, so they cannot be a child.` }; }
+  if ((word === "brother" || word === "sister") && (ancestorsOf(f, q.id).has(p.id) || ancestorsOf(f, p.id).has(q.id))) return { family: prev, ok: false, message: "They are in a parent–child line, so they cannot be brother or sister." };
+
+  const keepKids = word === "wife" || word === "husband" || word === "father" || word === "mother";
+  // 1. cut the old connections
+  f.rels = f.rels.filter((r) => !(r.type === "spouse_of" && (r.a === p.id || r.b === p.id)) && !(r.type === "parent_of" && r.b === p.id));
+  if (!keepKids) {
+    const kids = childrenOf(f, p.id);
+    for (const k of kids) if (parentsOf(f, k.id).some((x) => x.id !== p.id)) f.rels = f.rels.filter((r) => !(r.type === "parent_of" && r.a === p.id && r.b === k.id));
+  }
+  p.flags.parents = "done"; // do not let the app re-attach a parent automatically
+
+  // 2. make the new one
+  const gender: Gender = word === "brother" || word === "husband" || word === "son" || word === "father" ? "male" : "female";
+  p.gender = gender;
+  switch (word) {
+    case "brother": case "sister": {
+      const parents = ensureFather(f, q);
+      for (const par of parents) link(f, "parent_of", par.id, p.id);
+      delete p.flags.parents;
+      inherit(parents.find((x) => x.gender === "male"), p);
+      break;
+    }
+    case "wife": case "husband":
+      link(f, "spouse_of", q.id, p.id); q.flags.spouse = "done"; delete p.flags.parents; break;
+    case "son": case "daughter": {
+      link(f, "parent_of", q.id, p.id);
+      const sp = spousesOf(f, q.id); if (sp.length === 1) link(f, "parent_of", sp[0]!.id, p.id);
+      inherit([q, ...sp].find((x) => x.gender === "male"), p); delete p.flags.parents; break;
+    }
+    case "father": case "mother": {
+      if (parentsOf(f, q.id).some((x) => x.id !== p.id && (x.gender === "male") === (gender === "male"))) {
+        // q already has a parent of that kind: remove the old link so the new one replaces it
+        for (const old of parentsOf(f, q.id)) if (old.id !== p.id && (old.gender === "male") === (gender === "male")) f.rels = f.rels.filter((r) => !(r.type === "parent_of" && r.a === old.id && r.b === q.id));
+      }
+      link(f, "parent_of", p.id, q.id);
+      const other = parentsOf(f, q.id).find((x) => x.id !== p.id);
+      if (other) link(f, "spouse_of", p.id, other.id);
+      break;
+    }
+  }
+  const out = normalizeCouples(f);
+  return { family: out, ok: true, message: `${p.name_roman} is now recorded as the ${word} of ${q.name_roman}.` };
 }
 
 /* ───────────────────────── labels (for prompts and cards) ───────────────────────── */
@@ -357,6 +469,7 @@ export function toFamilyData(raw: DFamily): FamilyData | null {
     mool: pj(p.mool),
     current_village: p.place,
     notes: p.notes,
+    married_to: p.married_to,
     photo: p.photo,
     source: "user_input",
   }));

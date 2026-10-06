@@ -27,6 +27,7 @@ export function LoginForm({ next, invitedBy, defaultName, defaultPhone, onSigned
   const [consent, setConsent] = useState(false);
   const [isNew, setIsNew] = useState(false);
   const [devCode, setDevCode] = useState("");
+  const [tester, setTester] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const st = phoneState(phone);
@@ -51,7 +52,7 @@ export function LoginForm({ next, invitedBy, defaultName, defaultPhone, onSigned
       const res = await fetch("/api/auth/start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email }) });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Could not send the code.");
-      setIsNew(!!j.isNew); setDevCode(j.devCode ?? ""); setCode(""); setStep("code");
+      setIsNew(!!j.isNew); setTester(!!j.tester); setDevCode(j.devCode ?? ""); setCode(""); setStep("code");
     } catch (e) { setErr(e instanceof Error ? e.message : "Could not send the code."); } finally { setBusy(false); }
   };
   const verify = async () => {
@@ -81,11 +82,13 @@ export function LoginForm({ next, invitedBy, defaultName, defaultPhone, onSigned
       ) : (
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); verify(); }}>
           <button type="button" className="flex items-center gap-1 text-sm text-muted-foreground" onClick={() => { setStep("email"); setErr(""); }}><ChevronLeft className="size-4" /> Change email</button>
-          <p>We sent a 6-digit code to <strong>{email.trim().toLowerCase()}</strong>. Check your inbox (and spam folder).</p>
+          {tester
+            ? <p><strong>{email.trim().toLowerCase()}</strong> is on the tester list. No email is sent — enter the access code that was given to you.</p>
+            : <p>We sent a 6-digit code to <strong>{email.trim().toLowerCase()}</strong>. Check your inbox (and spam folder).</p>}
           {devCode && <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-900">Test mode: the code is <strong>{devCode}</strong>.</p>}
           <div>
-            <Label htmlFor="otp">Code</Label>
-            <input id="otp" className={`${inputCls} text-center text-2xl tracking-[0.4em]`} inputMode="numeric" autoComplete="one-time-code" maxLength={8} autoFocus value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} />
+            <Label htmlFor="otp">{tester ? "Access code" : "Code"}</Label>
+            <input id="otp" className={`${inputCls} text-center text-2xl tracking-[0.4em]`} inputMode="numeric" autoComplete="one-time-code" maxLength={10} autoFocus value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} />
           </div>
           {isNew && (
             <>
@@ -105,7 +108,7 @@ export function LoginForm({ next, invitedBy, defaultName, defaultPhone, onSigned
           )}
           {err && <p role="alert" className="text-sm text-terracotta">{err}</p>}
           <Button type="submit" size="lg" className="h-12 w-full" disabled={busy || code.length < 4 || (isNew && (!name.trim() || !st.valid || !consent))}>{busy && <Loader2 className="animate-spin" />} {isNew ? "Create my account" : "Sign in"}</Button>
-          <button type="button" className="text-sm text-muted-foreground underline" disabled={busy} onClick={send}>Send the code again</button>
+          {!tester && <button type="button" className="text-sm text-muted-foreground underline" disabled={busy} onClick={send}>Send the code again</button>}
         </form>
       )}
     </Shell>

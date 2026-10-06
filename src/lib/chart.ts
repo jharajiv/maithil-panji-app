@@ -7,6 +7,8 @@ import { CREAM, INK, LEAF_PATH, MOTIFS, OCHRE, RED, framePatternDefs } from "./m
 export interface MountOptions {
   rootId: string;
   onSelect?: (personId: string) => void;
+  /** right-click (mouse) or long-press (touch) on a person's box; x/y are screen coordinates */
+  onContext?: (personId: string, x: number, y: number, touch: boolean) => void;
   /** ms; 0 for export renders */
   transition?: number;
   /** px padding around the chart area so the tree never touches the frame: [vertical, horizontal] or one value */
@@ -93,7 +95,8 @@ function cardInner(
   const isRoot = d.data.id === rootId;
   const name = String(x["first name"] ?? "");
   const origin = [x.gotra, x.mool].filter(Boolean).join(" · ");
-  const panji = origin ? (role === "spouse" ? `from ${origin}` : origin) : "";
+  const married = typeof x.married === "string" ? x.married : "";
+  const panji = married ? `m. ${married}` : origin ? (role === "spouse" ? `from ${origin}` : origin) : "";
   const badge: "YOU" | "SPOUSE" | "" = isRoot ? "YOU" : role === "spouse" ? "SPOUSE" : "";
   let avatar = "";
   const photo = typeof x.photo === "string" && x.photo.startsWith("data:image/") ? x.photo : "";
@@ -178,7 +181,32 @@ export async function mountTree(
   const card = chart.setCardHtml();
   card
     .setCardInnerHtmlCreator((d) => cardInner(d as never, tpl, opts.rootId, idp, !!opts.exporting))
-    .setOnCardClick((_e: MouseEvent, d: { data: { id: string } }) => opts.onSelect?.(d.data.id));
+    .setOnCardClick((_e: MouseEvent, d: { data: { id: string } }) => { if (Date.now() < suppressClickUntil) return; opts.onSelect?.(d.data.id); });
+
+  /* right-click / long-press on a box → onContext (and the click that follows a long-press is swallowed) */
+  let suppressClickUntil = 0;
+  const personAt = (t: EventTarget | null): string | undefined => {
+    const cont = (t as HTMLElement | null)?.closest?.(".card_cont") as (HTMLElement & { __data__?: { data?: { id?: string } } }) | null;
+    return cont?.__data__?.data?.id;
+  };
+  const cleanups: (() => void)[] = [];
+  if (opts.onContext) {
+    const onCtx = (e: MouseEvent) => { const id = personAt(e.target); if (!id) return; e.preventDefault(); opts.onContext!(id, e.clientX, e.clientY, false); };
+    chartEl.addEventListener("contextmenu", onCtx);
+    cleanups.push(() => chartEl.removeEventListener("contextmenu", onCtx));
+    let timer: ReturnType<typeof setTimeout> | undefined; let sx = 0, sy = 0;
+    const stop = () => { if (timer) clearTimeout(timer); timer = undefined; };
+    const down = (e: PointerEvent) => {
+      if (e.pointerType === "mouse") return;
+      const id = personAt(e.target); if (!id) return;
+      sx = e.clientX; sy = e.clientY; stop();
+      timer = setTimeout(() => { timer = undefined; suppressClickUntil = Date.now() + 900; opts.onContext!(id, sx, sy, true); }, 550);
+    };
+    const move = (e: PointerEvent) => { if (timer && Math.hypot(e.clientX - sx, e.clientY - sy) > 10) stop(); };
+    chartEl.addEventListener("pointerdown", down); chartEl.addEventListener("pointermove", move);
+    chartEl.addEventListener("pointerup", stop); chartEl.addEventListener("pointercancel", stop);
+    cleanups.push(() => { stop(); chartEl.removeEventListener("pointerdown", down); chartEl.removeEventListener("pointermove", move); chartEl.removeEventListener("pointerup", stop); chartEl.removeEventListener("pointercancel", stop); });
+  }
 
   const style = LINK_STYLE[tpl];
   let leafTimer: ReturnType<typeof setTimeout> | undefined;
@@ -263,6 +291,7 @@ export async function mountTree(
     settled,
     destroy: () => {
       clearTimeout(leafTimer);
+      cleanups.forEach((c) => c());
       host.innerHTML = "";
     },
   };

@@ -1,14 +1,15 @@
 import { applyOps } from "./family";
 import { basicParse } from "./basic";
-import { nextGoal } from "./interview";
-import type { TurnInput, TurnOutput } from "./agent";
-
-const DONE = "Thank you! Your family tree is ready. Tap anyone in the tree to correct details or add a photo, change the style, and download your PDF. Use Share to invite relatives from other households to add their own branches.";
+import { goalById, isListGoal, nextGoal } from "./interview";
+import { DONE_TEXT, listTurn, type ListInput } from "./list-turn";
+import type { TurnOutput } from "./agent";
 
 /** Rule-based turn (no AI): used without an API key or when the AI is unavailable. */
-export function basicTurn(input: TurnInput): TurnOutput {
-  const goal = nextGoal(input.family, { batch: false });
-  if (!goal) return { family: input.family, reply: DONE, quick: [], goal: null, repeats: 0, offTopic: false, ops: 0 };
+export async function basicTurn(input: ListInput): Promise<TurnOutput> {
+  const asked = input.answerGoal ? goalById(input.family, input.answerGoal) : null;
+  const goal = asked ?? nextGoal(input.family, { batch: false });
+  if (!goal) return { family: input.family, reply: DONE_TEXT, quick: [], goal: null, repeats: 0, offTopic: false, ops: 0 };
+  if (isListGoal(goal)) return listTurn(null, input, goal);
 
   const r = basicParse(input.family, goal, input.text, input.pending);
   if (r.ask) return { family: input.family, reply: r.ask, quick: r.pending && !r.pending.rejected ? ["Yes", "No"] : [], goal, repeats: 0, offTopic: false, ops: 0, pending: r.pending };
@@ -24,6 +25,6 @@ export function basicTurn(input: TurnInput): TurnOutput {
   } else {
     repeats = next && next.id === goal.id ? repeats + 1 : 0;
   }
-  const reply = next ? `${prefix} ${next.question}`.trim() : `${prefix} ${DONE}`.trim();
+  const reply = next ? `${prefix} ${next.question}`.trim() : `${prefix} ${DONE_TEXT}`.trim();
   return { family, reply, quick: next?.quick ?? [], goal: next, repeats, offTopic: false, ops: r.ops.length };
 }

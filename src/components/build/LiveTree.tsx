@@ -25,16 +25,20 @@ export interface LiveTreeHandle { fit: () => void; centreOn: (id: string) => voi
 
 export const LiveTree = forwardRef<LiveTreeHandle, {
   family: DFamily; template: TemplateId; onTemplate: (t: TemplateId) => void; onSelect: (id: string) => void; className?: string;
+  /** right-click / long-press on a person's box */
+  onContext?: (id: string, x: number, y: number, touch: boolean) => void;
   /** the free-form editor button, shown next to the zoom controls */
   extra?: React.ReactNode;
   /** the read-only page opened from a printed QR code */
   readOnly?: boolean;
-}>(function LiveTree({ family, template, onTemplate, onSelect, className, extra, readOnly }, ref) {
+}>(function LiveTree({ family, template, onTemplate, onSelect, onContext, className, extra, readOnly }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const mounted = useRef<MountedTree | null>(null);
   const view = useRef<{ k: number; x: number; y: number } | null>(null);
   const select = useRef(onSelect);
   select.current = onSelect;
+  const ctx = useRef(onContext);
+  ctx.current = onContext;
   const data = useMemo(() => toFamilyData(family), [family]);
   const scoped = useMemo(() => (data ? paternalLineage(data) : null), [data]);
   const count = family.persons.length;
@@ -53,7 +57,7 @@ export const LiveTree = forwardRef<LiveTreeHandle, {
     const el = host.current;
     // small debounce: the chat can change the family several times in a second
     const t = setTimeout(() => {
-      mountTree(el, scoped, template, { rootId: data.root_person_id, onSelect: (id) => select.current(id), transition: 0 }).then((m) => {
+      mountTree(el, scoped, template, { rootId: data.root_person_id, onSelect: (id) => select.current(id), onContext: ctx.current ? (id, x, y, touch) => ctx.current?.(id, x, y, touch) : undefined, transition: 0 }).then((m) => {
         if (cancelled) { m.destroy(); return; }
         mounted.current = m;
         if (scoped.persons.length > BIG) {
@@ -129,7 +133,7 @@ export const LiveTree = forwardRef<LiveTreeHandle, {
             </div>
           </div>
         )}
-        {scoped && <p className="pointer-events-none absolute bottom-2 left-1/2 w-max max-w-[92%] -translate-x-1/2 rounded-full bg-card/90 px-3 py-1 text-center text-xs text-muted-foreground shadow">{count} {count === 1 ? "person" : "people"} · {readOnly ? "tap anyone for details" : "tap anyone to edit"} · drag to move · pinch or scroll to zoom</p>}
+        {scoped && <p className="pointer-events-none absolute bottom-2 left-1/2 w-max max-w-[92%] -translate-x-1/2 rounded-full bg-card/90 px-3 py-1 text-center text-xs text-muted-foreground shadow">{count} {count === 1 ? "person" : "people"} · {readOnly ? "tap anyone for details" : "tap anyone to edit · press and hold (or right-click) for more"} · drag to move · pinch or scroll to zoom</p>}
       </div>
     </section>
   );
