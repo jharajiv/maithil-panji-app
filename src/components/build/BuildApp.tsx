@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, Download, GitMerge, MessageCircle, Network, RotateCcw, Share2, Users } from "lucide-react";
+import { ChevronLeft, Download, GitMerge, MessageCircle, Network, Pencil, RotateCcw, Share2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { ExportSheet } from "@/components/tree/ExportSheet";
@@ -15,6 +15,7 @@ import { nextGoal } from "@/lib/interview";
 import type { TemplateId } from "@/lib/types";
 import { ChatPane, type ChatMessage } from "./ChatPane";
 import { LiveTree, type LiveTreeHandle } from "./LiveTree";
+import { FreeformEditor } from "./FreeformEditor";
 import { HelperPane } from "./HelperPane";
 import { MatchesPane } from "./MatchesPane";
 import { PersonEditSheet } from "./PersonEditSheet";
@@ -70,6 +71,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const [unseen, setUnseen] = useState(0);
   const [selected, setSelected] = useState<string>();
   const [exportOpen, setExportOpen] = useState(false);
+  const [freeOpen, setFreeOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [inviteFor, setInviteFor] = useState<string | undefined>();
   const [resetOpen, setResetOpen] = useState(false);
@@ -176,7 +178,8 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const leftPane = (cls: string) => isHelper
     ? <HelperPane className={cls} name={sh.share?.memberName} onOpenShare={() => { setInviteFor(undefined); setShareOpen(true); }} ownTreeHref={inAccount ? "/app" : undefined} />
     : <ChatPane className={cls} messages={messages} busy={busy} onSend={send} section={section} mode={mode} />;
-  const treePane = <LiveTree ref={tree} family={family} template={template} onTemplate={setTemplate} onSelect={setSelected} className="flex min-h-0 flex-1 flex-col" />;
+  const treePane = <LiveTree ref={tree} family={family} template={template} onTemplate={setTemplate} onSelect={setSelected} className="flex min-h-0 flex-1 flex-col"
+    extra={data ? <Button size="sm" variant="outline" onClick={() => setFreeOpen(true)} aria-label="Edit freely with boxes and connectors"><Pencil /> <span className="hidden min-[420px]:inline">Edit freely</span></Button> : undefined} />;
 
   return (
     <div className="flex h-dvh flex-col bg-background">
@@ -218,6 +221,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
         </>
       )}
 
+      <FreeformEditor open={freeOpen} onClose={() => setFreeOpen(false)} family={family} onFamily={setFamily} onEdit={setSelected} />
       <PersonEditSheet family={family} personId={selected} onClose={() => setSelected(undefined)} onSave={saveEdit} onDelete={deletePerson} onCentre={(id) => tree.current?.centreOn(id)}
         onAdd={addRelative} canInvite={(sh.enabled === true || auth.enabled) && sh.share?.role !== "editor"} onInvite={(id) => { setInviteFor(id); setShareOpen(true); }} />
       {data && <ExportSheet open={exportOpen} onClose={() => setExportOpen(false)} data={data} template={template} defaultScope="paternal" />}

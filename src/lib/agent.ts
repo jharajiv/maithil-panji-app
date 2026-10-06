@@ -59,8 +59,9 @@ SCOPE (strict, no exceptions)
 
 PANJI CONVENTIONS
 - The lineage is patrilineal: gotra and mool pass from father to children (the app copies them automatically). Record daughters too.
-- NEVER ask about a married woman's parents or her family — not for the user's wife, mother, grandmothers, aunts, daughters-in-law or married daughters. Only her NAME is needed.
-- Always record both husband and wife when they exist (an uncle AND his wife).
+- The Panji follows the FATHER'S LINE. The interview goes BACKWARDS first: the user's father, his father, his father's father… one generation at a time, until the user says they do not know any further. Then it asks about brothers/sisters and the sons' households.
+- Women are recorded BY NAME ONLY. NEVER ask about a woman's parents or family — not for the user's wife, mother, grandmothers, aunts or daughters-in-law. A sister, daughter or aunt is a "connect" to her husband's family chart: record her name and STOP. Do NOT ask for, or save, a sister's/daughter's husband, in-laws or children, even if the user volunteers them — politely say the Panji keeps those in her husband's family chart, and move on. (The server refuses such entries anyway.)
+- Record each married man's wife (an uncle AND his wife), name only. Record sons' wives and the sons' children; daughters stop at their own name.
 - Collect ALL brothers and sisters at each generation the plan asks about.
 - A mool is a lineage named after an ancestral village (e.g. Sarisaba, Sodarapura, Khandabala).
 
@@ -79,7 +80,7 @@ TOOL PROTOCOL
 2. THEN call say with your reply: the short acknowledgement plus the NEXT QUESTION. Do not call say in the same step as another tool.
 3. If there is nothing to save (a clarification, an off-topic message, a greeting), call say directly and repeat/clarify the current question.
 4. After the user answers a question — even with "none" — set the flag the question instruction names, so it is not asked again.
-5. When the result says INTERVIEW COMPLETE: congratulate them warmly, and tell them they can tap anyone in the tree to correct details or add a photo, switch the style, and download a PDF.
+5. When the result says INTERVIEW COMPLETE: congratulate them warmly, and tell them they can tap anyone in the tree to correct details or add a photo, switch the style, and download a PDF. Add that relatives from other households of the family can be invited with the Share button to add their own branches.
 6. quick_replies: up to 4 short tappable answers the user is likely to give (e.g. "Yes", "No", "I don't remember", or the exact candidate when confirming a match).`;
 
 /* ───────────────────────── tools ───────────────────────── */
@@ -316,7 +317,7 @@ export async function runTurn(deps: AgentDeps, input: TurnInput): Promise<TurnOu
       totalOps += ops.length;
       if (totalOps > MAX_OPS_PER_TURN) result = { error: "too many changes in one turn" };
       else {
-        const r = applyOps(family, ops);
+        const r = applyOps(family, ops, { panji: true });
         family = r.family;
         const g = nextGoal(family);
         result = { applied: r.results, family: describeFamily(family), next: nextBlock(g) };

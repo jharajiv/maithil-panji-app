@@ -7,7 +7,9 @@ import type { FamilyData, Person, Relationship } from "./types";
 export type Gender = "male" | "female" | "other";
 export type Flag =
   | "spouse" | "children" | "siblings" | "father" | "mother" | "details"
-  | "gotra" | "mool" | "place" | "birth";
+  | "gotra" | "mool" | "place" | "birth"
+  /** set when someone deliberately removed a parent connection: stops the app re-adding the other parent's spouse */
+  | "parents";
 export type FlagVal = "done" | "unknown" | "skipped";
 
 /** Simple mode only: a suggested gotra/mool waiting for the user's yes/no. */
@@ -69,7 +71,10 @@ export type Op =
   | ({ op: "add_person"; ref?: string; relation?: RelationSpec; placeholder?: boolean } & PersonFields & { name_roman: string })
   | { op: "update_person"; id: string; set: PersonFields }
   | { op: "set_flag"; id: string; flag: Flag; value: FlagVal }
-  | { op: "remove_person"; id: string };
+  | { op: "remove_person"; id: string }
+  /** free-form editor only (never from the AI): connect / disconnect two people. parent_of: a is a parent of b. */
+  | { op: "link"; type: "parent_of" | "spouse_of"; a: string; b: string }
+  | { op: "unlink"; type: "parent_of" | "spouse_of"; a: string; b: string };
 
 export interface OpResult { ok: boolean; message: string; id?: string }
 
@@ -122,8 +127,39 @@ function setFields(p: DPerson, s: PersonFields) {
   if (p.placeholder && p.name_roman && !/^\(.*\)$/.test(p.name_roman)) p.placeholder = false;
 }
 
+/**
+ * A child whose only recorded parent has exactly one spouse belongs to both of them — so the chart hangs the child from the
+ * line between the couple, not from one parent's box. (With two or more spouses we cannot tell whose child it is, so we leave it.)
+ */
+export function normalizeCouples(f: DFamily): DFamily {
+  const parents = new Map<string, string[]>();
+  const spouses = new Map<string, string[]>();
+  const push = (m: Map<string, string[]>, k: string, v: string) => { const a = m.get(k) ?? []; if (!a.includes(v)) a.push(v); m.set(k, a); };
+  for (const r of f.rels) {
+    if (r.type === "parent_of") push(parents, r.b, r.a);
+    else { push(spouses, r.a, r.b); push(spouses, r.b, r.a); }
+  }
+  const ids = new Set(f.persons.map((p) => p.id));
+  const keep = new Set(f.persons.filter((p) => p.flags.parents).map((p) => p.id));
+  const add: DRel[] = [];
+  for (const [child, ps] of parents) {
+    if (ps.length !== 1 || !ids.has(child) || keep.has(child)) continue;
+    const sp = (spouses.get(ps[0]!) ?? []).filter((x) => ids.has(x) && x !== child);
+    if (sp.length === 1) add.push({ type: "parent_of", a: sp[0]!, b: child });
+  }
+  return add.length ? { ...f, rels: [...f.rels, ...add] } : f;
+}
+
+export const PANJI_FEMALE_NOTE =
+  "Panji records a daughter or sister only by name — her husband and children belong to her husband's family chart. Do not add them.";
+
+export interface ApplyOptions {
+  /** interview mode: refuse to add a husband or children under a daughter/sister, as the Panji does */
+  panji?: boolean;
+}
+
 /** Apply a batch of operations. Pure: returns a new family and one result per op. */
-export function applyOps(prev: DFamily, ops: Op[]): { family: DFamily; results: OpResult[] } {
+export function applyOps(prev: DFamily, ops: Op[], opts: ApplyOptions = {}): { family: DFamily; results: OpResult[] } {
   const f: DFamily = structuredClone(prev);
   const refs = new Map<string, string>();
   const results: OpResult[] = [];
@@ -134,10 +170,16 @@ export function applyOps(prev: DFamily, ops: Op[]): { family: DFamily; results: 
       if (op.op === "add_person") {
         const name = clean(op.name_roman);
         if (!name && !op.placeholder) { results.push({ ok: false, message: "name_roman is required" }); continue; }
-        const rel = op.relation;
+        let rel = op.relation;
         const anchorId = rel ? resolve(rel.to) : undefined;
-        const anchor = anchorId ? get(f, anchorId) : undefined;
+        let anchor = anchorId ? get(f, anchorId) : undefined;
         if (rel && !anchor) { results.push({ ok: false, message: `relation target "${rel.to}" not found` }); continue; }
+        if (opts.panji && rel && anchor && anchor.gender === "female" && (rel.type === "spouse_of" || rel.type === "child_of")) {
+          // a wife's child is recorded under her husband; a daughter's or sister's husband/children are not recorded at all
+          const husband = parentsOf(f, anchor.id).length === 0 && rel.type === "child_of" && spousesOf(f, anchor.id).length === 1 ? spousesOf(f, anchor.id)[0] : undefined;
+          if (husband && husband.gender !== "female") { rel = { type: "child_of", to: husband.id, to2: anchor.id }; anchor = husband; }
+          else { results.push({ ok: false, message: PANJI_FEMALE_NOTE }); continue; }
+        }
 
         // The "me" person is the first one added without a relation.
         const isFirst = f.persons.length === 0;
@@ -164,7 +206,7 @@ export function applyOps(prev: DFamily, ops: Op[]): { family: DFamily; results: 
               break;
             case "child_of": {
               f.persons.push(p);
-              const other = op.relation?.to2 ? get(f, resolve(op.relation.to2)) : undefined;
+              const other = rel.to2 ? get(f, resolve(rel.to2)) : undefined;
               const second = other ?? (spousesOf(f, anchor.id).length === 1 ? spousesOf(f, anchor.id)[0] : undefined);
               link(f, "parent_of", anchor.id, p.id);
               if (second) link(f, "parent_of", second.id, p.id);
@@ -206,6 +248,29 @@ export function applyOps(prev: DFamily, ops: Op[]): { family: DFamily; results: 
         if (!p) { results.push({ ok: false, message: `person "${op.id}" not found` }); continue; }
         p.flags[op.flag] = op.value;
         results.push({ ok: true, message: `${p.name_roman}.${op.flag}=${op.value}`, id: p.id });
+      } else if (op.op === "link") {
+        const a = get(f, resolve(op.a)), b = get(f, resolve(op.b));
+        if (!a || !b) { results.push({ ok: false, message: "person not found" }); continue; }
+        if (a.id === b.id) { results.push({ ok: false, message: "A person cannot be connected to themselves." }); continue; }
+        if (op.type === "parent_of") {
+          if (f.rels.some((r) => r.type === "parent_of" && r.a === a.id && r.b === b.id)) { results.push({ ok: false, message: `${a.name_roman} is already a parent of ${b.name_roman}.` }); continue; }
+          // would this make someone their own ancestor?
+          const anc = new Set<string>(); const stack = [a.id];
+          while (stack.length) { const x = stack.pop()!; for (const r of f.rels) if (r.type === "parent_of" && r.b === x && !anc.has(r.a)) { anc.add(r.a); stack.push(r.a); } }
+          if (anc.has(b.id)) { results.push({ ok: false, message: `${b.name_roman} is already an ancestor of ${a.name_roman}, so they cannot also be a child.` }); continue; }
+          if (parentsOf(f, b.id).length >= 2) { results.push({ ok: false, message: `${b.name_roman} already has two parents. Remove one connection first.` }); continue; }
+          link(f, "parent_of", a.id, b.id);
+          if (a.gender === "male") inherit(a, b);
+        } else {
+          if (f.rels.some((r) => r.type === "spouse_of" && ((r.a === a.id && r.b === b.id) || (r.a === b.id && r.b === a.id)))) { results.push({ ok: false, message: "They are already connected as husband and wife." }); continue; }
+          link(f, "spouse_of", a.id, b.id);
+        }
+        results.push({ ok: true, message: `connected ${a.name_roman} and ${b.name_roman}` });
+      } else if (op.op === "unlink") {
+        const before = f.rels.length;
+        f.rels = f.rels.filter((r) => !(r.type === op.type && (op.type === "spouse_of" ? (r.a === op.a && r.b === op.b) || (r.a === op.b && r.b === op.a) : r.a === op.a && r.b === op.b)));
+        if (op.type === "parent_of") { const kid = get(f, op.b); if (kid) kid.flags.parents = "done"; }
+        results.push({ ok: f.rels.length < before, message: f.rels.length < before ? "connection removed" : "no such connection" });
       } else if (op.op === "remove_person") {
         const p = get(f, resolve(op.id));
         if (!p) { results.push({ ok: false, message: `person "${op.id}" not found` }); continue; }
@@ -218,7 +283,7 @@ export function applyOps(prev: DFamily, ops: Op[]): { family: DFamily; results: 
       results.push({ ok: false, message: String(e) });
     }
   }
-  return { family: f, results };
+  return { family: normalizeCouples(f), results };
 }
 
 /* ───────────────────────── labels (for prompts and cards) ───────────────────────── */
@@ -276,7 +341,8 @@ export function patrilineDepth(f: DFamily): number {
 
 const pj = (r?: PanjiRef) => (r ? r.roman : undefined);
 
-export function toFamilyData(f: DFamily): FamilyData | null {
+export function toFamilyData(raw: DFamily): FamilyData | null {
+  const f = normalizeCouples(raw);
   const m = me(f);
   if (!m) return null;
   const persons: Person[] = f.persons.map((p) => ({

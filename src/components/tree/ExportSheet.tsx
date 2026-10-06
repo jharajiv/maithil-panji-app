@@ -1,10 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FileDown, Loader2 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { exportTreePdf } from "@/lib/pdf";
+import { exportTreePdf, FIT_MAX_PEOPLE, type ExportMode } from "@/lib/pdf";
+import { scopeData } from "@/lib/tree-filter";
 import type { ExportScope, FamilyData, PageFormat, TemplateId } from "@/lib/types";
 
 function Choice<T extends string>({
@@ -33,6 +34,12 @@ export function ExportSheet({
 }: { open: boolean; onClose: () => void; data: FamilyData; template: TemplateId; defaultScope?: ExportScope; sample?: boolean }) {
   const [scope, setScope] = useState<ExportScope>(defaultScope);
   const [format, setFormat] = useState<PageFormat>("a3-landscape");
+  const people = useMemo(() => scopeData(data, scope).persons.length, [data, scope]);
+  const big = people > FIT_MAX_PEOPLE;
+  const [mode, setMode] = useState<ExportMode>(big ? "poster" : "fit");
+  const [touched, setTouched] = useState(false);
+  // until the reader chooses, follow the size of the tree
+  useEffect(() => { if (!touched) setMode(big ? "poster" : "fit"); }, [big, touched]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +47,7 @@ export function ExportSheet({
     setError(null);
     setBusy("Preparing…");
     try {
-      await exportTreePdf({ data, scope, template, format, sample, onProgress: setBusy });
+      await exportTreePdf({ data, scope, template, format, mode, sample, onProgress: setBusy });
       onClose();
     } catch (e) {
       console.error(e);
@@ -61,13 +68,22 @@ export function ExportSheet({
         <Choice value="paternal" current={scope} onSelect={setScope} title="Paternal lineage (Panji-style)" hint="The traditional chart: father’s line, brothers’ lines, spouses attached, daughters as leaves." />
       </div>
 
-      <div role="radiogroup" aria-label="Page" className="mt-4 space-y-2">
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Page</div>
-        <div className="grid grid-cols-2 gap-2">
-          <Choice value="a3-landscape" current={format} onSelect={setFormat} title="A3 landscape" hint="Default, for framing" />
-          <Choice value="a4-portrait" current={format} onSelect={setFormat} title="A4 portrait" hint="Home printing" />
-        </div>
+      <div role="radiogroup" aria-label="Size" className="mt-4 space-y-2">
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Size · {people} {people === 1 ? "person" : "people"}</div>
+        <Choice value="fit" current={mode} onSelect={(v) => { setTouched(true); setMode(v); }} title="One page" hint={big ? "Everything on a single sheet — names will be very small for a family this size." : "Everything on a single sheet. Best for up to about 40 people."} />
+        <Choice value="pages" current={mode} onSelect={(v) => { setTouched(true); setMode(v); }} title="Several A3 / A4 sheets" hint="Readable size: printed in parts that you join, with an overview sheet first." />
+        <Choice value="poster" current={mode} onSelect={(v) => { setTouched(true); setMode(v); }} title="Large poster (one big page)" hint="One very large page — zoom in on a screen, or take it to a print shop. Best for big families." />
       </div>
+
+      {mode !== "poster" && (
+        <div role="radiogroup" aria-label="Page" className="mt-4 space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sheet size</div>
+          <div className="grid grid-cols-2 gap-2">
+            <Choice value="a3-landscape" current={format} onSelect={setFormat} title="A3 landscape" hint="Default, for framing" />
+            <Choice value="a4-portrait" current={format} onSelect={setFormat} title="A4 portrait" hint="Home printing" />
+          </div>
+        </div>
+      )}
 
       {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
       <Button size="lg" className="mt-5 w-full" onClick={run} disabled={!!busy}>

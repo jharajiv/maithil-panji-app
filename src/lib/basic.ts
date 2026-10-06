@@ -8,14 +8,16 @@ import { me, type DFamily, type Flag, type Op, type PanjiRef, type Pending, type
 import type { Goal } from "./interview";
 import { romanToDevanagari } from "./translit";
 
-const SKIP = /^\s*(i\s+)?(skip|pass|don'?t know|do not know|dont know|don'?t remember|do not remember|dont remember|not sure|no idea|pata nahi|pata nhi|nahi pata|नहीं पता|पता नहीं|याद नहीं|नहीं मालूम)\b/i;
+const SKIP = /^\s*(i\s+)?(skip|pass|don'?t know|do not know|dont know|don'?t remember|do not remember|dont remember|not sure|no idea|pata nahi|pata nhi|nahi pata|नहीं पता|पता नहीं|याद नहीं|नहीं मालूम|he had no|she had no|no brothers|no sisters)\b/i;
 const NO = /^\s*(no|none|nope|nahi|nahin|नहीं|not married|no children|no brothers|no sisters|none are married|no grandchildren|unmarried)\b/i;
 const YES = /^\s*(yes|yeah|yep|ha|haan|हाँ|हां|married|same|same as (my )?mool)\b/i;
 const FEMALE = /\b(daughters?|sisters?|girl|female|wife|beti|behen|bahan|didi|bua|बेटी|बहन|दीदी)\b/i;
 const MALE = /\b(sons?|brothers?|boy|male|husband|beta|bhai|बेटा|भाई)\b/i;
 
-export const isSkip = (t: string) => SKIP.test(t);
-export const isNo = (t: string) => NO.test(t);
+/** phones type ’ (curly) where the patterns below use ' — treat them the same */
+const straight = (t: string) => t.replace(/[’‘`´]/g, "'");
+export const isSkip = (t: string) => SKIP.test(straight(t)) || /^\s*(i\s+)?(do not|don'?t)\s+(know|remember)\b/i.test(straight(t));
+export const isNo = (t: string) => NO.test(straight(t));
 
 export interface ParsedName { name: string; gender?: "male" | "female" }
 
@@ -78,6 +80,11 @@ export function basicParse(f: DFamily, goal: Goal, text: string, pending?: Pendi
     case "self_gender": {
       const g = /^\s*(f|female|woman|lady|girl|महिला)/i.test(t) ? "female" : "male";
       return { ops: [{ op: "update_person", id: m!.id, set: { gender: g } }], ack: "Thank you." };
+    }
+    case "gender": {
+      if (isSkip(t)) return { ops: goal.skip, ack: "Okay." };
+      const g = FEMALE.test(t) || /^\s*(f|female|woman|girl)\b/i.test(t) ? "female" : MALE.test(t) || /^\s*(m|male|man|boy)\b/i.test(t) ? "male" : undefined;
+      return g ? { ops: [{ op: "update_person", id: sub!, set: { gender: g } }], ack: "Noted." } : { ops: [], ack: "" };
     }
     case "self_gotra":
     case "self_mool": {

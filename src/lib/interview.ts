@@ -11,7 +11,7 @@ import {
 export type GoalKind =
   | "self_name" | "self_gender" | "self_gotra" | "self_mool" | "self_birth" | "self_place"
   | "spouse" | "children" | "spouses_of" | "children_of"
-  | "father" | "mother" | "details" | "siblings";
+  | "father" | "mother" | "details" | "siblings" | "gender";
 
 export interface Goal {
   /** stable id; used to detect a question that keeps repeating */
@@ -92,107 +92,137 @@ export function nextGoal(f: DFamily, opts: PlanOptions = {}): Goal | null {
     instruction: `Ask where the user lives now (${m.id}): village or town + district + state in India, or city + country abroad. Never ask for a street or house address. Store in place as one string "Village, District, State" (or "City, Country"); if they give only a village, ask once for the district; the state may be omitted for Bihar.`,
   };
 
-  // spouse + children of "me"
-  if (!m.flags.spouse && spousesOf(f, m.id).length === 0) return {
-    id: `spouse:${m.id}`, kind: "spouse", section: "Your family", subjects: [m.id], optional: true, quick: ["Not married"], skip: flagOps([m.id], "spouse", "done"),
-    question: "Are you married? If yes, what is your spouse’s name?",
-    instruction: `Ask if the user (${m.id}) is married and the spouse's name. Add with add_person relation spouse_of ${m.id}. Do NOT ask about the spouse's parents or family — Panji records only her/his name. If not married, set_flag spouse=done.`,
-  };
-  if (!m.flags.children && childrenOf(f, m.id).length === 0) return {
-    id: `children:${m.id}`, kind: "children", section: "Your family", subjects: [m.id], optional: true, quick: ["No children"], skip: flagOps([m.id], "children", "done"),
-    question: "Do you have children? Please tell me their names (and whether each is a son or a daughter).",
-    instruction: `Ask about the user's children (${m.id}): names, son or daughter, and optionally birth years. Add each with add_person relation child_of ${m.id}. Accept several in one answer. Set_flag children=done after the user has listed them all (ask "any more?" if unsure). If none, set_flag children=done.`,
-  };
-  const kids = childrenOf(f, m.id).filter((k) => !k.placeholder);
-  const kidsNoSpouse = kids.filter((k) => !k.flags.spouse && spousesOf(f, k.id).length === 0);
-  if (kidsNoSpouse.length) {
-    const subs = batch ? kidsNoSpouse : [kidsNoSpouse[0]!];
-    return {
-      id: `spouses_of:${subs.map((s) => s.id).join(",")}`, kind: "spouses_of", section: "Your family", subjects: subs.map((s) => s.id), optional: true,
-      quick: ["None are married"], skip: flagOps(subs.map((s) => s.id), "spouse", "done"),
-      question: subs.length === 1 ? `Is ${nm(subs[0]!)} married? If so, what is the spouse’s name?` : "Are any of your children married? Tell me each spouse’s name.",
-      instruction: `Ask which of these children are married and their spouses' names: ${subs.map((s) => who(s, lab)).join("; ")}. Add each spouse via add_person relation spouse_of <child id>. Never ask about the spouse's parents. set_flag spouse=done on every child you have asked about (including unmarried ones).`,
-    };
-  }
-  const kidsNoKids = kids.filter((k) => !k.flags.children && childrenOf(f, k.id).length === 0);
-  if (kidsNoKids.length && kidsNoSpouse.length === 0) {
-    const subs = batch ? kidsNoKids : [kidsNoKids[0]!];
-    return {
-      id: `children_of:${subs.map((s) => s.id).join(",")}`, kind: "children_of", section: "Your family", subjects: subs.map((s) => s.id), optional: true,
-      quick: ["No grandchildren yet"], skip: flagOps(subs.map((s) => s.id), "children", "done"),
-      question: subs.length === 1 ? `Does ${nm(subs[0]!)} have children?` : "Do any of your children have children of their own? Tell me names and whose child.",
-      instruction: `Ask whether these people have children, and the children's names: ${subs.map((s) => who(s, lab)).join("; ")}. Add each child with add_person relation child_of <parent id> (pass to2 if the other parent is known and ambiguous). set_flag children=done for every person asked.`,
-    };
-  }
-
-  // the patriline, generation by generation
-  let c: DPerson | undefined = m;
-  for (let guard = 0; c && guard < 10; guard++) {
+  // ── 1. BACKWARDS FIRST: father, grandfather, great-grandfather … until the user says they do not know any further ──
+  const chain: DPerson[] = [m];
+  for (let c: DPerson | undefined = m, guard = 0; c && guard < 25; guard++) {
     const g = generation(f, c.id);
     const father = fatherOf(f, c.id);
     const mother = motherOf(f, c.id);
     const cLabel = lab[c.id] ?? "relative";
     const who_ = c.id === m.id ? "your" : `your ${cLabel}’s`;
+    const sect = g === 0 ? "Your parents" : "Your ancestors";
 
     if (!father) {
       if (!c.flags.father) return {
-        id: `father:${c.id}`, kind: "father", section: g === 0 ? "Your parents" : "Your ancestors", subjects: [c.id], optional: g > 0, quick: ["I don’t remember"],
+        id: `father:${c.id}`, kind: "father", section: sect, subjects: [c.id], optional: g > 0,
+        quick: g === 0 ? ["I don’t remember"] : ["I don’t know any further"],
         skip: flagOps([c.id], "father", "unknown"),
-        question: g === 0 ? "What is your father’s name?" : `Do you remember the name of ${firstName(c)}’s father (your ${up(FATHER, g)})?`,
-        instruction: `Ask the name of ${who_} father (${who(c, lab)}) — he is the user's ${up(FATHER, g)}. Add via add_person relation father_of ${c.id}. He inherits the family's gotra/mool automatically. If the user doesn't remember, set_flag father=unknown on ${c.id} (this ends the ancestor chain).`,
+        question: g === 0 ? "What is your father’s name?" : `What was the name of ${firstName(c)}’s father (your ${up(FATHER, g)})? If you do not know any further back, just say so.`,
+        instruction: `Ask the name of ${who_} father (${who(c, lab)}) — he is the user's ${up(FATHER, g)}. Add via add_person relation father_of ${c.id}. He inherits the family's gotra/mool automatically. We are tracing the lineage BACKWARDS as far as the user can remember: keep going one father at a time. If the user doesn't know (any further), set_flag father=unknown on ${c.id} — that ends the chain.`,
       };
+      // the user cannot go back any further — the mother's name is still worth having (name only)
+      if (!mother && !c.flags.mother && c.flags.father === "unknown") return {
+        id: `mother:${c.id}`, kind: "mother", section: sect, subjects: [c.id], optional: true, quick: ["I don’t remember"],
+        skip: flagOps([c.id], "mother", "unknown"),
+        question: g === 0 ? "What is your mother’s name?" : `Do you remember ${firstName(c)}’s mother (your ${up(MOTHER, g)})? Her name only is enough.`,
+        instruction: `Ask the name of ${who_} mother (your ${up(MOTHER, g)}) — name only. Panji does not record her parents; do NOT ask about her family. Add via add_person relation mother_of ${c.id}. If unknown, set_flag mother=unknown on ${c.id}.`,
+      };
+      break;
     }
-    const chainEnds = !father || father.placeholder;
-    if (!chainEnds && !mother && !c.flags.mother) return {
-      id: `mother:${c.id}`, kind: "mother", section: g === 0 ? "Your parents" : "Your ancestors", subjects: [c.id], optional: true, quick: ["I don’t remember"],
+    if (father.placeholder) break;
+    if (!mother && !c.flags.mother) return {
+      id: `mother:${c.id}`, kind: "mother", section: sect, subjects: [c.id], optional: true, quick: ["I don’t remember"],
       skip: flagOps([c.id], "mother", "unknown"),
       question: g === 0 ? "What is your mother’s name?" : `And ${firstName(c)}’s mother (your ${up(MOTHER, g)}) — do you remember her name?`,
       instruction: `Ask the name of ${who_} mother (your ${up(MOTHER, g)}) — name only. Panji does not record her parents; do NOT ask about her family. Add via add_person relation mother_of ${c.id}. If unknown, set_flag mother=unknown on ${c.id}.`,
     };
-    if (!chainEnds && father && !father.flags.details) return {
-      id: `details:${father.id}`, kind: "details", section: g === 0 ? "Your parents" : "Your ancestors", subjects: [father.id], optional: true, quick: ["Skip"],
+    if (!father.flags.details) return {
+      id: `details:${father.id}`, kind: "details", section: sect, subjects: [father.id], optional: true, quick: ["Skip"],
       skip: flagOps([father.id], "details", "skipped"),
       question: `Is ${nm(father)} living? And do you know his date of birth (even just the year is fine) and his village (with district)?`,
       instruction: `Ask in ONE question whether ${who(father, lab)} is living or has passed away, and (if known) his date of birth/death — a full date, month and year, or just a year — and his village + district (never a street address). Update via update_person {status, birth, death, place} with place as "Village, District, State". Optional — set_flag details=done when answered, or skipped.`,
     };
-    if (!c.flags.siblings) return {
-      id: `siblings:${c.id}`, kind: "siblings", section: g === 0 ? "Your brothers and sisters" : "Your ancestors’ families", subjects: [c.id], optional: true,
-      quick: [g === 0 ? "I have no brothers or sisters" : "He had no brothers or sisters", "I don’t know"],
-      skip: flagOps([c.id], "siblings", "done"),
-      question: g === 0 ? "Do you have brothers or sisters? Please tell me each name, and whether older or younger." : `Did ${firstName(c)} (your ${cLabel}) have brothers or sisters? Please list their names.`,
-      instruction: g === 0
-        ? `Ask for ALL of the user's brothers and sisters (${c.id}) — names and whether brother/sister (older/younger is nice but optional). Add each with add_person relation sibling_of ${c.id}. Then set_flag siblings=done on ${c.id}. If none, set_flag siblings=done.`
-        : `Ask for ALL brothers and sisters of ${who(c, lab)} (the user's ${cLabel}'s siblings — i.e. ${g === 1 ? "the user's uncles and aunts on the father's side" : "great-uncles and great-aunts"}). Names and brother/sister. Add each with add_person relation sibling_of ${c.id}. Then set_flag siblings=done on ${c.id}. If none/unknown, set_flag siblings=done.`,
-    };
-    const sibs = siblingsOf(f, c.id).filter((s) => !s.placeholder);
-    const needSp = sibs.filter((s) => !s.flags.spouse && spousesOf(f, s.id).length === 0);
-    if (needSp.length) {
-      const subs = batch ? needSp : [needSp[0]!];
-      return {
-        id: `spouses_of:${subs.map((s) => s.id).join(",")}`, kind: "spouses_of", section: g === 0 ? "Your brothers and sisters" : "Your ancestors’ families", subjects: subs.map((s) => s.id),
-        optional: true, quick: ["None are married", "I don’t know"], skip: flagOps(subs.map((s) => s.id), "spouse", "done"),
-        question: subs.length === 1 ? `Is ${nm(subs[0]!)} married? What is the spouse’s name?` : "Who among them is married? Tell me each spouse’s name (husband or wife).",
-        instruction: `Ask which of these are married and their spouses' names: ${subs.map((s) => who(s, lab)).join("; ")}. Add each spouse with add_person relation spouse_of <person id> — both husband and wife must appear in the tree. NEVER ask about a spouse's parents or family. set_flag spouse=done on every person asked (including those unmarried).`,
-      };
-    }
-    if (g <= 1) {
-      const needCh = sibs.filter((s) => !s.flags.children && childrenOf(f, s.id).length === 0);
-      if (needCh.length) {
-        const subs = batch ? needCh : [needCh[0]!];
-        return {
-          id: `children_of:${subs.map((s) => s.id).join(",")}`, kind: "children_of", section: g === 0 ? "Your brothers and sisters" : "Your ancestors’ families", subjects: subs.map((s) => s.id), optional: true,
-          quick: ["None / don’t know"], skip: flagOps(subs.map((s) => s.id), "children", "done"),
-          question: subs.length === 1 ? `Does ${nm(subs[0]!)} have children? Please tell me their names.` : "Which of them have children? Please tell me the children’s names and whose they are.",
-          instruction: `Ask for the children of: ${subs.map((s) => who(s, lab)).join("; ")}. Add each child with add_person relation child_of <parent id>. The user may not know; that is fine — set_flag children=done on everyone asked. Keep it light: names and son/daughter only.`,
-        };
-      }
-    }
-    if (chainEnds || !father) break;
+    chain.push(father);
     c = father;
+  }
+
+  // anyone whose son/daughter is not known yet (the Panji treats them differently)
+  const needGender = f.persons.find((p) => !p.placeholder && !p.gender);
+  if (needGender) return {
+    id: `gender:${needGender.id}`, kind: "gender", section: "Your family", subjects: [needGender.id], optional: true, quick: ["Male (son / brother)", "Female (daughter / sister)"],
+    skip: [{ op: "update_person", id: needGender.id, set: { gender: "other" } }],
+    question: `Is ${nm(needGender)} male (a son or brother) or female (a daughter or sister)?`,
+    instruction: `Ask whether ${who(needGender, lab)} is male or female, and save it with update_person {gender}.`,
+  };
+
+  // ── 2. brothers and sisters of the user ──
+  if (!m.flags.siblings) return {
+    id: `siblings:${m.id}`, kind: "siblings", section: "Your brothers and sisters", subjects: [m.id], optional: true,
+    quick: ["I have no brothers or sisters"], skip: flagOps([m.id], "siblings", "done"),
+    question: "Do you have brothers or sisters? Please tell me each name, and whether brother or sister.",
+    instruction: `Ask for ALL of the user's brothers and sisters (${m.id}) — each name and whether brother or sister (older/younger is nice but optional). Add each with add_person relation sibling_of ${m.id}. Sisters are recorded by NAME ONLY: never ask about a sister's husband or children — the Panji keeps those in her husband's family chart. Then set_flag siblings=done on ${m.id}. If none, set_flag siblings=done.`,
+  };
+
+  // ── 3. the user's own household and the sons' lines (daughters stop at their own name) ──
+  if (m.gender !== "female") {
+    const g0 = lineGoal(f, [m], { batch, lab, section: "Your family", personal: true, withChildren: true });
+    if (g0) return g0;
+  }
+  // brothers' households
+  const brothers = siblingsOf(f, m.id).filter((s) => s.gender !== "female" && !s.placeholder);
+  const gb = lineGoal(f, brothers, { batch, lab, section: "Your brothers’ families", withChildren: true });
+  if (gb) return gb;
+
+  // ── 4. the ancestors' brothers and sisters, one generation at a time ──
+  for (let i = 1; i < chain.length; i++) {
+    const c = chain[i]!;
+    const g = generation(f, c.id);
+    const cLabel = lab[c.id] ?? "relative";
+    const sect = "Your ancestors’ families";
+    if (!c.flags.siblings) return {
+      id: `siblings:${c.id}`, kind: "siblings", section: sect, subjects: [c.id], optional: true,
+      quick: ["He had no brothers or sisters", "I don’t know"], skip: flagOps([c.id], "siblings", "done"),
+      question: `Did ${firstName(c)} (your ${cLabel}) have brothers or sisters? Please list their names.`,
+      instruction: `Ask for ALL brothers and sisters of ${who(c, lab)} (the user's ${cLabel}'s siblings — i.e. ${g === 1 ? "the user's uncles and aunts on the father's side" : "great-uncles and great-aunts"}). Names and brother/sister. Add each with add_person relation sibling_of ${c.id}. Sisters by NAME ONLY — never ask about a sister's husband or children. Then set_flag siblings=done on ${c.id}. If none/unknown, set_flag siblings=done.`,
+    };
+    const bro = siblingsOf(f, c.id).filter((s) => s.gender !== "female" && !s.placeholder);
+    const gl = lineGoal(f, bro, { batch, lab, section: sect, withChildren: g <= 1, oneLevel: true });
+    if (gl) return gl;
   }
   return null;
 }
 
+interface LineOpts { batch: boolean; lab: Record<string, string>; section: string; personal?: boolean; withChildren: boolean; oneLevel?: boolean }
+
+/**
+ * The sons' lines. For these men (and then their sons, and so on) we ask: wife's name, then children. Daughters are recorded by
+ * name and stop there; a wife is recorded by name only, with no questions about her family.
+ */
+function lineGoal(f: DFamily, roots: DPerson[], o: LineOpts): Goal | null {
+  const { batch, lab } = o;
+  let level = roots.filter((p) => !p.placeholder && p.gender !== "female");
+  for (let depth = 0; level.length && depth < 10; depth++) {
+    const needSp = level.filter((p) => !p.flags.spouse && spousesOf(f, p.id).length === 0);
+    if (needSp.length) {
+      const subs = o.personal && depth === 0 ? [needSp[0]!] : batch ? needSp : [needSp[0]!];
+      const isMe = o.personal && depth === 0 && subs[0]!.id === me(f)?.id;
+      return {
+        id: isMe ? `spouse:${subs[0]!.id}` : `spouses_of:${subs.map((s) => s.id).join(",")}`, kind: isMe ? "spouse" : "spouses_of", section: o.section, subjects: subs.map((s) => s.id),
+        optional: true, quick: isMe ? ["Not married"] : ["None are married", "I don’t know"], skip: flagOps(subs.map((s) => s.id), "spouse", "done"),
+        question: isMe ? "Are you married? If yes, what is your wife’s (or husband’s) name?"
+          : subs.length === 1 ? `Is ${nm(subs[0]!)} married? What is his wife’s name?` : "Who among them is married? Tell me each wife’s name.",
+        instruction: `Ask ${isMe ? "if the user is married and the spouse's name" : "which of these men are married and their wives' names"}: ${subs.map((s) => who(s, lab)).join("; ")}. Add each with add_person relation spouse_of <person id>. Record the NAME only — NEVER ask about the wife's parents or family. set_flag spouse=done on every man you asked about (including unmarried ones).`,
+      };
+    }
+    if (o.withChildren) {
+      const needCh = level.filter((p) => !p.flags.children && childrenOf(f, p.id).length === 0);
+      if (needCh.length) {
+        const subs = o.personal && depth === 0 ? [needCh[0]!] : batch ? needCh : [needCh[0]!];
+        const isMe = o.personal && depth === 0 && subs[0]!.id === me(f)?.id;
+        return {
+          id: isMe ? `children:${subs[0]!.id}` : `children_of:${subs.map((s) => s.id).join(",")}`, kind: isMe ? "children" : "children_of", section: o.section, subjects: subs.map((s) => s.id),
+          optional: true, quick: isMe ? ["No children"] : ["None / don’t know"], skip: flagOps(subs.map((s) => s.id), "children", "done"),
+          question: isMe ? "Do you have children? Please tell me their names, and whether each is a son or a daughter."
+            : subs.length === 1 ? `Does ${nm(subs[0]!)} have children? Please tell me their names, and son or daughter.` : "Which of them have children? Please tell me the children’s names, son or daughter, and whose they are.",
+          instruction: `Ask for the children of: ${subs.map((s) => who(s, lab)).join("; ")} — names, and son or daughter. Add each child with add_person relation child_of <father's id> (the app links the mother automatically when the father has one wife; pass to2 if he has several). Daughters are recorded by NAME ONLY: never ask about a daughter's husband or children. set_flag children=done on everyone asked${isMe ? "" : "; the user may not know — that is fine"}.`,
+        };
+      }
+    }
+    if (o.oneLevel) return null;
+    level = [...new Map(level.flatMap((p) => childrenOf(f, p.id)).filter((k) => !k.placeholder && k.gender !== "female").map((k) => [k.id, k])).values()];
+  }
+  return null;
+}
 
 /** Short human summary of progress for the UI. */
 export function progress(f: DFamily) {

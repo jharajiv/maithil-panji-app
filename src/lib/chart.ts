@@ -1,4 +1,5 @@
 import type { Chart } from "family-chart";
+import type * as d3 from "d3";
 import { toChartData, type ScopedData } from "./tree-filter";
 import type { TemplateId } from "./types";
 import { CREAM, INK, LEAF_PATH, MOTIFS, OCHRE, RED, framePatternDefs } from "./motifs";
@@ -19,9 +20,30 @@ export interface MountedTree {
   frame: HTMLElement;
   fit: () => void;
   centreOn: (id: string) => void;
+  /** move the view to a person WITHOUT changing which family is drawn (keeps the whole lineage on screen) */
+  panTo: (id: string, scale?: number) => void;
+  zoomBy: (factor: number) => void;
+  /** current pan/zoom, so a redraw after an edit can keep the reader where they were */
+  getView: () => { k: number; x: number; y: number } | null;
+  setView: (v: { k: number; x: number; y: number }) => void;
+  destroy: () => void;
+  /** natural (100 %) size of the drawn tree, in CSS px */
+  size: () => { width: number; height: number };
   /** resolves once links/leaf overlay have settled */
   settled: () => Promise<void>;
-  destroy: () => void;
+}
+
+export const CARD_X = 190;
+export const CARD_Y = 168;
+
+/** Natural size of a tree at 100 % zoom, before anything is drawn (used to size big exports). */
+export async function measureTree(scoped: ScopedData): Promise<{ width: number; height: number; people: number }> {
+  const f3 = await import("family-chart");
+  const t = f3.calculateTree(toChartData(scoped), {
+    main_id: scoped.main_id, node_separation: CARD_X, level_separation: CARD_Y,
+    single_parent_empty_card: false, show_siblings_of_main: scoped.roles === undefined,
+  });
+  return { width: Math.ceil(t.dim.width), height: Math.ceil(t.dim.height), people: scoped.persons.length };
 }
 
 const esc = (s: unknown) =>
@@ -54,11 +76,16 @@ function badgeSvg(label: "YOU" | "SPOUSE", tpl: TemplateId) {
 
 let uid = 0;
 
+/** an SVG string as a picture: the browser draws it in one go, and a PDF export of a big family does not have to copy the styles of every little shape */
+const asImg = (svg: string, cls = "") =>
+  `<img class="${cls}" alt="" draggable="false" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.replace(/\s+/g, " "))}"/>`;
+
 function cardInner(
   d: { data: { id: string; data: Record<string, unknown> } },
   tpl: TemplateId,
   rootId: string,
   idp: string,
+  flat = false,
 ) {
   const x = d.data.data as Record<string, string | boolean>;
   const gender = x.gender === "F" ? "female" : "male";
@@ -72,16 +99,17 @@ function cardInner(
   const photo = typeof x.photo === "string" && x.photo.startsWith("data:image/") ? x.photo : "";
   if (tpl === "classic") avatar = photo ? `<div class="pj-avatar pj-photo"><img src="${photo}" alt=""/></div>` : `<div class="pj-avatar">${esc(initials(name))}</div>`;
   if (tpl === "minimal" && photo) avatar = `<div class="pj-avatar pj-photo"><img src="${photo}" alt=""/></div>`;
-  if (tpl === "madhubani") avatar = photo ? `<div class="pj-avatar pj-photo"><img src="${photo}" alt=""/></div>` : `<div class="pj-avatar">${gender === "female" ? MOTIFS.lotus(40) : MOTIFS.sun(40)}</div>`;
-  const frame =
+  if (tpl === "madhubani") avatar = photo ? `<div class="pj-avatar pj-photo"><img src="${photo}" alt=""/></div>` : `<div class="pj-avatar">${flat ? asImg(gender === "female" ? MOTIFS.lotus(40) : MOTIFS.sun(40), "pj-motif") : gender === "female" ? MOTIFS.lotus(40) : MOTIFS.sun(40)}</div>`;
+  const frameSvg =
     tpl === "madhubani"
-      ? `<svg class="pj-cardframe" viewBox="0 0 164 104" xmlns="http://www.w3.org/2000/svg" fill="none">
+      ? `<svg class="pj-cardframe" width="164" height="104" viewBox="0 0 164 104" xmlns="http://www.w3.org/2000/svg" fill="none">
           <rect x="1.5" y="1.5" width="161" height="101" rx="5" fill="${CREAM}" stroke="${INK}" stroke-width="2"/>
-          <rect x="6" y="6" width="152" height="92" rx="3" stroke="${isRoot ? RED : OCHRE}" stroke-width="${isRoot ? 2.6 : 1.6}" class="pj-glow"/>
+          <rect x="6" y="6" width="152" height="92" rx="3" stroke="${isRoot ? (flat ? "#a63a1d" : RED) : OCHRE}" stroke-width="${isRoot ? (flat ? 3.5 : 2.6) : 1.6}" class="pj-glow"/>
           <circle cx="3" cy="3" r="2" fill="${RED}"/><circle cx="161" cy="3" r="2" fill="${RED}"/>
           <circle cx="3" cy="101" r="2" fill="${RED}"/><circle cx="161" cy="101" r="2" fill="${RED}"/>
         </svg>`
       : "";
+  const frame = flat && frameSvg ? asImg(frameSvg, "pj-cardframe") : frameSvg;
   void idp;
   return `<div class="card-inner pj-card pj-${gender} ${isRoot ? "pj-root" : ""} ${role ? "pj-" + role : ""}">
       ${frame}${avatar}
@@ -142,14 +170,14 @@ export async function mountTree(
 
   chart
     .setTransitionTime(transition)
-    .setCardXSpacing(190)
-    .setCardYSpacing(168)
+    .setCardXSpacing(CARD_X)
+    .setCardYSpacing(CARD_Y)
     .setSingleParentEmptyCard(false)
     .setShowSiblingsOfMain(scoped.roles === undefined);
 
   const card = chart.setCardHtml();
   card
-    .setCardInnerHtmlCreator((d) => cardInner(d as never, tpl, opts.rootId, idp))
+    .setCardInnerHtmlCreator((d) => cardInner(d as never, tpl, opts.rootId, idp, !!opts.exporting))
     .setOnCardClick((_e: MouseEvent, d: { data: { id: string } }) => opts.onSelect?.(d.data.id));
 
   const style = LINK_STYLE[tpl];
@@ -200,6 +228,12 @@ export async function mountTree(
   chart.updateTree({ initial: true, tree_position: "fit" });
 
   const settled = () => new Promise<void>((r) => setTimeout(r, transition + 150));
+  type ZoomHost = Element & { __zoomObj?: d3.ZoomBehavior<Element, unknown> };
+  const zoomHost = (): ZoomHost | null => {
+    const svg = chartEl.querySelector("svg.main_svg") as ZoomHost | null;
+    if (!svg) return null;
+    return svg.__zoomObj ? svg : (svg.parentNode as ZoomHost | null);
+  };
   return {
     chart,
     frame,
@@ -207,6 +241,24 @@ export async function mountTree(
     centreOn: (id) => {
       chart.updateMainId(id);
       chart.updateTree({ tree_position: "main_to_middle" });
+    },
+    panTo: (id, scale) => {
+      const h = zoomHost();
+      const node = (chart.store.getTree() as { data: { data: { id: string }; x: number; y: number }[] }).data.find((n) => n.data.id === id);
+      if (!h?.__zoomObj || !node) return;
+      const k = scale ?? Math.max(d3.zoomTransform(h).k, 0.7);
+      const w = chartEl.clientWidth, ht = chartEl.clientHeight;
+      d3.select(h).transition().duration(transition ? 350 : 0).call(h.__zoomObj.transform, d3.zoomIdentity.translate(w / 2 - node.x * k, ht / 2 - node.y * k).scale(k));
+    },
+    zoomBy: (factor) => {
+      const h = zoomHost();
+      if (h?.__zoomObj) d3.select(h).transition().duration(220).call(h.__zoomObj.scaleBy, factor);
+    },
+    getView: () => { const h = zoomHost(); if (!h) return null; const t = d3.zoomTransform(h); return { k: t.k, x: t.x, y: t.y }; },
+    setView: (v) => { const h = zoomHost(); if (h?.__zoomObj) d3.select(h).call(h.__zoomObj.transform, d3.zoomIdentity.translate(v.x, v.y).scale(v.k)); },
+    size: () => {
+      const t = chart.store.getTree() as { dim: { width: number; height: number } };
+      return { width: Math.ceil(t.dim.width), height: Math.ceil(t.dim.height) };
     },
     settled,
     destroy: () => {

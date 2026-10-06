@@ -1,4 +1,4 @@
-# Maithil Panji — Family Tree (v2, Day 2: chat interviewer + live tree)
+# Maithil Panji — Family Tree
 
 Mobile-first web app for capturing Maithil family trees with Panji-native fields (gotra, mool, pravara).
 Design & build brief: see the Word document in the parent folder.
@@ -19,11 +19,20 @@ npm run build
 - `/intake` — redirects to `/build`
 
 ## How the chat works
-- A deterministic planner (`src/lib/interview.ts`) decides the next question: you → spouse/children → father → mother → siblings → grandfather … one generation at a time. Gotra/mool are inherited from the father; parents of married women are never asked; husband and wife are both shown. Places are only *village, district, state* (never a street address).
+- A deterministic planner (`src/lib/interview.ts`) decides the next question, **looking backwards first**: you → father → his father → their fathers … until the person says "I don't know" (then mothers/wives of that line, brothers and their sons, and each ancestor's brothers, generation by generation). Your own spouse and children come after the ancestors.
+- **Panji convention:** a daughter or sister is recorded by name only — her husband, children and in-laws are never asked or saved (she is the link to her husband's family's own chart). The server refuses such entries even if the AI proposes them. Children are drawn from the line between father and mother, never from the father's box alone (`normalizeCouples` in `family.ts` links a child to both parents). Gotra/mool are inherited from the father; parents of married women are never asked; husband and wife are both shown. Places are only *village, district, state* (never a street address).
 - The LLM (`src/lib/agent.ts`, Anthropic tool-use) only parses the answer (English/Hindi/Hinglish), checks gotra/mool against the seed lists, saves via `update_family`, and phrases the next question. The server validates every operation; the same reducer (`applyOps` in `src/lib/family.ts`) runs on server and client.
 - **Unfamiliar mool/gotra:** a close match → "Did you mean X?" (the user confirms); nothing close → saved as a *new entry* (`custom: true`) and collected in the `custom_refs` table for the Panji team to review. Collected entries are overlaid on the search lists, tagged "added by a user" (`registerExtras` in `lookup.ts`, `GET /api/refs`).
 - Scope lock: system prompt + tool design; off-topic messages get one polite sentence and the interview resumes. Input is capped (700 chars, 10 history messages) and rate-limited per IP.
 - No `ANTHROPIC_API_KEY`, or an AI error → automatic **Simple mode** (rule-based parser, `src/lib/basic.ts`, with the same confirm-or-add behaviour).
+
+## Large families (40 households, 5 generations, 200+ people)
+- One creator and many helpers (see Accounts below) — everyone's additions are merged.
+- The live tree opens at "me" and can be zoomed (buttons, pinch, wheel), dragged, fitted to the screen, searched by name and shown full screen. The reader's zoom position survives edits.
+- **Download PDF** offers three sizes: *One page* (small families), *Several A3 / A4 sheets* (readable size, with an overview page and a joining guide) and *Large poster* (one very large page for a print shop; zoomable on screen). Trees over 40 people default to the poster. Big charts are cut into tiles so phones do not run out of memory; each tile only draws what it shows (`src/lib/pdf.ts`, `onlyThe`). A 228-person test family exports in about 20 seconds in all three styles.
+- **Edit freely** (`FreeformEditor.tsx`): a free-form board — tap to make a box, drag boxes, join any two boxes with a connector (parent→child, or the other way round; spouse links too). Each box has the usual details. Positions are not saved; they are laid out again on opening.
+- Dates are three free-order boxes (day / month / year); places are village (with suggestions from OpenStreetMap/Photon when reachable), district (Bihar list) and state, always typeable by hand.
+- Tab icon: `src/app/icon.svg`, `favicon.ico`, `apple-icon.png`.
 
 ## Editing the tree directly
 Tap anyone: edit name (+ Devanagari with on-screen keyboard), gender, birth (year or calendar), living/passed away (hidden for yourself), village/district/state, gotra, mool, photo (shown on the tree cards in all three styles). **Add a relative** adds a wife/husband, son, daughter, brother, sister, father or mother in place; **Remove this person** deletes a node. A married-in woman gets no parents/siblings options (Panji convention).

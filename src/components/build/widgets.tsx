@@ -118,46 +118,62 @@ export function NameField({ label, roman, dev, devTouched, onChange }: {
 
 /* ───────────────────────── date: day, month, year (year alone is fine) ───────────────────────── */
 
-const SEG = /^(\d{0,4})(?:-(\d{2}))?(?:-(\d{2}))?$/;
+const SEG = /^(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?$/;
 
+/**
+ * Day, month and year, in that order, filled in ANY order (people often know the year first, or the day first).
+ * The tree stores a partial ISO date, so the parts are kept here until the year is complete.
+ */
 export function DateField({ value, onChange, label, helper }: { value: string; onChange: (v: string) => void; label: string; helper?: string }) {
   const id = useId();
-  const m = SEG.exec(value ?? "");
-  const y = m?.[1] ?? "", mo = m?.[2] ?? "", d = m?.[3] ?? "";
+  const parse = (v: string) => { const m = SEG.exec(v ?? ""); return { y: m?.[1] ?? "", mo: m?.[2] ?? "", d: m?.[3] ?? "" }; };
+  const [parts, setParts] = useState(() => parse(value));
+  const { y, mo, d } = parts;
   const yearOk = y.length === 4;
-  const compose = (ny: string, nm: string, nd: string) => {
-    if (ny.length < 4) return ny;
-    if (!nm) return ny;
-    if (nd) { const max = new Date(+ny, +nm, 0).getDate(); if (+nd > max) nd = String(max).padStart(2, "0"); }
-    return nd ? `${ny}-${nm}-${nd}` : `${ny}-${nm}`;
+  const compose = (p: { y: string; mo: string; d: string }) => {
+    if (p.y.length < 4) return "";
+    if (!p.mo) return p.y;
+    return p.d ? `${p.y}-${p.mo}-${p.d}` : `${p.y}-${p.mo}`;
   };
-  const dayCount = yearOk && mo ? new Date(+y, +mo, 0).getDate() : 31;
+  // a different person (or an outside edit) arrived: show its date; our own changes already match, so nothing moves
+  useEffect(() => { setParts((cur) => (compose(cur) === (value ?? "") ? cur : parse(value ?? ""))); }, [value]);
+  const update = (next: Partial<typeof parts>) => {
+    const p = { ...parts, ...next };
+    if (p.d && p.mo) {
+      const max = p.y.length === 4 ? new Date(+p.y, +p.mo, 0).getDate() : new Date(2000, +p.mo, 0).getDate(); // 2000: a leap year, so 29 Feb is allowed until the year says otherwise
+      if (+p.d > max) p.d = String(max).padStart(2, "0");
+    }
+    setParts(p);
+    onChange(compose(p));
+  };
+  const dayCount = mo ? new Date(yearOk ? +y : 2000, +mo, 0).getDate() : 31;
   const thisYear = new Date().getFullYear();
-  const bad = y.length === 4 && (+y < 1700 || +y > thisYear);
-  const sel = cn(inputCls, "appearance-none pr-7 disabled:opacity-50");
+  const bad = yearOk && (+y < 1700 || +y > thisYear);
+  const sel = cn(inputCls, "appearance-none pr-7");
   return (
     <div role="group" aria-labelledby={`${id}-l`}>
-      <Label htmlFor={`${id}-y`} helper={helper ?? "Full date if you know it — or just the year, or month and year."}><span id={`${id}-l`}>{label}</span></Label>
-      <div className="grid grid-cols-[4.5rem_1fr_5.5rem] gap-2">
+      <Label htmlFor={`${id}-d`} helper={helper ?? "Day, month and year — fill in what you know, in any order. The year alone is fine."}><span id={`${id}-l`}>{label}</span></Label>
+      <div className="grid grid-cols-[4.75rem_1fr_5.5rem] gap-2">
         <div className="relative">
-          <select aria-label={`${label}: day`} className={sel} disabled={!yearOk || !mo} value={d} onChange={(e) => onChange(compose(y, mo, e.target.value))}>
+          <select id={`${id}-d`} aria-label={`${label}: day`} className={sel} value={d} onChange={(e) => update({ d: e.target.value })}>
             <option value="">Day</option>
             {Array.from({ length: dayCount }, (_, i) => String(i + 1).padStart(2, "0")).map((x) => <option key={x} value={x}>{+x}</option>)}
           </select>
           <ChevronDown className="pointer-events-none absolute right-2 top-3.5 size-4 text-muted-foreground" />
         </div>
         <div className="relative">
-          <select aria-label={`${label}: month`} className={sel} disabled={!yearOk} value={mo} onChange={(e) => onChange(compose(y, e.target.value, e.target.value ? d : ""))}>
+          <select aria-label={`${label}: month`} className={sel} value={mo} onChange={(e) => update({ mo: e.target.value })}>
             <option value="">Month</option>
             {MONTHS.map((n, i) => <option key={n} value={String(i + 1).padStart(2, "0")}>{n}</option>)}
           </select>
           <ChevronDown className="pointer-events-none absolute right-2 top-3.5 size-4 text-muted-foreground" />
         </div>
         <input id={`${id}-y`} aria-label={`${label}: year`} className={inputCls} inputMode="numeric" autoComplete="off" placeholder="Year" maxLength={4} value={y}
-          onChange={(e) => onChange(compose(e.target.value.replace(/\D/g, "").slice(0, 4), mo, d))} />
+          onChange={(e) => update({ y: e.target.value.replace(/\D/g, "").slice(0, 4) })} />
       </div>
-      {(bad || (value && !m)) && <p className="mt-1 text-xs text-terracotta">Please enter a year between 1700 and {thisYear}.</p>}
-      {!yearOk && !!y && <p className="mt-1 text-xs text-muted-foreground">Type the 4-digit year to choose month and day.</p>}
+      {bad && <p className="mt-1 text-xs text-terracotta">Please enter a year between 1700 and {thisYear}.</p>}
+      {!yearOk && (mo || d || y) && !bad && <p className="mt-1 text-xs text-muted-foreground">Add the 4-digit year to save this date.</p>}
+      {yearOk && d && !mo && <p className="mt-1 text-xs text-muted-foreground">Choose the month too to keep the day.</p>}
     </div>
   );
 }
@@ -314,9 +330,17 @@ export function SearchSelect({ kind, value, onChange, gotraId, placeholder }: {
   );
 }
 
-/* ───────────────────────── place search (OpenStreetMap via Photon): village, district, state only ───────────────────────── */
+/* ───────────────────────── place: village, district, state (suggestions from OpenStreetMap / Photon; typing always works) ───────────────────────── */
 
 interface PhotonFeature { properties: { name?: string; district?: string; county?: string; state?: string; country?: string; countrycode?: string; osm_value?: string } }
+interface PlaceHit { a: string; b: string; c: string }
+
+export const INDIAN_STATES = ["Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
+  "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry"];
+export const BIHAR_DISTRICTS = ["Araria", "Arwal", "Aurangabad", "Banka", "Begusarai", "Bhagalpur", "Bhojpur", "Buxar", "Darbhanga", "East Champaran", "Gaya", "Gopalganj", "Jamui", "Jehanabad", "Kaimur", "Katihar", "Khagaria", "Kishanganj", "Lakhisarai", "Madhepura", "Madhubani", "Munger", "Muzaffarpur", "Nalanda", "Nawada", "Patna", "Purnia", "Rohtas", "Saharsa", "Samastipur", "Saran", "Sheikhpura", "Sheohar", "Sitamarhi", "Siwan", "Supaul", "Vaishali", "West Champaran"];
+
+const norm = (x: string) => x.toLowerCase().replace(/\s+(district|zila|division)$/, "").trim();
+const stateMatch = (x: string) => INDIAN_STATES.find((s) => norm(s) === norm(x));
 
 /** "Village, District, State" — never a street address. Outside India: "City, Country". */
 export function placeLabel(p: PhotonFeature["properties"], india: boolean) {
@@ -326,67 +350,125 @@ export function placeLabel(p: PhotonFeature["properties"], india: boolean) {
   return out.join(", ");
 }
 
+function parsePlace(value: string) {
+  const parts = value.split(",").map((x) => x.trim()).filter(Boolean);
+  const lastState = parts.length > 1 ? stateMatch(parts[parts.length - 1]!) : undefined;
+  if (parts.length === 0) return { india: true, a: "", b: "", c: "" };
+  if (parts.length >= 3 && lastState) return { india: true, a: parts[0]!, b: parts.slice(1, -1).join(", "), c: lastState };
+  if (parts.length === 2 && lastState) return { india: true, a: parts[0]!, b: "", c: lastState };
+  if (parts.length >= 2 && !lastState && /^(india)$/i.test(parts[parts.length - 1]!)) return { india: true, a: parts[0]!, b: parts[1] ?? "", c: "" };
+  if (parts.length === 1) return { india: true, a: parts[0]!, b: "", c: "" };
+  if (parts.length === 2) return { india: false, a: parts[0]!, b: "", c: parts[1]! };       // "Zurich, Switzerland"
+  return { india: true, a: parts[0]!, b: parts[1]!, c: parts.slice(2).join(", ") };          // older free text, keep it as typed
+}
+
 export function PlaceField({ value, onChange, helper, label }: { value: string; onChange: (v: string) => void; helper?: string; label?: string }) {
   const id = useId();
-  const [india, setIndia] = useState(true);
-  const [q, setQ] = useState(value);
+  const [f, setF] = useState(() => parsePlace(value));
   const [open, setOpen] = useState(false);
-  const [remote, setRemote] = useState<string[]>([]);
+  const [remote, setRemote] = useState<PlaceHit[]>([]);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-  const listRef = useRef<HTMLUListElement>(null);
-  useEffect(() => setQ(value), [value]);
+  const { india, a, b, c } = f;
+  const compose = (x: typeof f) => (x.a.trim() || x.b.trim() ? [x.a, x.b, x.c].map((p) => p.trim()).filter(Boolean).join(", ") : "");
+  // another person's place arrived: show it; our own edits already match, so nothing moves
+  useEffect(() => { setF((cur) => (compose(cur) === (value ?? "").trim() ? cur : parsePlace(value ?? ""))); }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  const update = (next: Partial<typeof f>) => { const x = { ...f, ...next }; setF(x); onChange(compose(x)); };
+  const pick = (h: PlaceHit) => { const x = { india, a: h.a, b: h.b, c: h.c }; setF(x); onChange(compose(x)); setOpen(false); };
 
+  // suggestions while typing the village: Photon looks things up by name, so we add the district/state when they are known
   useEffect(() => {
-    const text = q.trim();
+    const text = a.trim();
     if (!open || text.length < 3) { setRemote([]); return; }
     const ctl = new AbortController();
     const t = setTimeout(async () => {
       setBusy(true); setFailed(false);
-      try {
+      const ask = async (q: string, tagged: boolean) => {
         const u = new URL("https://photon.komoot.io/api/");
-        u.searchParams.set("q", text); u.searchParams.set("limit", "10"); u.searchParams.set("lang", "en"); u.searchParams.set("osm_tag", "place");
-        if (india) { u.searchParams.set("bbox", "68.1,6.5,97.5,35.7"); u.searchParams.set("lat", "25.9"); u.searchParams.set("lon", "85.6"); u.searchParams.set("location_bias_scale", "0.3"); }
+        u.searchParams.set("q", q); u.searchParams.set("limit", "12"); u.searchParams.set("lang", "en");
+        if (tagged) u.searchParams.set("osm_tag", "place");
+        if (india) { u.searchParams.set("bbox", "68.1,6.5,97.5,35.7"); u.searchParams.set("lat", "26.1"); u.searchParams.set("lon", "86.0"); u.searchParams.set("location_bias_scale", "0.4"); }
         const res = await fetch(u, { signal: ctl.signal });
         if (!res.ok) throw new Error(String(res.status));
         const json = (await res.json()) as { features: PhotonFeature[] };
         const seen = new Set<string>();
-        const out = json.features
-          .filter((f) => !india || f.properties.countrycode === "IN")
-          .map((f) => placeLabel(f.properties, india))
-          .filter((s) => s && !seen.has(s) && seen.add(s));
-        setRemote(out.slice(0, 6));
+        const out: PlaceHit[] = [];
+        for (const ft of json.features) {
+          const p = ft.properties;
+          if (india && p.countrycode !== "IN") continue;
+          const hit: PlaceHit = india ? { a: p.name ?? "", b: (p.district || p.county || "").replace(/\s+district$/i, ""), c: stateMatch(p.state ?? "") ?? p.state ?? "" } : { a: p.name ?? "", b: "", c: p.country ?? "" };
+          const key = `${hit.a}|${hit.b}|${hit.c}`.toLowerCase();
+          if (hit.a && !seen.has(key)) { seen.add(key); out.push(hit); }
+        }
+        return out;
+      };
+      try {
+        const extra = india ? [b, c].filter(Boolean).join(" ") : c;
+        let out = await ask(extra ? `${text} ${extra}` : text, true);
+        if (!out.length) out = await ask(extra ? `${text} ${extra}` : `${text}${india ? " Bihar" : ""}`, false); // not tagged as a "place" in the map data: look more widely
+        if (!out.length && extra) out = await ask(text, false);
+        // prefer the district/state the reader already chose
+        const want = (h: PlaceHit) => (b && norm(h.b) === norm(b) ? 2 : 0) + (c && norm(h.c) === norm(c) ? 1 : 0);
+        setRemote(out.sort((x, y) => want(y) - want(x)).slice(0, 6));
       } catch (e) {
         if ((e as Error).name !== "AbortError") { setFailed(true); setRemote([]); }
       } finally { setBusy(false); }
     }, 350);
     return () => { clearTimeout(t); ctl.abort(); };
-  }, [q, open, india]);
+  }, [a, b, c, open, india]);
 
-  const choose = (s: string) => { onChange(s); setQ(s); setOpen(false); };
-  useEffect(() => { if (open && (remote.length || failed)) listRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [open, remote, failed]);
+  const districtList = india && (!c || norm(c) === "bihar") ? BIHAR_DISTRICTS : [];
   return (
     <div>
-      <Label htmlFor={id} helper={helper ?? (india ? "Village, district and state — no street address needed." : "City and country.")}>{label ?? "Village or city"}</Label>
+      <Label htmlFor={`${id}-a`} helper={helper ?? (india ? "Village or town, district and state — no street address needed." : "City and country — no street address needed.")}>{label ?? (india ? "Village or town" : "City")}</Label>
       <div className="relative">
         <MapPin className="pointer-events-none absolute left-3.5 top-3.5 size-5 text-muted-foreground" />
-        <input id={id} className={cn(inputCls, "pl-11")} value={q} autoComplete="off" placeholder={india ? "Start typing the village name" : "City, country"}
-          onFocus={() => setOpen(true)} onChange={(e) => { setQ(e.target.value); onChange(e.target.value); setOpen(true); }} />
+        <input id={`${id}-a`} className={cn(inputCls, "pl-11")} value={a} autoComplete="off" placeholder={india ? "Village or town, e.g. Behta" : "City"}
+          onFocus={() => setOpen(true)} onChange={(e) => { update({ a: e.target.value }); setOpen(true); }} />
         {busy && <Loader2 className="absolute right-3.5 top-3.5 size-5 animate-spin text-muted-foreground" />}
       </div>
-      <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-        <span>{india ? "Searching places in India" : "Searching worldwide"}</span>
-        <button type="button" className="font-medium text-primary underline-offset-2 hover:underline" onClick={() => setIndia((v) => !v)}>
+      {open && (remote.length > 0 || failed) && (
+        <ul className="mt-1.5 max-h-56 overflow-y-auto rounded-xl border bg-card" role="listbox" aria-label="Suggested places">
+          {remote.map((h) => (
+            <li key={`${h.a}|${h.b}|${h.c}`}><button type="button" onClick={() => pick(h)} className="block w-full px-4 py-2.5 text-left text-sm hover:bg-secondary">
+              <span className="font-medium">{h.a}</span><span className="text-muted-foreground">{[h.b, h.c].filter(Boolean).map((x) => `, ${x}`).join("")}</span>
+            </button></li>
+          ))}
+          {failed && <li className="px-4 py-2.5 text-xs text-muted-foreground">Place suggestions aren’t reachable right now — please fill in the district and state below.</li>}
+        </ul>
+      )}
+      {india ? (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <div>
+            <label htmlFor={`${id}-b`} className="text-xs font-medium text-foreground/70">District</label>
+            <input id={`${id}-b`} className={inputCls} value={b} autoComplete="off" list={districtList.length ? `${id}-dl` : undefined} placeholder="e.g. Madhubani"
+              onFocus={() => setOpen(false)} onChange={(e) => update({ b: e.target.value })} />
+            {districtList.length > 0 && <datalist id={`${id}-dl`}>{districtList.map((d) => <option key={d} value={d} />)}</datalist>}
+          </div>
+          <div>
+            <label htmlFor={`${id}-c`} className="text-xs font-medium text-foreground/70">State</label>
+            <div className="relative">
+              <select id={`${id}-c`} className={cn(inputCls, "appearance-none pr-8")} value={c} onChange={(e) => update({ c: e.target.value })} onFocus={() => setOpen(false)}>
+                <option value="">Choose state</option>
+                {INDIAN_STATES.map((x) => <option key={x} value={x}>{x}</option>)}
+                {c && !INDIAN_STATES.includes(c) && <option value={c}>{c}</option>}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-3.5 size-4 text-muted-foreground" />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-2">
+          <label htmlFor={`${id}-c`} className="text-xs font-medium text-foreground/70">Country</label>
+          <input id={`${id}-c`} className={inputCls} value={c} autoComplete="off" placeholder="e.g. Switzerland" onFocus={() => setOpen(false)} onChange={(e) => update({ c: e.target.value })} />
+        </div>
+      )}
+      <div className="mt-1 flex justify-end text-xs">
+        <button type="button" className="font-medium text-primary underline-offset-2 hover:underline"
+          onClick={() => { const x = india ? { india: false, a, b: "", c: "" } : { india: true, a, b: "", c: "" }; setF(x); onChange(compose(x)); setRemote([]); }}>
           {india ? "Outside India?" : "Back to India"}
         </button>
       </div>
-      {open && (remote.length > 0 || failed || q.trim().length >= 3) && (
-        <ul ref={listRef} className="mt-1.5 max-h-56 overflow-y-auto rounded-xl border bg-card" role="listbox">
-          {remote.map((s) => <li key={s}><button type="button" onClick={() => choose(s)} className="block w-full px-4 py-2.5 text-left text-sm hover:bg-secondary">{s}</button></li>)}
-          {failed && <li className="px-4 py-2.5 text-xs text-muted-foreground">Place search isn’t reachable right now — type it as “Village, District, State”.</li>}
-          <li><button type="button" onClick={() => choose(q.trim())} className="block w-full border-t px-4 py-2.5 text-left text-sm font-medium text-primary hover:bg-secondary">Use “{q.trim()}” as typed</button></li>
-        </ul>
-      )}
     </div>
   );
 }

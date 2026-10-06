@@ -54,7 +54,7 @@
   letter-spacing: .02em;
   overflow: hidden;
 }
-.pj-card .pj-avatar svg { width: 100%; height: 100%; display: block; }
+.pj-card .pj-avatar svg, .pj-card .pj-avatar > img.pj-motif { width: 100%; height: 100%; display: block; }
 .pj-card .pj-avatar > svg { flex: none; }
 .pj-card .pj-name { font-size: 13px; font-weight: 650; line-height: 17px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pj-card .pj-deva { font-size: 12px; line-height: 16px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .85; }
