@@ -29,6 +29,7 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
   const [share, setShare] = useState<ShareInfo | null>(null);
   const [status, setStatus] = useState<SyncStatus>("off");
   const [members, setMembers] = useState<MemberRow[]>([]);
+  const [viewKey, setViewKey] = useState("");
   const [adopted, setAdopted] = useState(false); // true once a tree was loaded from a link / server (BuildApp resets chat then)
   const base = useRef<DFamily | null>(null);
   const shareRef = useRef<ShareInfo | null>(null); shareRef.current = share;
@@ -47,6 +48,7 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
     if (!res.ok) throw new Error(String(res.status));
     const j = await res.json();
     if (j.members) setMembers(j.members);
+    if (typeof j.viewKey === "string") setViewKey(j.viewKey);
     if (s.role !== j.role || s.personId !== j.member?.person_id || s.memberName !== j.member?.name || s.memberId !== j.member?.id || s.title !== j.title) update({ ...s, role: j.role, personId: j.member?.person_id, memberName: j.member?.name, memberId: j.member?.id, title: j.title });
     if (j.unchanged) return true;
     const remote = j.family as DFamily;
@@ -178,5 +180,7 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
   const ownerLink = share && !share.account ? `${typeof location !== "undefined" ? location.origin : ""}/build?t=${share.treeId}&k=${share.token}` : "";
   const leave = useCallback(() => { update(null); base.current = null; setStatus("off"); setMembers([]); }, []);
 
-  return { enabled, share, status, members, adopted, create, invite, revoke, deleteOnline, ownerLink, leave, leaveTree };
+  /** the read-only address printed as a QR code on downloads (empty until the tree is online) */
+  const viewUrl = share && viewKey && typeof location !== "undefined" ? `${location.origin}/view/${share.treeId}?v=${viewKey}` : "";
+  return { enabled, share, status, members, adopted, viewUrl, create, invite, revoke, deleteOnline, ownerLink, leave, leaveTree };
 }

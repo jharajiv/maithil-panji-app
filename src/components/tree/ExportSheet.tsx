@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { exportTreePdf, FIT_MAX_PEOPLE, type ExportMode } from "@/lib/pdf";
 import { scopeData } from "@/lib/tree-filter";
+import { recentlyDonated } from "@/lib/donate";
+import { DonateStep, donationConfigured } from "./DonateStep";
 import type { ExportScope, FamilyData, PageFormat, TemplateId } from "@/lib/types";
 
 function Choice<T extends string>({
@@ -30,8 +32,8 @@ function Choice<T extends string>({
 }
 
 export function ExportSheet({
-  open, onClose, data, template, defaultScope = "full", sample = false,
-}: { open: boolean; onClose: () => void; data: FamilyData; template: TemplateId; defaultScope?: ExportScope; sample?: boolean }) {
+  open, onClose, data, template, defaultScope = "full", sample = false, viewUrl, saveHref,
+}: { open: boolean; onClose: () => void; data: FamilyData; template: TemplateId; defaultScope?: ExportScope; sample?: boolean; viewUrl?: string; saveHref?: string }) {
   const [scope, setScope] = useState<ExportScope>(defaultScope);
   const [format, setFormat] = useState<PageFormat>("a3-landscape");
   const people = useMemo(() => scopeData(data, scope).persons.length, [data, scope]);
@@ -42,12 +44,21 @@ export function ExportSheet({
   useEffect(() => { if (!touched) setMode(big ? "poster" : "fit"); }, [big, touched]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<"options" | "donate">("options");
+  useEffect(() => { if (!open) setStep("options"); }, [open]);
+
+  /** the download button: a small, skippable contribution first (never for the sample tree, and not again soon after contributing) */
+  function start() {
+    if (sample || !donationConfigured() || recentlyDonated()) { void run(); return; }
+    setStep("donate");
+  }
 
   async function run() {
+    setStep("options");
     setError(null);
     setBusy("Preparing…");
     try {
-      await exportTreePdf({ data, scope, template, format, mode, sample, onProgress: setBusy });
+      await exportTreePdf({ data, scope, template, format, mode, sample, onProgress: setBusy, viewUrl });
       onClose();
     } catch (e) {
       console.error(e);
@@ -59,6 +70,7 @@ export function ExportSheet({
 
   return (
     <Sheet open={open} onClose={() => !busy && onClose()} title="Download PDF">
+      {step === "donate" ? <DonateStep onBack={() => setStep("options")} onContinue={() => void run()} /> : <>
       <h2 className="font-display text-xl font-semibold">Download PDF</h2>
       <p className="mb-4 text-sm text-muted-foreground">Print-ready, in your current template.</p>
 
@@ -85,10 +97,17 @@ export function ExportSheet({
         </div>
       )}
 
+      {!sample && (viewUrl ? (
+        <p className="mt-4 rounded-xl bg-secondary/60 p-3 text-sm text-muted-foreground">The QR code at the bottom of the page is unique to your tree. Anyone who scans it sees a read-only copy online — they cannot change anything.</p>
+      ) : saveHref ? (
+        <p className="mt-4 rounded-xl bg-secondary/60 p-3 text-sm text-muted-foreground">Want a personal QR code on the printout, so relatives can scan it and see this tree online? <a className="font-medium text-primary underline underline-offset-2" href={saveHref}>Save your tree to an account first.</a></p>
+      ) : null)}
+
       {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
-      <Button size="lg" className="mt-5 w-full" onClick={run} disabled={!!busy}>
+      <Button size="lg" className="mt-5 w-full" onClick={start} disabled={!!busy}>
         {busy ? <><Loader2 className="animate-spin" /> {busy}</> : <><FileDown /> Download PDF</>}
       </Button>
+      </>}
     </Sheet>
   );
 }

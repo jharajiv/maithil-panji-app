@@ -1,9 +1,8 @@
 import Image from "next/image";
-import Link from "next/link";
 import { ArrowRight, ListChecks, Printer, Sprout } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Motif, PatternBand } from "@/components/landing/Motif";
-import { AuthLink } from "@/components/account/AuthLink";
+import { AuthLink, StartLink } from "@/components/account/AuthLink";
 
 const TEMPLATES = [
   { id: "classic", name: "Classic", blurb: "Warm, formal, built for printing.", img: "/templates/classic.png" },
@@ -20,7 +19,7 @@ const STEPS = [
 function Cta({ className }: { className?: string }) {
   return (
     <Button asChild size="lg" className={`h-14 px-7 text-base ${className ?? ""}`}>
-      <Link href="/app">Start building your family tree <ArrowRight /></Link>
+      <StartLink>Start building your family tree <ArrowRight /></StartLink>
     </Button>
   );
 }
@@ -94,7 +93,7 @@ export default function Home() {
         <div className="relative mx-auto max-w-3xl px-5 py-14 text-center">
           <h2 className="font-display text-2xl font-semibold sm:text-4xl">Your family’s story, in your family’s tradition.</h2>
           <div className="mt-6 flex justify-center">
-            <Button asChild size="lg" variant="secondary" className="h-14 px-7 text-base"><Link href="/app">Start building your family tree <ArrowRight /></Link></Button>
+            <Button asChild size="lg" variant="secondary" className="h-14 px-7 text-base"><StartLink>Start building your family tree <ArrowRight /></StartLink></Button>
           </div>
           <p className="mt-6 text-sm text-cream/70">A community project preserving the Panji Prabandh.</p>
         </div>

@@ -46,6 +46,16 @@ export function Dashboard() {
     setDraft(localDraft());
   }, [auth.loading, auth.enabled, auth.account, load, router]);
 
+  // arriving from "Save my tree": move the tree built on this device into the account straight away
+  const [autoDone, setAutoDone] = useState(false);
+  useEffect(() => {
+    if (autoDone || !lists || !draft || busy) return;
+    if (new URLSearchParams(window.location.search).get("import") !== "1") return;
+    setAutoDone(true);
+    void create(draft.family, "import");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lists, draft, busy, autoDone]);
+
   const create = async (family: unknown, key: string) => {
     setBusy(key); setErr("");
     try {

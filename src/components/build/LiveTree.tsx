@@ -27,7 +27,9 @@ export const LiveTree = forwardRef<LiveTreeHandle, {
   family: DFamily; template: TemplateId; onTemplate: (t: TemplateId) => void; onSelect: (id: string) => void; className?: string;
   /** the free-form editor button, shown next to the zoom controls */
   extra?: React.ReactNode;
-}>(function LiveTree({ family, template, onTemplate, onSelect, className, extra }, ref) {
+  /** the read-only page opened from a printed QR code */
+  readOnly?: boolean;
+}>(function LiveTree({ family, template, onTemplate, onSelect, className, extra, readOnly }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const mounted = useRef<MountedTree | null>(null);
   const view = useRef<{ k: number; x: number; y: number } | null>(null);
@@ -127,7 +129,7 @@ export const LiveTree = forwardRef<LiveTreeHandle, {
             </div>
           </div>
         )}
-        {scoped && <p className="pointer-events-none absolute bottom-2 left-1/2 w-max max-w-[92%] -translate-x-1/2 rounded-full bg-card/90 px-3 py-1 text-center text-xs text-muted-foreground shadow">{count} {count === 1 ? "person" : "people"} · tap anyone to edit · drag to move · pinch or scroll to zoom</p>}
+        {scoped && <p className="pointer-events-none absolute bottom-2 left-1/2 w-max max-w-[92%] -translate-x-1/2 rounded-full bg-card/90 px-3 py-1 text-center text-xs text-muted-foreground shadow">{count} {count === 1 ? "person" : "people"} · {readOnly ? "tap anyone for details" : "tap anyone to edit"} · drag to move · pinch or scroll to zoom</p>}
       </div>
     </section>
   );

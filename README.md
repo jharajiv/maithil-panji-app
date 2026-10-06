@@ -34,6 +34,11 @@ npm run build
 - Dates are three free-order boxes (day / month / year); places are village (with suggestions from OpenStreetMap/Photon when reachable), district (Bihar list) and state, always typeable by hand.
 - Tab icon: `src/app/icon.svg`, `favicon.ico`, `apple-icon.png`.
 
+## Start without an account, save later, contribute at download
+- The home button goes straight to `/build`. Nothing asks for sign-up first. After 5 people a gentle **Save your tree** card appears (`SavePrompt.tsx`; "Not now" hides it until 10 more people are added). "Save my tree" signs in with an email code and `/app?import=1` moves the tree from this device into the new account.
+- **Download PDF → contribution step** (`DonateStep.tsx`, `lib/donate.ts`): suggested amounts by country (India ₹51/101/251/501 via UPI link or QR; US $5/11/21; Switzerland CHF 10/20/50; euro countries, UK, UAE, Australia, Canada have their own). Country comes from Vercel's `x-vercel-ip-country` header (`/api/geo`), else the browser's time zone and language. **Skip** is always there; someone who has contributed is not asked again for 45 days. Set `NEXT_PUBLIC_DONATE_UPI_ID` and/or `NEXT_PUBLIC_DONATE_CARD_URL` in Vercel; with neither set the step is not shown.
+- **Personal QR code on every printout:** for a tree saved online, the footer QR opens `/view/<tree>?v=<key>`, a read-only page (zoom, search, tap for details). The key is derived from the tree id and `AUTH_SECRET` (no extra database column), phone numbers and notes are removed from what visitors get. A tree that is only on one device gets the home-page QR and a hint to save it online.
+
 ## Editing the tree directly
 Tap anyone: edit name (+ Devanagari with on-screen keyboard), gender, birth (year or calendar), living/passed away (hidden for yourself), village/district/state, gotra, mool, photo (shown on the tree cards in all three styles). **Add a relative** adds a wife/husband, son, daughter, brother, sister, father or mother in place; **Remove this person** deletes a node. A married-in woman gets no parents/siblings options (Panji convention).
 

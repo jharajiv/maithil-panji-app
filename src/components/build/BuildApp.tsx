@@ -20,6 +20,7 @@ import { HelperPane } from "./HelperPane";
 import { MatchesPane } from "./MatchesPane";
 import { PersonEditSheet } from "./PersonEditSheet";
 import { ShareSheet } from "./ShareSheet";
+import { SavePrompt } from "./SavePrompt";
 import { useShare } from "./useShare";
 import { useAccount } from "@/components/account/useAccount";
 
@@ -224,7 +225,8 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
       <FreeformEditor open={freeOpen} onClose={() => setFreeOpen(false)} family={family} onFamily={setFamily} onEdit={setSelected} />
       <PersonEditSheet family={family} personId={selected} onClose={() => setSelected(undefined)} onSave={saveEdit} onDelete={deletePerson} onCentre={(id) => tree.current?.centreOn(id)}
         onAdd={addRelative} canInvite={(sh.enabled === true || auth.enabled) && sh.share?.role !== "editor"} onInvite={(id) => { setInviteFor(id); setShareOpen(true); }} />
-      {data && <ExportSheet open={exportOpen} onClose={() => setExportOpen(false)} data={data} template={template} defaultScope="paternal" />}
+      {data && <ExportSheet open={exportOpen} onClose={() => setExportOpen(false)} data={data} template={template} defaultScope="paternal" viewUrl={sh.viewUrl || undefined} saveHref={auth.enabled && !sh.share ? `/login?next=${encodeURIComponent("/app?import=1")}` : undefined} />}
+      {!inAccount && ready && !auth.loading && auth.enabled && !sh.share && !exportOpen && !shareOpen && <SavePrompt people={family.persons.length} signedIn={!!auth.account} />}
       <ShareSheet open={shareOpen} onClose={() => setShareOpen(false)} family={family} enabled={sh.enabled} share={sh.share} status={sh.status} members={sh.members} ownerLink={sh.ownerLink}
         invitePersonId={inviteFor} onCreate={sh.create} onInvite={sh.invite} onRevoke={sh.revoke} onRememberPhone={rememberPhone} onLeave={() => { sh.leave(); setShareOpen(false); }}
         onDeleteOnline={async () => { await sh.deleteOnline(); if (inAccount) router.replace("/app"); }}

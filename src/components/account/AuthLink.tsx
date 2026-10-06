@@ -12,3 +12,9 @@ export function AuthLink() {
     </Link>
   );
 }
+
+/** the big "Start" buttons: a new visitor goes straight to building (no sign-up first); someone signed in goes to their trees */
+export function StartLink({ children }: { children: React.ReactNode }) {
+  const a = useAccount();
+  return <Link href={a.account ? "/app" : "/build"}>{children}</Link>;
+}
