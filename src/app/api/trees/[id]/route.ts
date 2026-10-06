@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 import { sanitizeFamily } from "@/lib/sanitize";
-import { authorize, getStore, syncAll } from "@/lib/store";
+import { getStore, syncAll, treeMeta } from "@/lib/store";
+import { accessFor, currentAccount, publicMember } from "@/lib/auth";
 import { clientIp, limited } from "@/lib/ratelimit";
 
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 
-const publicMembers = (row: { members: { id: string; name: string; role: string; person_id?: string }[] }) =>
-  row.members.map((m) => ({ id: m.id, name: m.name, role: m.role, person_id: m.person_id }));
+/** signed-in account first, private-link token second */
+const access = async (req: Request, row: Parameters<typeof accessFor>[0], token: string | null | undefined) => accessFor(row, await currentAccount(req), token)?.member ?? null;
 
-/** GET ?k=token[&rev=N] → the tree (or {unchanged:true} when the caller already has rev N) */
+const publicMembers = (row: { members: Parameters<typeof publicMember>[0][] }) => row.members.map((m) => publicMember(m, true));
+
+/** GET [?k=token][&rev=N] → the tree (or {unchanged:true} when the caller already has rev N) */
 export async function GET(req: Request, { params }: Ctx) {
   const store = getStore();
   if (!store) return NextResponse.json({ error: "Sharing is not set up yet." }, { status: 503 });
@@ -17,10 +20,10 @@ export async function GET(req: Request, { params }: Ctx) {
   const { id } = await params;
   const url = new URL(req.url);
   const row = await store.getTree(id);
-  const me = row && authorize(row, url.searchParams.get("k"));
+  const me = row && (await access(req, row, url.searchParams.get("k")));
   if (!row || !me) return NextResponse.json({ error: "This link is not valid any more." }, { status: 404 });
   const have = Number(url.searchParams.get("rev"));
-  const base = { rev: row.rev, role: me.role, member: { id: me.id, name: me.name, person_id: me.person_id }, members: me.role === "owner" ? publicMembers(row) : undefined };
+  const base = { rev: row.rev, role: me.role, title: row.title, member: { id: me.id, name: me.name, person_id: me.person_id }, members: me.role === "owner" ? publicMembers(row) : undefined };
   if (have && have === row.rev) return NextResponse.json({ ...base, unchanged: true });
   return NextResponse.json({ ...base, family: row.family });
 }
@@ -36,13 +39,13 @@ export async function PUT(req: Request, { params }: Ctx) {
   let body: Record<string, unknown>;
   try { body = JSON.parse(text); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   const row = await store.getTree(id);
-  const me = row && authorize(row, typeof body.k === "string" ? body.k : null);
+  const me = row && (await access(req, row, typeof body.k === "string" ? body.k : null));
   if (!row || !me) return NextResponse.json({ error: "This link is not valid any more." }, { status: 404 });
   const family = sanitizeFamily(body.family, { stored: true });
   if (!family || !family.persons.length) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   const baseRev = Number(body.baseRev);
   if (baseRev !== row.rev) return NextResponse.json({ conflict: true, rev: row.rev, family: row.family }, { status: 409 });
-  const saved = await store.updateTree(id, baseRev, { family }, true);
+  const saved = await store.updateTree(id, baseRev, { family, ...treeMeta(family) }, true);
   if (!saved) { const cur = await store.getTree(id); return NextResponse.json({ conflict: true, rev: cur?.rev, family: cur?.family }, { status: 409 }); }
   await syncAll(store, id, family);
   return NextResponse.json({ rev: saved.rev });
@@ -57,7 +60,7 @@ export async function DELETE(req: Request, { params }: Ctx) {
   let body: Record<string, unknown> = {};
   try { body = await req.json(); } catch { /* no body */ }
   const row = await store.getTree(id);
-  const me = row && authorize(row, typeof body.k === "string" ? body.k : null);
+  const me = row && (await access(req, row, typeof body.k === "string" ? body.k : null));
   if (!row || !me) return NextResponse.json({ error: "This link is not valid any more." }, { status: 404 });
   if (me.role !== "owner") return NextResponse.json({ error: "Only the owner can delete the tree." }, { status: 403 });
   await store.deleteTree(id);

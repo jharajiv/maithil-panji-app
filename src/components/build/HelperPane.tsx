@@ -1,11 +1,12 @@
 "use client";
+import Link from "next/link";
 import { Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Motif } from "@/components/landing/Motif";
 import { cn } from "@/lib/utils";
 
 /** Shown instead of the chat to family members who were invited to help: they edit the tree directly. */
-export function HelperPane({ className, name, onOpenShare }: { className?: string; name?: string; onOpenShare: () => void }) {
+export function HelperPane({ className, name, onOpenShare, ownTreeHref }: { className?: string; name?: string; onOpenShare: () => void; ownTreeHref?: string }) {
   return (
     <section className={cn("flex min-h-0 flex-col overflow-y-auto bg-background p-6", className)} aria-label="Welcome">
       <div className="mx-auto max-w-sm text-center">
@@ -23,7 +24,12 @@ export function HelperPane({ className, name, onOpenShare }: { className?: strin
           <li key={i} className="flex gap-3 rounded-xl border bg-card p-3"><span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">{i + 1}</span><span>{t}</span></li>
         ))}
       </ol>
-      <div className="mx-auto mt-6 w-full max-w-sm"><Button variant="outline" className="w-full" onClick={onOpenShare}><Share2 /> Sharing details</Button></div>
+      {ownTreeHref && (
+        <p className="mx-auto mt-6 max-w-sm text-center text-sm text-muted-foreground">
+          If you belong to this family, add your branch here — no new tree needed. <Link href={ownTreeHref} className="text-primary underline underline-offset-2">Create a different family tree for me</Link>
+        </p>
+      )}
+      <div className="mx-auto mt-4 w-full max-w-sm"><Button variant="outline" className="w-full" onClick={onOpenShare}><Share2 /> Sharing details</Button></div>
     </section>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, Download, GitMerge, MessageCircle, Network, RotateCcw, Share2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import { MatchesPane } from "./MatchesPane";
 import { PersonEditSheet } from "./PersonEditSheet";
 import { ShareSheet } from "./ShareSheet";
 import { useShare } from "./useShare";
+import { useAccount } from "@/components/account/useAccount";
 
 const KEY = "maithil-panji.session.v1";
 type Tab = "chat" | "tree" | "matches";
@@ -46,7 +48,13 @@ function useIsDesktop() {
   return v;
 }
 
-export function BuildApp() {
+const TEMPLATE_KEY = "maithil-panji.template.v1";
+
+/** treeId set → the signed-in account's own tree (opened from /app); otherwise the guest builder that lives in this browser */
+export function BuildApp({ treeId }: { treeId?: string } = {}) {
+  const router = useRouter();
+  const auth = useAccount();
+  const inAccount = !!treeId;
   const desktop = useIsDesktop();
   const [ready, setReady] = useState(false);
   const [family, setFamily] = useState<DFamily>(emptyFamily());
@@ -68,11 +76,17 @@ export function BuildApp() {
   const [notice, setNotice] = useState<string | null>(null);
   const tree = useRef<LiveTreeHandle>(null);
   const famRef = useRef(family); famRef.current = family;
-  const sh = useShare(family, setFamily, ready);
+  const sh = useShare(family, setFamily, ready, { treeId });
   const isHelper = sh.share?.role === "editor";
 
   /* restore / persist on this device (the shared online copy is handled by useShare) */
   useEffect(() => {
+    if (inAccount) {
+      // the tree itself comes from the server; only the style choice is remembered on this device
+      try { const t = localStorage.getItem(TEMPLATE_KEY); if (t === "classic" || t === "madhubani" || t === "minimal") setTemplate(t); } catch { /* ignore */ }
+      const f = firstMessage(); setMessages(f.messages); setGoalId(f.goalId); setSection(f.section);
+      setReady(true); return;
+    }
     try {
       const s = JSON.parse(localStorage.getItem(KEY) ?? "null") as Session | null;
       if (s?.family?.persons && s.messages?.length) {
@@ -83,11 +97,12 @@ export function BuildApp() {
     const f = firstMessage();
     setMessages(f.messages); setGoalId(f.goalId); setSection(f.section);
     setReady(true);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!ready) return;
+    if (inAccount) { try { localStorage.setItem(TEMPLATE_KEY, template); } catch { /* ignore */ } return; } // never overwrite the guest draft with an account tree
     try { localStorage.setItem(KEY, JSON.stringify({ family, messages, goalId, section, repeats, template, pending } satisfies Session)); } catch { /* quota */ }
-  }, [ready, family, messages, goalId, section, repeats, template, pending]);
+  }, [ready, inAccount, family, messages, goalId, section, repeats, template, pending]);
   useEffect(() => { fetch("/api/refs").then((r) => r.json()).then((j: { refs: ExtraRef[] }) => registerExtras(j.refs ?? [])).catch(() => {}); }, []);
   useEffect(() => {
     const list: ExtraRef[] = [];
@@ -99,8 +114,8 @@ export function BuildApp() {
     if (!sh.adopted) return;
     const g = nextGoal(famRef.current);
     setMessages([{ id: uid(), role: "assistant", text: g ? `${WELCOME_BACK}\n\n${g.question}` : `${WELCOME_BACK} The tree is complete — tap anyone to correct details, or ask me to change something.`, quick: g?.quick ?? [] }]);
-    setGoalId(g?.id); setSection(g?.section); setRepeats(0); setPending(undefined); setTab("tree");
-  }, [sh.adopted]);
+    setGoalId(g?.id); setSection(g?.section); setRepeats(0); setPending(undefined); setTab(g && sh.share?.role === "owner" ? "chat" : "tree");
+  }, [sh.adopted]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { fetch("/api/chat").then((r) => r.json()).then((j: { ai: boolean }) => setMode(j.ai ? "ai" : "basic")).catch(() => {}); }, []);
   useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(null), 4000); return () => clearTimeout(t); }, [notice]);
 
@@ -149,24 +164,31 @@ export function BuildApp() {
   };
   const goTab = (t: Tab) => { setTab(t); if (t === "tree") setUnseen(0); };
 
-  if (!ready) return <div className="grid h-dvh place-items-center bg-background text-muted-foreground">Loading…</div>;
+  if (inAccount && sh.status === "invalid") return (
+    <div className="grid h-dvh place-content-center gap-4 bg-background px-6 text-center">
+      <h1 className="font-display text-2xl font-bold text-indigo">This tree is not available</h1>
+      <p className="max-w-sm text-muted-foreground">{auth.account ? "It may have been deleted, or it was not shared with this mobile number." : "Please sign in with your mobile number to open it."}</p>
+      <Button asChild><Link href={auth.account ? "/app" : `/login?next=${encodeURIComponent(`/app/tree/${treeId}`)}`}>{auth.account ? "Go to my trees" : "Sign in"}</Link></Button>
+    </div>
+  );
+  if (!ready || (inAccount && !sh.adopted)) return <div className="grid h-dvh place-items-center bg-background text-muted-foreground">Loading…</div>;
 
   const leftPane = (cls: string) => isHelper
-    ? <HelperPane className={cls} name={sh.share?.memberName} onOpenShare={() => { setInviteFor(undefined); setShareOpen(true); }} />
+    ? <HelperPane className={cls} name={sh.share?.memberName} onOpenShare={() => { setInviteFor(undefined); setShareOpen(true); }} ownTreeHref={inAccount ? "/app" : undefined} />
     : <ChatPane className={cls} messages={messages} busy={busy} onSend={send} section={section} mode={mode} />;
   const treePane = <LiveTree ref={tree} family={family} template={template} onTemplate={setTemplate} onSelect={setSelected} className="flex min-h-0 flex-1 flex-col" />;
 
   return (
     <div className="flex h-dvh flex-col bg-background">
       <header className="z-30 flex items-center gap-2 border-b bg-card px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
-        <Link href="/" aria-label="Back to home" className="rounded-full p-2 text-muted-foreground hover:bg-secondary"><ChevronLeft className="size-5" /></Link>
+        <Link href={inAccount ? "/app" : "/"} aria-label={inAccount ? "Back to my trees" : "Back to home"} className="rounded-full p-2 text-muted-foreground hover:bg-secondary"><ChevronLeft className="size-5" /></Link>
         <div className="min-w-0 flex-1">
           <h1 className="truncate font-display text-base font-semibold leading-tight">{data ? `${family.persons.find((p) => p.is_me)?.name_roman.split(" ")[0]}’s family` : "Build your family tree"}</h1>
           <p className="truncate text-xs text-muted-foreground">{people ? `${people} ${people === 1 ? "person" : "people"} · ${sh.share ? (sh.status === "saving" ? "saving…" : sh.status === "offline" ? "offline — will retry" : sh.status === "invalid" ? "link no longer valid" : isHelper ? "shared with you" : `saved online${sh.members.length > 1 ? ` · ${sh.members.length - 1} helper${sh.members.length > 2 ? "s" : ""}` : ""}`) : "saved on this device"}` : "Maithil Panji"}</p>
         </div>
         <Button size="sm" variant="outline" onClick={() => { setInviteFor(undefined); setShareOpen(true); }} aria-label="Share"><Share2 /> <span className="hidden sm:inline">Share</span></Button>
         <Button size="sm" onClick={() => setExportOpen(true)} disabled={!data} aria-label="Download PDF"><Download /> <span className="hidden min-[400px]:inline">PDF</span></Button>
-        {!isHelper && <Button size="icon" variant="ghost" onClick={() => setResetOpen(true)} aria-label="Start over"><RotateCcw /></Button>}
+        {!isHelper && !inAccount && <Button size="icon" variant="ghost" onClick={() => setResetOpen(true)} aria-label="Start over"><RotateCcw /></Button>}
       </header>
 
       {notice && <div role="status" className="border-b bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">{notice}</div>}
@@ -197,10 +219,13 @@ export function BuildApp() {
       )}
 
       <PersonEditSheet family={family} personId={selected} onClose={() => setSelected(undefined)} onSave={saveEdit} onDelete={deletePerson} onCentre={(id) => tree.current?.centreOn(id)}
-        onAdd={addRelative} canInvite={sh.enabled === true && sh.share?.role !== "editor"} onInvite={(id) => { setInviteFor(id); setShareOpen(true); }} />
+        onAdd={addRelative} canInvite={(sh.enabled === true || auth.enabled) && sh.share?.role !== "editor"} onInvite={(id) => { setInviteFor(id); setShareOpen(true); }} />
       {data && <ExportSheet open={exportOpen} onClose={() => setExportOpen(false)} data={data} template={template} defaultScope="paternal" />}
       <ShareSheet open={shareOpen} onClose={() => setShareOpen(false)} family={family} enabled={sh.enabled} share={sh.share} status={sh.status} members={sh.members} ownerLink={sh.ownerLink}
-        invitePersonId={inviteFor} onCreate={sh.create} onInvite={sh.invite} onRevoke={sh.revoke} onRememberPhone={rememberPhone} onLeave={() => { sh.leave(); setShareOpen(false); }} onDeleteOnline={sh.deleteOnline} />
+        invitePersonId={inviteFor} onCreate={sh.create} onInvite={sh.invite} onRevoke={sh.revoke} onRememberPhone={rememberPhone} onLeave={() => { sh.leave(); setShareOpen(false); }}
+        onDeleteOnline={async () => { await sh.deleteOnline(); if (inAccount) router.replace("/app"); }}
+        onLeaveTree={async () => { await sh.leaveTree(); router.replace("/app"); }}
+        signInHref={auth.enabled && !sh.share ? "/app" : undefined} ownerName={family.persons.find((p) => p.is_me)?.name_roman ?? sh.share?.memberName} />
       <Sheet open={resetOpen} onClose={() => setResetOpen(false)} title="Start over">
         <h2 className="font-display text-xl font-semibold">Start over?</h2>
         <p className="mt-1 text-sm text-muted-foreground">This clears the tree and the conversation on this device. It cannot be undone.{sh.share ? " The online copy is not deleted, but this device stops syncing with it — copy your private link from Share first if you want to open it again." : ""}</p>

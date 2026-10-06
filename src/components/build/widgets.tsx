@@ -1,11 +1,12 @@
 "use client";
+import { MONTHS } from "@/lib/dates";
 /**
  * Form widgets used by the person editor and the save sheet:
  * Devanagari on-screen keyboard, date picker (calendar or year only), phone with country,
  * searchable gotra/mool lists with "Other", and place search (OpenStreetMap / Photon).
  */
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Calendar, Check, ChevronDown, Keyboard, Loader2, MapPin, Search, X } from "lucide-react";
+import { Check, ChevronDown, Keyboard, Loader2, MapPin, Search, X } from "lucide-react";
 import { getCountries, getCountryCallingCode, parsePhoneNumberFromString, validatePhoneNumberLength, getExampleNumber, type CountryCode } from "libphonenumber-js/min";
 import examples from "libphonenumber-js/examples.mobile.json";
 import { cn } from "@/lib/utils";
@@ -115,28 +116,48 @@ export function NameField({ label, roman, dev, devTouched, onChange }: {
   );
 }
 
-/* ───────────────────────── date: year, or pick from a calendar ───────────────────────── */
+/* ───────────────────────── date: day, month, year (year alone is fine) ───────────────────────── */
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const SEG = /^(\d{0,4})(?:-(\d{2}))?(?:-(\d{2}))?$/;
 
 export function DateField({ value, onChange, label, helper }: { value: string; onChange: (v: string) => void; label: string; helper?: string }) {
   const id = useId();
-  const isFull = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const m = SEG.exec(value ?? "");
+  const y = m?.[1] ?? "", mo = m?.[2] ?? "", d = m?.[3] ?? "";
+  const yearOk = y.length === 4;
+  const compose = (ny: string, nm: string, nd: string) => {
+    if (ny.length < 4) return ny;
+    if (!nm) return ny;
+    if (nd) { const max = new Date(+ny, +nm, 0).getDate(); if (+nd > max) nd = String(max).padStart(2, "0"); }
+    return nd ? `${ny}-${nm}-${nd}` : `${ny}-${nm}`;
+  };
+  const dayCount = yearOk && mo ? new Date(+y, +mo, 0).getDate() : 31;
+  const thisYear = new Date().getFullYear();
+  const bad = y.length === 4 && (+y < 1700 || +y > thisYear);
+  const sel = cn(inputCls, "appearance-none pr-7 disabled:opacity-50");
   return (
-    <div>
-      <Label htmlFor={id} helper={helper ?? "Type just the year, or pick a full date from the calendar."}>{label}</Label>
-      <div className="relative">
-        <input id={id} className={cn(inputCls, "pr-14")} inputMode="numeric" autoComplete="off" placeholder="Year, e.g. 1958" value={value}
-          onChange={(e) => onChange(e.target.value.replace(/[^\d-]/g, "").slice(0, 10))} />
-        {/* the native date input sits invisibly on top of the button, so a tap opens the system calendar on every device */}
-        <span className="pointer-events-none absolute right-1.5 top-1.5 grid size-9 place-items-center rounded-lg bg-secondary text-primary">
-          <Calendar className="size-5" />
-        </span>
-        <input type="date" aria-label={`${label}: open calendar`} min="1700-01-01" max={todayIso()} value={isFull ? value : ""}
-          onChange={(e) => e.target.value && onChange(e.target.value)}
-          className="absolute right-1.5 top-1.5 size-9 cursor-pointer opacity-0" />
+    <div role="group" aria-labelledby={`${id}-l`}>
+      <Label htmlFor={`${id}-y`} helper={helper ?? "Full date if you know it — or just the year, or month and year."}><span id={`${id}-l`}>{label}</span></Label>
+      <div className="grid grid-cols-[4.5rem_1fr_5.5rem] gap-2">
+        <div className="relative">
+          <select aria-label={`${label}: day`} className={sel} disabled={!yearOk || !mo} value={d} onChange={(e) => onChange(compose(y, mo, e.target.value))}>
+            <option value="">Day</option>
+            {Array.from({ length: dayCount }, (_, i) => String(i + 1).padStart(2, "0")).map((x) => <option key={x} value={x}>{+x}</option>)}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2 top-3.5 size-4 text-muted-foreground" />
+        </div>
+        <div className="relative">
+          <select aria-label={`${label}: month`} className={sel} disabled={!yearOk} value={mo} onChange={(e) => onChange(compose(y, e.target.value, e.target.value ? d : ""))}>
+            <option value="">Month</option>
+            {MONTHS.map((n, i) => <option key={n} value={String(i + 1).padStart(2, "0")}>{n}</option>)}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2 top-3.5 size-4 text-muted-foreground" />
+        </div>
+        <input id={`${id}-y`} aria-label={`${label}: year`} className={inputCls} inputMode="numeric" autoComplete="off" placeholder="Year" maxLength={4} value={y}
+          onChange={(e) => onChange(compose(e.target.value.replace(/\D/g, "").slice(0, 4), mo, d))} />
       </div>
-      {value && !/^\d{4}(-\d{2}(-\d{2})?)?$/.test(value) && value.length >= 4 && <p className="mt-1 text-xs text-terracotta">Use a year like 1958, or YYYY-MM-DD.</p>}
+      {(bad || (value && !m)) && <p className="mt-1 text-xs text-terracotta">Please enter a year between 1700 and {thisYear}.</p>}
+      {!yearOk && !!y && <p className="mt-1 text-xs text-muted-foreground">Type the 4-digit year to choose month and day.</p>}
     </div>
   );
 }
@@ -158,13 +179,16 @@ export const phoneState = (v: PhoneValue) => {
 
 export function PhoneField({ value, onChange }: { value: PhoneValue; onChange: (v: PhoneValue) => void }) {
   const id = useId();
+  // country names depend on the browser's language data, so they are filled in after mount (keeps server and browser HTML identical)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const names = useMemo(() => {
-    const dn = typeof Intl !== "undefined" && "DisplayNames" in Intl ? new Intl.DisplayNames(["en"], { type: "region" }) : null;
+    const dn = mounted && typeof Intl !== "undefined" && "DisplayNames" in Intl ? new Intl.DisplayNames(["en"], { type: "region" }) : null;
     const all = getCountries().map((c) => ({ c, name: dn?.of(c) ?? c, code: getCountryCallingCode(c) }));
     const pref = PREFERRED.map((c) => all.find((x) => x.c === c)!).filter(Boolean);
     const rest = all.filter((x) => !PREFERRED.includes(x.c)).sort((a, b) => a.name.localeCompare(b.name));
     return { pref, rest };
-  }, []);
+  }, [mounted]);
   const st = phoneState(value);
   const maxLen = Math.min(15, (getExampleNumber(value.country, examples)?.nationalNumber.length ?? 12) + 2);
   return (

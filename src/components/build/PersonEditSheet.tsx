@@ -8,14 +8,38 @@ import { fatherOf, labels, motherOf, spousesOf, type DFamily, type DPerson, type
 import { romanToDevanagari } from "@/lib/translit";
 import { DateField, Label, NameField, PlaceField, SearchSelect, inputCls } from "./widgets";
 
-/** Downscale a picked photo to a small JPEG data URL (kept on this device until accounts arrive on Day 3). */
-async function shrink(file: File, max = 320): Promise<string> {
-  const bmp = await createImageBitmap(file);
-  const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
-  const c = document.createElement("canvas");
-  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
-  c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
-  return c.toDataURL("image/jpeg", 0.82);
+/** Largest photo we keep per person (characters of the data URL) — must stay below the server limit in lib/sanitize.ts. */
+export const MAX_PHOTO_CHARS = 70_000;
+
+async function decode(file: File): Promise<{ w: number; h: number; draw: (c: CanvasRenderingContext2D, w: number, h: number) => void }> {
+  try {
+    const bmp = await createImageBitmap(file);
+    return { w: bmp.width, h: bmp.height, draw: (c, w, h) => c.drawImage(bmp, 0, 0, w, h) };
+  } catch {
+    // some phones / browsers cannot decode certain formats with createImageBitmap — fall back to an <img>
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise<HTMLImageElement>((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error("decode")); i.src = url; });
+      return { w: img.naturalWidth, h: img.naturalHeight, draw: (c, w, h) => c.drawImage(img, 0, 0, w, h) };
+    } finally { setTimeout(() => URL.revokeObjectURL(url), 5000); }
+  }
+}
+
+/** Downscale a picked photo to a small JPEG data URL, shrinking further until it is safely small to store and share. */
+async function shrink(file: File): Promise<string> {
+  const src = await decode(file);
+  if (!src.w || !src.h) throw new Error("empty");
+  for (const [max, q] of [[320, 0.82], [320, 0.7], [256, 0.7], [200, 0.65], [160, 0.6]] as const) {
+    const k = Math.min(1, max / Math.max(src.w, src.h));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(src.w * k)); c.height = Math.max(1, Math.round(src.h * k));
+    const ctx = c.getContext("2d")!;
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+    src.draw(ctx, c.width, c.height);
+    const url = c.toDataURL("image/jpeg", q);
+    if (url.length <= MAX_PHOTO_CHARS) return url;
+  }
+  throw new Error("too big");
 }
 
 /* eslint-disable-next-line @next/next/no-img-element */
@@ -65,6 +89,7 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
   const [adding, setAdding] = useState<Rel | null>(null);
   const [newName, setNewName] = useState("");
   const [added, setAdded] = useState("");
+  const [photoErr, setPhotoErr] = useState("");
   const file = useRef<HTMLInputElement>(null);
   useEffect(() => { setDraft(person ? structuredClone(person) : undefined); setConfirmDel(false); setAdding(null); setNewName(""); setAdded(""); }, [personId]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!person || !draft) return <Sheet open={false} onClose={onClose}>{null}</Sheet>;
@@ -90,11 +115,16 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
             className="relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-dashed border-border bg-secondary text-muted-foreground">
             {draft.photo ? <PhotoImg src={draft.photo} /> : <Camera className="size-7" />}
           </button>
-          <input ref={file} type="file" accept="image/*" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f) set({ photo: await shrink(f) }); e.target.value = ""; }} />
+          <input ref={file} type="file" accept="image/*" className="hidden" onChange={async (e) => {
+            const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
+            setPhotoErr("");
+            try { const photo = await shrink(f); set({ photo }); onSave(person.id, { photo }); } catch { setPhotoErr("This photo could not be used. Please try a JPEG or PNG picture."); }
+          }} />
           <div className="min-w-0">
             <h2 className="font-display text-xl font-semibold leading-tight">{person.placeholder ? "Name not known" : person.name_roman}</h2>
             <p className="text-sm text-muted-foreground">{lab}</p>
-            {draft.photo && <button type="button" className="mt-1 text-xs text-terracotta underline" onClick={() => set({ photo: undefined })}>Remove photo</button>}
+            {draft.photo && <button type="button" className="mt-1 text-xs text-terracotta underline" onClick={() => { set({ photo: undefined }); onSave(person.id, { photo: null }); }}>Remove photo</button>}
+            {photoErr && <p role="alert" className="mt-1 text-xs text-terracotta">{photoErr}</p>}
           </div>
         </div>
 

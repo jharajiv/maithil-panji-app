@@ -10,8 +10,21 @@ import path from "node:path";
 import type { DFamily } from "./family";
 import { flatten, type PersonRow, type RelRow } from "./flatten";
 
-export interface Member { id: string; name: string; role: "owner" | "editor"; token_hash: string; person_id?: string; created_at: string }
-export interface TreeRow { id: string; family: DFamily; rev: number; members: Member[]; updated_at: string }
+/**
+ * A person with access to a tree. Legacy members hold a private-link token (token_hash). Account members are tied to an
+ * email-verified account; invited people hold an invitation (invite_hash = hash of the secret in their WhatsApp link) until they join.
+ */
+export interface Member {
+  id: string; name: string; role: "owner" | "editor"; token_hash?: string; person_id?: string; created_at: string;
+  /** E.164 number the owner invited (unverified contact detail) */
+  phone?: string; email?: string; account_id?: string; status?: "invited" | "joined"; invite_hash?: string;
+}
+export interface TreeRow { id: string; family: DFamily; rev: number; members: Member[]; updated_at: string; title?: string; people_count?: number }
+export type TreeSummary = Pick<TreeRow, "id" | "members" | "updated_at" | "title" | "people_count">;
+export interface AccountRow { id: string; email: string; phone?: string; name: string; created_at: string; consent_version?: string }
+/** a pending one-time sign-in code (only its hash is kept) */
+export interface LoginCode { email: string; code_hash: string; expires_at: string; attempts: number }
+export interface SessionRow { token_hash: string; account_id: string; expires_at: string; created_at: string }
 export interface ConsentRow { tree_id: string; member_id: string; kind: string; version: string; given_at: string }
 export interface RefRow { kind: "gotra" | "mool"; key: string; roman: string; dev?: string }
 
@@ -20,7 +33,22 @@ export interface Store {
   createTree(row: TreeRow): Promise<void>;
   getTree(id: string): Promise<TreeRow | null>;
   /** compare-and-set on rev; returns null when the stored rev differs */
-  updateTree(id: string, expectedRev: number, patch: Partial<Pick<TreeRow, "family" | "members">>, bump: boolean): Promise<TreeRow | null>;
+  updateTree(id: string, expectedRev: number, patch: Partial<Pick<TreeRow, "family" | "members" | "title" | "people_count">>, bump: boolean): Promise<TreeRow | null>;
+  /* accounts (email-verified) and their cookie sessions */
+  getAccount(id: string): Promise<AccountRow | null>;
+  getAccountByEmail(email: string): Promise<AccountRow | null>;
+  putLoginCode(row: LoginCode): Promise<void>;
+  getLoginCode(email: string): Promise<LoginCode | null>;
+  setLoginAttempts(email: string, attempts: number): Promise<void>;
+  deleteLoginCode(email: string): Promise<void>;
+  createAccount(row: AccountRow): Promise<void>;
+  /** removes the account and its sessions; trees it owns are NOT touched here */
+  deleteAccount(id: string): Promise<void>;
+  createSession(row: SessionRow): Promise<void>;
+  getSession(tokenHash: string): Promise<SessionRow | null>;
+  deleteSession(tokenHash: string): Promise<void>;
+  /** trees this account has joined */
+  listTreesFor(accountId: string): Promise<TreeSummary[]>;
   addRefs(refs: RefRow[]): Promise<void>;
   listRefs(): Promise<RefRow[]>;
   /** rebuild the flat people/relations rows of a tree from its family (best effort; the JSON copy is the source of truth) */
@@ -33,6 +61,7 @@ export interface Store {
 export const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
 export const newToken = () => randomBytes(18).toString("base64url");
 export const newTreeId = () => randomBytes(9).toString("base64url");
+export const newAccountId = () => randomBytes(9).toString("base64url");
 export const newMemberId = () => randomBytes(5).toString("hex");
 
 /* ───────── Supabase (PostgREST) ───────── */
@@ -56,6 +85,23 @@ function supabase(url: string, key: string): Store {
       const body = { ...patch, rev: bump ? expectedRev + 1 : expectedRev, updated_at: new Date().toISOString() };
       const rows = (await call(`trees?id=eq.${encodeURIComponent(id)}&rev=eq.${expectedRev}`, { method: "PATCH", body: JSON.stringify(body), prefer: "return=representation" })) as TreeRow[];
       return rows[0] ?? null;
+    },
+    async getAccount(id) { return ((await call(`accounts?id=eq.${encodeURIComponent(id)}&select=*`)) as AccountRow[])[0] ?? null; },
+    async getAccountByEmail(email) { return ((await call(`accounts?email=eq.${encodeURIComponent(email)}&select=*`)) as AccountRow[])[0] ?? null; },
+    async putLoginCode(row) { await call("login_codes?on_conflict=email", { method: "POST", body: JSON.stringify(row), prefer: "resolution=merge-duplicates,return=minimal" }); },
+    async getLoginCode(email) { return ((await call(`login_codes?email=eq.${encodeURIComponent(email)}&select=*`)) as LoginCode[])[0] ?? null; },
+    async setLoginAttempts(email, attempts) { await call(`login_codes?email=eq.${encodeURIComponent(email)}`, { method: "PATCH", body: JSON.stringify({ attempts }), prefer: "return=minimal" }); },
+    async deleteLoginCode(email) { await call(`login_codes?email=eq.${encodeURIComponent(email)}`, { method: "DELETE", prefer: "return=minimal" }); },
+    async createAccount(row) { await call("accounts", { method: "POST", body: JSON.stringify(row), prefer: "return=minimal" }); },
+    async deleteAccount(id) {
+      await call(`sessions?account_id=eq.${encodeURIComponent(id)}`, { method: "DELETE", prefer: "return=minimal" });
+      await call(`accounts?id=eq.${encodeURIComponent(id)}`, { method: "DELETE", prefer: "return=minimal" });
+    },
+    async createSession(row) { await call("sessions", { method: "POST", body: JSON.stringify(row), prefer: "return=minimal" }); },
+    async getSession(h) { return ((await call(`sessions?token_hash=eq.${encodeURIComponent(h)}&select=*`)) as SessionRow[])[0] ?? null; },
+    async deleteSession(h) { await call(`sessions?token_hash=eq.${encodeURIComponent(h)}`, { method: "DELETE", prefer: "return=minimal" }); },
+    async listTreesFor(accountId) {
+      return (await call(`trees?select=id,title,people_count,members,updated_at&members=cs.${encodeURIComponent(JSON.stringify([{ account_id: accountId }]))}&order=updated_at.desc&limit=100`)) as TreeSummary[];
     },
     async addRefs(refs) {
       if (!refs.length) return;
@@ -84,7 +130,7 @@ function supabase(url: string, key: string): Store {
 function file(): Store {
   const dir = path.join(process.cwd(), ".data");
   const f = path.join(dir, "store.json");
-  type Db = { trees: Record<string, TreeRow>; refs: Record<string, RefRow>; persons?: PersonRow[]; rels?: RelRow[]; consents?: ConsentRow[] };
+  type Db = { trees: Record<string, TreeRow>; refs: Record<string, RefRow>; persons?: PersonRow[]; rels?: RelRow[]; consents?: ConsentRow[]; accounts?: AccountRow[]; sessions?: SessionRow[]; codes?: LoginCode[] };
   const read = async (): Promise<Db> => { try { return JSON.parse(await fs.readFile(f, "utf8")) as Db; } catch { return { trees: {}, refs: {} }; } };
   const write = async (db: Db) => { await fs.mkdir(dir, { recursive: true }); await fs.writeFile(f, JSON.stringify(db)); };
   let chain: Promise<unknown> = Promise.resolve();
@@ -100,6 +146,20 @@ function file(): Store {
       const next: TreeRow = { ...cur, ...patch, rev: bump ? cur.rev + 1 : cur.rev, updated_at: new Date().toISOString() };
       db.trees[id] = next; await write(db); return next;
     }),
+    getAccount: (id) => lock(async () => (await read()).accounts?.find((a) => a.id === id) ?? null),
+    getAccountByEmail: (email) => lock(async () => (await read()).accounts?.find((a) => a.email === email) ?? null),
+    putLoginCode: (row) => lock(async () => { const db = await read(); db.codes = [...(db.codes ?? []).filter((c) => c.email !== row.email), row]; await write(db); }),
+    getLoginCode: (email) => lock(async () => (await read()).codes?.find((c) => c.email === email) ?? null),
+    setLoginAttempts: (email, attempts) => lock(async () => { const db = await read(); for (const c of db.codes ?? []) if (c.email === email) c.attempts = attempts; await write(db); }),
+    deleteLoginCode: (email) => lock(async () => { const db = await read(); db.codes = (db.codes ?? []).filter((c) => c.email !== email); await write(db); }),
+    createAccount: (row) => lock(async () => { const db = await read(); (db.accounts ??= []).push(row); await write(db); }),
+    deleteAccount: (id) => lock(async () => { const db = await read(); db.accounts = (db.accounts ?? []).filter((a) => a.id !== id); db.sessions = (db.sessions ?? []).filter((x) => x.account_id !== id); await write(db); }),
+    createSession: (row) => lock(async () => { const db = await read(); (db.sessions ??= []).push(row); await write(db); }),
+    getSession: (h) => lock(async () => (await read()).sessions?.find((x) => x.token_hash === h) ?? null),
+    deleteSession: (h) => lock(async () => { const db = await read(); db.sessions = (db.sessions ?? []).filter((x) => x.token_hash !== h); await write(db); }),
+    listTreesFor: (accountId) => lock(async () => dedupeTrees(Object.values((await read()).trees)
+      .filter((t) => t.members.some((m) => m.account_id === accountId))
+      .map(({ id, title, people_count, members, updated_at }) => ({ id, title, people_count, members, updated_at })))),
     addRefs: (refs) => lock(async () => { const db = await read(); for (const r of refs) db.refs[`${r.kind}:${r.key}`] ??= r; await write(db); }),
     listRefs: () => lock(async () => Object.values((await read()).refs)),
     syncPeople: (treeId, family) => lock(async () => {
@@ -137,10 +197,19 @@ export async function syncAll(store: Store, treeId: string, family: DFamily) {
   ]);
 }
 
+const dedupeTrees = (rows: TreeSummary[]) => [...new Map(rows.map((r) => [r.id, r])).values()].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+
+/** the member a private-link token belongs to (legacy links) */
 export function authorize(row: TreeRow, token: string | null | undefined): Member | null {
   if (!token) return null;
   const h = hashToken(token);
   return row.members.find((m) => m.token_hash === h) ?? null;
+}
+
+/** dashboard / header facts kept next to the tree so lists don't need to load whole families */
+export function treeMeta(f: DFamily): { title: string; people_count: number } {
+  const first = f.persons.find((p) => p.is_me)?.name_roman.split(" ")[0]?.trim();
+  return { title: first ? `${first}’s family` : "Family tree", people_count: f.persons.length };
 }
 
 /** custom (not in the seed) gotras / mools typed by users — collected for the Panji team to review */

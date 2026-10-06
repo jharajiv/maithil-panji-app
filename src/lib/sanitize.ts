@@ -1,7 +1,7 @@
 import type { DFamily, DPerson, DRel, PanjiRef } from "./family";
 
 const s = (v: unknown, n = 120) => (typeof v === "string" ? v.slice(0, n) : undefined);
-const photo = (v: unknown) => (typeof v === "string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length <= 90_000 ? v : undefined);
+const photo = (v: unknown) => (typeof v === "string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length <= 120_000 ? v : undefined);
 const ref = (v: unknown): PanjiRef | undefined => {
   if (!v || typeof v !== "object") return undefined;
   const o = v as Record<string, unknown>;

@@ -83,8 +83,8 @@ export function nextGoal(f: DFamily, opts: PlanOptions = {}): Goal | null {
   };
   if (!m.birth && !m.flags.birth) return {
     id: "self_birth", kind: "self_birth", section: "About you", subjects: [m.id], optional: true, quick: ["Skip"], skip: flagOps([m.id], "birth", "skipped"),
-    question: "In which year were you born? (optional)",
-    instruction: `Ask for the user's year of birth (${m.id}). Optional; a year is enough. Store as birth "YYYY".`,
+    question: "What is your date of birth? Day, month and year if you know it — or just the year. (optional)",
+    instruction: `Ask for the user's date of birth (${m.id}). Optional; the full date is best (day, month, year) but a year alone is fine. Store as birth "YYYY-MM-DD" when the full date is given, "YYYY-MM" for month and year, otherwise "YYYY".`,
   };
   if (!m.place && !m.flags.place) return {
     id: "self_place", kind: "self_place", section: "About you", subjects: [m.id], optional: true, quick: ["Skip"], skip: flagOps([m.id], "place", "skipped"),
@@ -152,8 +152,8 @@ export function nextGoal(f: DFamily, opts: PlanOptions = {}): Goal | null {
     if (!chainEnds && father && !father.flags.details) return {
       id: `details:${father.id}`, kind: "details", section: g === 0 ? "Your parents" : "Your ancestors", subjects: [father.id], optional: true, quick: ["Skip"],
       skip: flagOps([father.id], "details", "skipped"),
-      question: `Is ${nm(father)} living? And do you know his year of birth and his village (with district)?`,
-      instruction: `Ask in ONE question whether ${who(father, lab)} is living or has passed away, and (if known) his year of birth/death and his village + district (never a street address). Update via update_person {status, birth, death, place} with place as "Village, District, State". Optional — set_flag details=done when answered, or skipped.`,
+      question: `Is ${nm(father)} living? And do you know his date of birth (even just the year is fine) and his village (with district)?`,
+      instruction: `Ask in ONE question whether ${who(father, lab)} is living or has passed away, and (if known) his date of birth/death — a full date, month and year, or just a year — and his village + district (never a street address). Update via update_person {status, birth, death, place} with place as "Village, District, State". Optional — set_flag details=done when answered, or skipped.`,
     };
     if (!c.flags.siblings) return {
       id: `siblings:${c.id}`, kind: "siblings", section: g === 0 ? "Your brothers and sisters" : "Your ancestors’ families", subjects: [c.id], optional: true,

@@ -71,3 +71,16 @@ supabase/         schema.sql
 
 ## Deploy (Vercel)
 Import the repo (framework preset: Next.js). Add the environment variables from `.env.example` (`ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`), run `supabase/schema.sql` in Supabase (re-run it after every update — it only adds what is missing), and redeploy.
+
+
+## Accounts, invitations and collaboration (Day 3)
+
+- `/` landing → `/login` (email + one-time code, no passwords) → `/app` (my trees, shared with me) → `/app/tree/<id>` (chat + live tree).
+- New accounts give a name, a mobile number (needed for WhatsApp invitations — **not verified**) and agree to the community terms.
+- A tree belongs to an account. The owner invites a relative with name + mobile number; the app opens WhatsApp with a ready message containing `/join/<tree>?i=<secret>`.
+  The message goes from the owner's own WhatsApp, so it is trusted. The secret works **once**: the person opens the link, signs in with their email and joins as a helper.
+  Inviting the same number again issues a new link and cancels the old one. Helpers can edit and can leave; only the owner can invite, remove people or delete the tree.
+  Anyone can also start a different family tree of their own from the dashboard.
+- One-time codes are emailed through Resend (`RESEND_API_KEY`, `EMAIL_FROM`, sender domain verified in Resend). In development a fixed test code (123456) is used. In production without Resend, accounts are off and `/build` keeps working on the device only.
+- Older private-link trees (`/build?t=…&k=…`) keep working; when a signed-in person opens one it is moved into their account.
+- Tests: `scripts/_accounts.test.ts` (sign-up, invite, single-use link, leave/remove, sign-out, delete), `scripts/_api.test.ts` (legacy links; start the server with `AUTH_OFF=1`), `scripts/_dates.test.ts`, `scripts/_basic.test.ts`.

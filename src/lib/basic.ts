@@ -2,6 +2,7 @@
  * "Basic mode": a rule-based interviewer used when no AI key is configured or the AI is unavailable.
  * It understands the same goals as the AI, with plainer parsing (names separated by commas, yes/no, years).
  */
+import { parseDateText } from "./dates";
 import { classify, GOTRAS, searchGotras, searchMools, plainRoman } from "./lookup";
 import { me, type DFamily, type Flag, type Op, type PanjiRef, type Pending, type PersonFields } from "./family";
 import type { Goal } from "./interview";
@@ -97,7 +98,7 @@ export function basicParse(f: DFamily, goal: Goal, text: string, pending?: Pendi
       return { ops: [set({ roman: t, custom: true })], ack: `I have noted “${t}” as a new ${kind} — our team will review it. Thank you.` };
     }
     case "self_birth": {
-      const y = t.match(/\b(1[89]\d\d|20[0-2]\d)\b/)?.[1];
+      const y = parseDateText(t);
       return y ? { ops: [{ op: "update_person", id: m!.id, set: { birth: y } }], ack: "Thank you." } : { ops: goal.skip, ack: "Okay." };
     }
     case "self_place":
@@ -133,7 +134,8 @@ export function basicParse(f: DFamily, goal: Goal, text: string, pending?: Pendi
       const set: PersonFields = {};
       if (dead) { set.status = "deceased"; if (years[1]) set.death = years[1]; else if (years[0] && years.length === 1 && /died|passed|expired|late/i.test(t) && false) set.death = years[0]; }
       else if (/\b(alive|living|yes)\b/i.test(t)) set.status = "living";
-      if (years[0]) set.birth = years[0];
+      const dt = parseDateText(t);
+      if (dt) set.birth = dt;
       if (village) set.place = village;
       return { ops: [...(Object.keys(set).length ? [{ op: "update_person", id: sub!, set } as Op] : []), done(sub!, "details")], ack: "Thank you." };
     }

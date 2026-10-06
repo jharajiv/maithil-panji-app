@@ -6,10 +6,46 @@ create table if not exists public.trees (
   id          text primary key,
   family      jsonb       not null,                 -- the whole family draft (people, relations, photos as small data URLs, WhatsApp numbers)
   rev         integer     not null default 1,       -- bumped on every save; used to detect simultaneous edits
-  members     jsonb       not null default '[]',    -- owner + invited helpers: name, role, SHA-256 hash of their private link token
+  members     jsonb       not null default '[]',    -- owner + helpers: name, role, and either an account (account_id, email, status invited|joined; invited people also carry a hashed single-use invitation secret and the phone number the owner typed) or a hashed private-link token (older trees)
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+
+-- 1b. ACCOUNTS — an email address proven with a one-time code (no passwords) — and the browsers signed in to them
+create table if not exists public.accounts (
+  id              text primary key,
+  email           text,                               -- lower-case; the sign-in identity
+  phone           text,                               -- E.164, collected at sign-up for WhatsApp invitations; NOT verified
+  name            text not null,
+  consent_version text,
+  created_at      timestamptz not null default now()
+);
+-- older versions of this file identified accounts by phone: make that column optional and add the email column
+alter table public.accounts add column if not exists email text;
+alter table public.accounts alter column phone drop not null;
+alter table public.accounts drop constraint if exists accounts_phone_key;
+create unique index if not exists accounts_email_idx on public.accounts (email);
+
+-- pending one-time sign-in codes (only a hash is kept; each lasts 10 minutes)
+create table if not exists public.login_codes (
+  email      text primary key,
+  code_hash  text not null,
+  expires_at timestamptz not null,
+  attempts   integer not null default 0
+);
+create table if not exists public.sessions (
+  token_hash text primary key,                         -- SHA-256 of the cookie value; the cookie itself is never stored
+  account_id text not null references public.accounts(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null
+);
+create index if not exists sessions_account_idx on public.sessions (account_id);
+
+-- trees now also carry a title + head-count (for the "My trees" list) and members may be tied to accounts / invited by phone
+alter table public.trees add column if not exists title        text;
+alter table public.trees add column if not exists people_count integer;
+create index if not exists trees_members_idx on public.trees using gin (members jsonb_path_ops);
+update public.trees set people_count = jsonb_array_length(family->'persons') where people_count is null;
 
 -- 2. QUERYABLE COPY — rebuilt from trees.family on every save (no photos, no phone numbers)
 create table if not exists public.persons (
@@ -87,6 +123,9 @@ from public.persons p
 left join public.persons f on f.tree_id = p.tree_id and f.person_id = p.father_id;
 
 -- Row-level security ON with no policies = nobody but the service role can touch the data.
+alter table public.accounts    enable row level security;
+alter table public.login_codes enable row level security;
+alter table public.sessions    enable row level security;
 alter table public.trees       enable row level security;
 alter table public.persons     enable row level security;
 alter table public.relations   enable row level security;

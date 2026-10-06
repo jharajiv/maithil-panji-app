@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, ListChecks, Printer, Sprout } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Motif, PatternBand } from "@/components/landing/Motif";
+import { AuthLink } from "@/components/account/AuthLink";
 
 const TEMPLATES = [
   { id: "classic", name: "Classic", blurb: "Warm, formal, built for printing.", img: "/templates/classic.png" },
@@ -13,13 +14,13 @@ const TEMPLATES = [
 const STEPS = [
   { icon: ListChecks, title: "Chat with our assistant", text: "A friendly interviewer asks one question at a time — in English, Hindi or Hinglish. Skip anything you don’t know." },
   { icon: Sprout, title: "Watch your tree grow", text: "Your Panji-style tree appears as you talk. Tap anyone to correct details or add a photo, and pick a style." },
-  { icon: Printer, title: "Download and share", text: "A print-ready PDF in A3 or A4, and a WhatsApp invite for relatives." },
+  { icon: Printer, title: "Download and share", text: "A print-ready PDF in A3 or A4, and a WhatsApp invite so relatives can join your tree with their own mobile number." },
 ];
 
 function Cta({ className }: { className?: string }) {
   return (
     <Button asChild size="lg" className={`h-14 px-7 text-base ${className ?? ""}`}>
-      <Link href="/build">Start building your family tree <ArrowRight /></Link>
+      <Link href="/app">Start building your family tree <ArrowRight /></Link>
     </Button>
   );
 }
@@ -30,6 +31,7 @@ export default function Home() {
       {/* Hero */}
       <section className="relative overflow-hidden bg-wash">
         <PatternBand className="absolute inset-x-0 top-0" />
+        <AuthLink />
         <Motif name="sun" className="pointer-events-none absolute right-4 top-7 size-16 opacity-90 sm:right-10 sm:top-10 sm:size-44" />
         <Motif name="fish" className="pointer-events-none absolute bottom-6 left-4 size-16 opacity-90 sm:left-10 sm:size-32" />
         <div className="relative mx-auto max-w-3xl px-5 pb-28 pt-28 text-center sm:pb-24 sm:pt-28">
@@ -92,9 +94,9 @@ export default function Home() {
         <div className="relative mx-auto max-w-3xl px-5 py-14 text-center">
           <h2 className="font-display text-2xl font-semibold sm:text-4xl">Your family’s story, in your family’s tradition.</h2>
           <div className="mt-6 flex justify-center">
-            <Button asChild size="lg" variant="secondary" className="h-14 px-7 text-base"><Link href="/build">Start building your family tree <ArrowRight /></Link></Button>
+            <Button asChild size="lg" variant="secondary" className="h-14 px-7 text-base"><Link href="/app">Start building your family tree <ArrowRight /></Link></Button>
           </div>
-          <p className="mt-6 text-sm text-cream/70">A community project preserving the Panji Prabandh. Day 1 preview — sample data only.</p>
+          <p className="mt-6 text-sm text-cream/70">A community project preserving the Panji Prabandh.</p>
         </div>
       </section>
     </div>

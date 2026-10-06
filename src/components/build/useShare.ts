@@ -11,15 +11,20 @@ import { mergeFamilies } from "@/lib/merge";
 const KEY = "maithil-panji.share.v1";
 const POLL_MS = 15_000;
 
-export interface ShareInfo { treeId: string; token: string; role: "owner" | "editor"; rev: number; memberName?: string; personId?: string }
-export interface MemberRow { id: string; name: string; role: "owner" | "editor"; person_id?: string }
+/** token = private link (guest mode); in account mode (account: true) the cookie session is the key and token is "" */
+export interface ShareInfo { treeId: string; token: string; role: "owner" | "editor"; rev: number; memberName?: string; personId?: string; memberId?: string; account?: boolean; title?: string }
+export interface MemberRow { id: string; name: string; role: "owner" | "editor"; person_id?: string; status?: "invited" | "joined"; phone_hint?: string; email_hint?: string }
 export type SyncStatus = "off" | "synced" | "saving" | "offline" | "invalid";
 
 const canon = (v: unknown): string => JSON.stringify(v, (_k, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x));
 const read = (): ShareInfo | null => { try { return JSON.parse(localStorage.getItem(KEY) ?? "null"); } catch { return null; } };
-const write = (s: ShareInfo | null) => { try { if (s) localStorage.setItem(KEY, JSON.stringify(s)); else localStorage.removeItem(KEY); } catch { /* ignore */ } };
+const write = (s: ShareInfo | null) => { if (s?.account) return; try { if (s) localStorage.setItem(KEY, JSON.stringify(s)); else localStorage.removeItem(KEY); } catch { /* ignore */ } };
 
-export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready: boolean) {
+const keyQs = (s: ShareInfo) => (s.token ? `k=${encodeURIComponent(s.token)}` : "");
+const keyBody = (s: ShareInfo) => (s.token ? { k: s.token } : {});
+
+/** guest mode: the tree is opened through a private link / saved share. Account mode (opts.treeId): the signed-in account opens its own tree. */
+export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready: boolean, opts: { treeId?: string } = {}) {
   const [enabled, setEnabled] = useState<boolean | undefined>();
   const [share, setShare] = useState<ShareInfo | null>(null);
   const [status, setStatus] = useState<SyncStatus>("off");
@@ -35,15 +40,15 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
   useEffect(() => { fetch("/api/trees").then((r) => r.json()).then((j: { enabled: boolean }) => setEnabled(!!j.enabled)).catch(() => setEnabled(false)); }, []);
 
   /** fetch the server copy; merge with local edits when both changed */
-  const pull = useCallback(async (initial = false) => {
-    const s = shareRef.current; if (!s) return;
-    const res = await fetch(`/api/trees/${s.treeId}?k=${encodeURIComponent(s.token)}${initial ? "" : `&rev=${s.rev}`}`, { cache: "no-store" });
-    if (res.status === 404) { setStatus("invalid"); return; }
+  const pull = useCallback(async (initial = false): Promise<boolean> => {
+    const s = shareRef.current; if (!s) return false;
+    const res = await fetch(`/api/trees/${s.treeId}?${[keyQs(s), initial ? "" : `rev=${s.rev}`].filter(Boolean).join("&")}`, { cache: "no-store" });
+    if (res.status === 404) { setStatus("invalid"); return false; }
     if (!res.ok) throw new Error(String(res.status));
     const j = await res.json();
     if (j.members) setMembers(j.members);
-    if (s.role !== j.role || s.personId !== j.member?.person_id || s.memberName !== j.member?.name) update({ ...s, role: j.role, personId: j.member?.person_id, memberName: j.member?.name });
-    if (j.unchanged) return;
+    if (s.role !== j.role || s.personId !== j.member?.person_id || s.memberName !== j.member?.name || s.memberId !== j.member?.id || s.title !== j.title) update({ ...s, role: j.role, personId: j.member?.person_id, memberName: j.member?.name, memberId: j.member?.id, title: j.title });
+    if (j.unchanged) return true;
     const remote = j.family as DFamily;
     const local = famRef.current;
     const b = base.current;
@@ -52,17 +57,19 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
     base.current = remote;
     update({ ...(shareRef.current ?? s), rev: j.rev });
     if (canon(next) !== canon(local)) setFamily(next);
+    return true;
   }, [setFamily]);
 
   /** send local edits */
   const push = useCallback(async () => {
     const s = shareRef.current; if (!s || busy.current) return;
+    if (s.account && !base.current) return; // the tree has not been loaded yet — never overwrite it with an empty draft
     if (base.current && canon(famRef.current) === canon(base.current)) return;
     busy.current = true; setStatus("saving");
     try {
       for (let i = 0; i < 4; i++) {
         const sent = famRef.current;
-        const res = await fetch(`/api/trees/${s.treeId}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ k: s.token, baseRev: shareRef.current!.rev, family: sent }) });
+        const res = await fetch(`/api/trees/${s.treeId}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...keyBody(s), baseRev: shareRef.current!.rev, family: sent }) });
         if (res.status === 404) { setStatus("invalid"); return; }
         if (res.status === 409) {
           const j = await res.json();
@@ -87,20 +94,31 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
     const t = q.get("t"), k = q.get("k");
     (async () => {
       try {
-        if (t && k) {
+        if (opts.treeId) {
+          update({ treeId: opts.treeId, token: "", role: "editor", rev: 0, account: true });
+          base.current = null;
+          if (await pull(true)) { setAdopted(true); setStatus("synced"); }
+        } else if (t && k) {
+          // a private link from before accounts existed: if this browser is signed in, move that access into the account
+          try {
+            const me = await (await fetch("/api/auth/me", { cache: "no-store" })).json();
+            if (me.account) {
+              const r = await fetch(`/api/trees/${t}/join`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ k }) });
+              if (r.ok) { location.replace(`/app/tree/${t}`); return; }
+            }
+          } catch { /* fall through to guest mode */ }
           history.replaceState(null, "", location.pathname);
           try { const old = localStorage.getItem("maithil-panji.session.v1"); if (old) localStorage.setItem("maithil-panji.session.backup", old); } catch { /* ignore */ }
           update({ treeId: t, token: k, role: "editor", rev: 0 });
           base.current = null;
-          await pull(true);
-          setAdopted(true); setStatus("synced");
+          if (await pull(true)) { setAdopted(true); setStatus("synced"); }
         } else {
           const s = read();
-          if (s) { update(s); base.current = null; await pull(true); setStatus("synced"); }
+          if (s) { update(s); base.current = null; if (await pull(true)) setStatus("synced"); }
         }
       } catch { setStatus("offline"); }
     })();
-  }, [ready, pull]);
+  }, [ready, pull, opts.treeId]);
 
   /** autosave shortly after each change, and poll for other people's changes */
   useEffect(() => {
@@ -124,32 +142,41 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
     pull(true).catch(() => {});
   }, [pull]);
 
-  const invite = useCallback(async (name: string, personId?: string) => {
+  /** account mode: invites a phone number (e164) → the link every invitee uses; guest mode: creates a private editor link */
+  const invite = useCallback(async (name: string, personId?: string, phone?: string) => {
     const s = shareRef.current!;
     await push();
-    const res = await fetch(`/api/trees/${s.treeId}/members`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ k: s.token, name, personId }) });
+    const res = await fetch(`/api/trees/${s.treeId}/members`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...keyBody(s), name, personId, phone }) });
     const j = await res.json();
     if (!res.ok) throw new Error(j.error ?? "Could not create the invitation.");
     setMembers(j.members);
-    return `${location.origin}/build?t=${s.treeId}&k=${j.token}`;
+    return phone ? `${location.origin}${j.path}` : `${location.origin}/build?t=${s.treeId}&k=${j.token}`;
   }, [push]);
 
   const revoke = useCallback(async (memberId: string) => {
     const s = shareRef.current!;
-    const res = await fetch(`/api/trees/${s.treeId}/members`, { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ k: s.token, memberId }) });
+    const res = await fetch(`/api/trees/${s.treeId}/members`, { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...keyBody(s), memberId }) });
     const j = await res.json();
     if (res.ok) setMembers(j.members);
   }, []);
 
   const deleteOnline = useCallback(async () => {
     const s = shareRef.current!;
-    const res = await fetch(`/api/trees/${s.treeId}`, { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ k: s.token }) });
+    const res = await fetch(`/api/trees/${s.treeId}`, { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify(keyBody(s)) });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Could not delete.");
     update(null); base.current = null; setStatus("off"); setMembers([]);
   }, []);
 
-  const ownerLink = share ? `${typeof location !== "undefined" ? location.origin : ""}/build?t=${share.treeId}&k=${share.token}` : "";
+  /** account mode, helper: remove myself from this tree */
+  const leaveTree = useCallback(async () => {
+    const s = shareRef.current!;
+    if (!s.memberId) throw new Error("Please try again in a moment.");
+    const res = await fetch(`/api/trees/${s.treeId}/members`, { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ memberId: s.memberId }) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Could not leave the tree.");
+  }, []);
+
+  const ownerLink = share && !share.account ? `${typeof location !== "undefined" ? location.origin : ""}/build?t=${share.treeId}&k=${share.token}` : "";
   const leave = useCallback(() => { update(null); base.current = null; setStatus("off"); setMembers([]); }, []);
 
-  return { enabled, share, status, members, adopted, create, invite, revoke, deleteOnline, ownerLink, leave };
+  return { enabled, share, status, members, adopted, create, invite, revoke, deleteOnline, ownerLink, leave, leaveTree };
 }
