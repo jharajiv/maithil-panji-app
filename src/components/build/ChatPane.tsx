@@ -5,46 +5,55 @@ import { cn } from "@/lib/utils";
 
 export interface ChatMessage {
   id: string; role: "user" | "assistant"; text: string; quick?: string[];
-  /** assistant: the fixed step this question asks. Such a message can be replied to later (right-click, long-press or the Reply button). */
+  /** assistant: the question this message asks. Replying to it adds to / corrects that answer. */
   goalId?: string;
-  /** user: which earlier question this answer was a reply to */
-  replyTo?: { title: string; mode: "add" | "replace" };
+  /** user: the question this message answered (so replying to your own answer works too) */
+  answeredGoal?: string;
+  /** user: the message this was a reply to, shown as a quote inside the bubble like WhatsApp */
+  replyTo?: { author: string; quote: string; msgId?: string; mode?: "add" | "replace" };
 }
-/** the earlier question (or tree box) the next message will be an answer to */
-export interface ReplyCtx { goalId: string; title: string; quote: string; mode: "add" | "replace" }
+/** the earlier message the next answer is a reply to */
+export interface ReplyCtx { goalId: string; title: string; quote: string; mode: "add" | "replace"; /** fixed list steps can add or replace; opening questions can only be corrected */ isList: boolean; author: string; msgId?: string }
 
-/** long-press (touch) and right-click (mouse) on a bubble → onTrigger */
-function useHold(onTrigger: () => void, enabled: boolean) {
-  const t = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const start = useRef<[number, number]>([0, 0]);
-  const stop = () => { if (t.current) clearTimeout(t.current); t.current = undefined; };
-  if (!enabled) return {};
-  return {
-    onContextMenu: (e: React.MouseEvent) => { e.preventDefault(); onTrigger(); },
-    onPointerDown: (e: React.PointerEvent) => { if (e.pointerType === "mouse") return; start.current = [e.clientX, e.clientY]; stop(); t.current = setTimeout(() => { t.current = undefined; onTrigger(); }, 500); },
-    onPointerMove: (e: React.PointerEvent) => { if (t.current && Math.hypot(e.clientX - start.current[0], e.clientY - start.current[1]) > 10) stop(); },
-    onPointerUp: stop, onPointerCancel: stop,
-  };
-}
+const authorOf = (m: ChatMessage) => (m.role === "user" ? "You" : "Panji Sahayak");
 
+/** WhatsApp-style: swipe a bubble to the right (touch), right-click, press-and-hold, or tap the ↩ button */
 function Bubble({ m, onReply }: { m: ChatMessage; onReply: (m: ChatMessage) => void }) {
-  const replyable = m.role === "assistant" && !!m.goalId;
-  const hold = useHold(() => onReply(m), replyable);
+  const mine = m.role === "user";
+  const [dx, setDx] = useState(0);
+  const st = useRef<{ x: number; y: number; id: number; t?: ReturnType<typeof setTimeout>; moved: boolean } | null>(null);
+  const end = () => { if (st.current?.t) clearTimeout(st.current.t); st.current = null; setDx(0); };
+  const down = (e: React.PointerEvent) => {
+    if (e.pointerType === "mouse") return;
+    st.current = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false, t: setTimeout(() => { if (st.current && !st.current.moved) { st.current.t = undefined; onReply(m); end(); } }, 550) };
+  };
+  const move = (e: React.PointerEvent) => {
+    const s = st.current; if (!s) return;
+    const ddx = e.clientX - s.x, ddy = e.clientY - s.y;
+    if (Math.hypot(ddx, ddy) > 10) { s.moved = true; if (s.t) { clearTimeout(s.t); s.t = undefined; } }
+    if (s.moved && ddx > 0 && Math.abs(ddy) < 40) setDx(Math.min(ddx, 80));
+  };
+  const up = (e: React.PointerEvent) => { const s = st.current; if (s && e.clientX - s.x > 64 && Math.abs(e.clientY - s.y) < 40) onReply(m); end(); };
+  const btn = (
+    <button type="button" onClick={() => onReply(m)} aria-label={`Reply to this message from ${authorOf(m)}`}
+      className="grid size-9 shrink-0 place-items-center self-center rounded-full text-muted-foreground opacity-70 hover:bg-secondary hover:opacity-100 focus-visible:opacity-100"><CornerUpLeft className="size-[18px]" /></button>
+  );
   return (
-    <div className={cn("flex flex-col", m.role === "user" ? "items-end" : "items-start")}>
-      {m.replyTo && (
-        <div className="mb-1 max-w-[88%] rounded-lg border-l-4 border-primary/50 bg-secondary px-3 py-1.5 text-xs text-muted-foreground">
-          <CornerUpLeft className="mr-1 inline size-3" />Reply to: {m.replyTo.title}{m.replyTo.mode === "replace" ? " · replacing it" : " · adding to it"}
-        </div>
-      )}
-      <div {...hold} className={cn("max-w-[88%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-[17px] leading-relaxed",
-        m.role === "user" ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md border bg-card",
-        replyable && "[-webkit-touch-callout:none] [@media(pointer:coarse)]:select-none")}>{m.text}</div>
-      {replyable && (
-        <button type="button" onClick={() => onReply(m)} className="mt-1 flex items-center gap-1 rounded-full px-2 py-1 text-[13px] font-medium text-primary hover:bg-primary/5" aria-label="Reply to this question, to add or correct what you told me">
-          <CornerUpLeft className="size-3.5" /> Reply / correct this
-        </button>
-      )}
+    <div id={`msg-${m.id}`} className={cn("group flex items-end gap-1 rounded-2xl transition-colors", mine ? "flex-row-reverse" : "flex-row")}>
+      <div onContextMenu={(e) => { e.preventDefault(); onReply(m); }} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={end}
+        style={{ transform: dx ? `translateX(${dx}px)` : undefined, touchAction: "pan-y" }}
+        className={cn("max-w-[84%] rounded-2xl px-4 py-3 text-[17px] leading-relaxed [-webkit-touch-callout:none] [@media(pointer:coarse)]:select-none",
+          mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md border bg-card")}>
+        {m.replyTo && (
+          <button type="button" onClick={() => { const el = m.replyTo?.msgId && document.getElementById(`msg-${m.replyTo.msgId}`); if (el) { el.scrollIntoView({ block: "center", behavior: "smooth" }); el.classList.add("bg-primary/10"); setTimeout(() => el.classList.remove("bg-primary/10"), 1200); } }}
+            className={cn("mb-2 block w-full rounded-lg border-l-4 px-2.5 py-1.5 text-left text-sm", mine ? "border-white/70 bg-white/15 text-primary-foreground" : "border-primary bg-secondary")}>
+            <span className="block text-xs font-semibold">{m.replyTo.author}{m.replyTo.mode === "replace" ? " · replacing" : m.replyTo.mode === "add" ? " · adding to" : ""}</span>
+            <span className="line-clamp-2 whitespace-pre-wrap opacity-90">{m.replyTo.quote}</span>
+          </button>
+        )}
+        <span className="whitespace-pre-wrap">{m.text}</span>
+      </div>
+      {btn}
     </div>
   );
 }
@@ -67,6 +76,8 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
   const [listening, setListening] = useState(false);
   const [vlang, setVlang] = useState<"en-IN" | "hi-IN">("en-IN");
   const [canVoice, setCanVoice] = useState(false);
+  const [tip, setTip] = useState(false);
+  useEffect(() => { try { setTip(!localStorage.getItem("maithil-panji.replytip.v1")); } catch { /* ignore */ } }, []);
   const end = useRef<HTMLDivElement>(null);
   const rec = useRef<SR | null>(null);
   useEffect(() => setCanVoice(!!getSR()), []);
@@ -107,6 +118,13 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
         </div>
       </div>
 
+      {tip && messages.length > 3 && (
+        <div className="flex items-start gap-2 border-b bg-primary/5 px-4 py-2 text-sm">
+          <CornerUpLeft className="mt-0.5 size-4 shrink-0 text-primary" />
+          <p className="min-w-0 flex-1">Forgot something, or typed it wrong? <strong>Swipe any message to the right</strong> (or tap ↩, or right-click it) to reply to it and add or correct your answer.</p>
+          <button type="button" aria-label="Hide this tip" onClick={() => { setTip(false); try { localStorage.setItem("maithil-panji.replytip.v1", "1"); } catch { /* ignore */ } }} className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-secondary"><X className="size-4" /></button>
+        </div>
+      )}
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4" role="log" aria-live="polite">
         {messages.map((m) => <Bubble key={m.id} m={m} onReply={(x) => onReply?.(x)} />)}
         {busy && (
@@ -117,18 +135,22 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
 
       <div className="border-t bg-card px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
         {reply && (
-          <div className="mb-2 rounded-xl border border-primary/30 border-l-4 border-l-primary bg-primary/5 p-2.5" role="group" aria-label="You are replying to an earlier question">
+          <div className="mb-2 rounded-xl border border-primary/30 border-l-4 border-l-primary bg-primary/5 p-2.5" role="group" aria-label="You are replying to an earlier message">
             <div className="flex items-start justify-between gap-2">
-              <p className="min-w-0 text-sm"><span className="font-semibold text-primary"><CornerUpLeft className="mr-1 inline size-3.5" />Replying to: {reply.title}</span><span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">{reply.quote}</span></p>
+              <p className="min-w-0 text-sm"><span className="font-semibold text-primary"><CornerUpLeft className="mr-1 inline size-3.5" />Replying to {reply.author} · {reply.title}</span><span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">{reply.quote}</span></p>
               <button type="button" onClick={onClearReply} aria-label="Cancel reply" className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-secondary"><X className="size-4" /></button>
             </div>
-            <div role="radiogroup" aria-label="What should this reply do?" className="mt-2 grid grid-cols-2 gap-2">
-              {([["add", "Add to this"], ["replace", "Replace this"]] as const).map(([v, l]) => (
-                <button key={v} type="button" role="radio" aria-checked={reply.mode === v} onClick={() => onMode?.(v)}
-                  className={cn("h-10 rounded-lg border text-sm font-medium", reply.mode === v ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card")}>{l}</button>
-              ))}
-            </div>
-            <p className="mt-1.5 text-xs text-muted-foreground">{reply.mode === "replace" ? "Your new answer replaces what was entered for this question — people added under them are removed too." : "Your answer is added to what is already there. Nothing else changes."}</p>
+            {reply.isList ? (
+              <>
+                <div role="radiogroup" aria-label="What should this reply do?" className="mt-2 grid grid-cols-2 gap-2">
+                  {([["add", "Add to this"], ["replace", "Replace this"]] as const).map(([v, l]) => (
+                    <button key={v} type="button" role="radio" aria-checked={reply.mode === v} onClick={() => onMode?.(v)}
+                      className={cn("h-10 rounded-lg border text-sm font-medium", reply.mode === v ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card")}>{l}</button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-muted-foreground">{reply.mode === "replace" ? "Your new answer replaces what was entered for this question — people added under them are removed too." : "Your answer is added to what is already there. Nothing else changes."}</p>
+              </>
+            ) : <p className="mt-1.5 text-xs text-muted-foreground">Type the correct answer. Only this one answer is changed.</p>}
           </div>
         )}
         {canUndo && !reply && !busy && (

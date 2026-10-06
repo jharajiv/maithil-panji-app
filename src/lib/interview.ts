@@ -302,6 +302,29 @@ export function goalById(f: DFamily, id: string): Goal | null {
   return listGoal(f, kind, p, "Earlier answer", labels(f));
 }
 
+/** Kinds of earlier questions that can be corrected by replying to them (everything except gotra and mool, which are picked from the Panji list in the edit sheet). */
+export const CORRECTABLE = new Set(["self_name", "self_gender", "self_birth", "self_place", "father", "mother", "details", "gender"]);
+
+/**
+ * The question behind ANY earlier chat message the user may reply to. Fixed steps come back as full list goals;
+ * the opening questions (name, gender, birth, place, father, mother, details) come back as a correction target.
+ */
+export function replyGoal(f: DFamily, id: string): Goal | null {
+  const list = goalById(f, id);
+  if (list) return list;
+  const [kind, subject] = id.split(":");
+  if (!kind || !CORRECTABLE.has(kind)) return null;
+  const sid = subject ?? me(f)?.id;
+  const p = f.persons.find((x) => x.id === sid);
+  if (!p) return null;
+  const q: Record<string, string> = {
+    self_name: "What is your full name?", self_gender: "Are you male or female?", self_birth: "What is your date of birth?", self_place: "Where do you live now?",
+    father: `What is ${p.is_me ? "your" : `${firstName(p)}’s`} father’s name?`, mother: `What is ${p.is_me ? "your" : `${firstName(p)}’s`} mother’s name?`,
+    details: `Is ${nm(p)} living, and what are his dates and village?`, gender: `Is ${nm(p)} male or female?`,
+  };
+  return { id, kind: kind as GoalKind, section: "Earlier answer", subjects: [p.id], optional: true, quick: [], skip: [], question: q[kind]!, instruction: q[kind]! };
+}
+
 /** The operations for a list answer: add exactly these people, in exactly this role, and mark the question answered. */
 export function listOps(goal: Goal, names: { name: string; dev?: string }[], note?: string): Op[] {
   if (!isListKind(goal.kind)) return [];

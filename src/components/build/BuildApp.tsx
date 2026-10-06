@@ -11,7 +11,7 @@ import { applyOps, changeRelation, emptyFamily, toFamilyData, type DFamily, type
 import { mergeFamilies } from "@/lib/merge";
 import { registerExtras, type ExtraRef } from "@/lib/lookup";
 import { romanToDevanagari } from "@/lib/translit";
-import { goalById, isListKind, nextGoal, type ListKind } from "@/lib/interview";
+import { CORRECTABLE, isListKind, nextGoal, replyGoal } from "@/lib/interview";
 import type { TemplateId } from "@/lib/types";
 import { ChatPane, type ChatMessage, type ReplyCtx } from "./ChatPane";
 import { TreeMenu, type TreeMenuState } from "./TreeMenu";
@@ -32,20 +32,24 @@ interface Session { family: DFamily; messages: ChatMessage[]; goalId?: string; s
 /** everything the chat needs to step back one answer */
 interface Snap { family: DFamily; messages: ChatMessage[]; goalId?: string; section?: string; repeats: number; pending?: Pending }
 
-const POSS: Record<ListKind, string> = { brothers: "brothers", sisters: "sisters", wife: "wife", husband: "husband", sons: "sons", daughters: "daughters" };
-/** "Your sisters" / "Ramesh’s sons" — what a reply is about */
+/** "Your sisters" / "Ramesh’s sons" / "Your father" — what a reply is about */
 function replyTitle(f: DFamily, goalId: string): string {
   const [kind, id] = goalId.split(":");
-  const p = f.persons.find((x) => x.id === id);
-  if (!kind || !isListKind(kind) || !p) return "an earlier question";
-  return `${p.is_me ? "Your" : `${p.name_roman.split(" ")[0]}’s`} ${POSS[kind]}`;
+  const p = f.persons.find((x) => x.id === id) ?? f.persons.find((x) => x.is_me);
+  if (!kind || !p) return "an earlier question";
+  const poss = p.is_me ? "Your" : `${p.name_roman.split(" ")[0]}’s`;
+  const t: Record<string, string> = {
+    brothers: `${poss} brothers`, sisters: `${poss} sisters`, wife: `${poss} wife`, husband: `${poss} husband`, sons: `${poss} sons`, daughters: `${poss} daughters`,
+    father: `${poss} father`, mother: `${poss} mother`, details: `${poss} details`, self_name: "Your name", self_gender: "Your gender", self_birth: "Your birth date", self_place: "Where you live", gender: `${poss} gender`,
+  };
+  return t[kind] ?? "an earlier question";
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const GREETING = "Namaste! I will help you record your family’s lineage, one simple question at a time. You can answer in English, Hindi or Hinglish — and skip anything you don’t know.";
 const firstMessage = (): { messages: ChatMessage[]; goalId?: string; section?: string } => {
   const g = nextGoal(emptyFamily());
-  return { messages: [{ id: uid(), role: "assistant", text: `${GREETING}\n\n${g?.question ?? ""}`, quick: [] }], goalId: g?.id, section: g?.section };
+  return { messages: [{ id: uid(), role: "assistant", text: `${GREETING}\n\n${g?.question ?? ""}`, quick: [], goalId: g?.id }], goalId: g?.id, section: g?.section };
 };
 
 /** photos and phone numbers never go to the chat server */
@@ -134,7 +138,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   useEffect(() => {
     if (!sh.adopted) return;
     const g = nextGoal(famRef.current);
-    setMessages([{ id: uid(), role: "assistant", text: g ? `${WELCOME_BACK}\n\n${g.question}` : `${WELCOME_BACK} The tree is complete — tap anyone to correct details, or ask me to change something.`, quick: g?.quick ?? [] }]);
+    setMessages([{ id: uid(), role: "assistant", text: g ? `${WELCOME_BACK}\n\n${g.question}` : `${WELCOME_BACK} The tree is complete — tap anyone to correct details, or ask me to change something.`, quick: g?.quick ?? [], goalId: g?.id }]);
     setGoalId(g?.id); setSection(g?.section); setRepeats(0); setPending(undefined); setTab(g && sh.share?.role === "owner" ? "chat" : "tree");
   }, [sh.adopted]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { fetch("/api/chat").then((r) => r.json()).then((j: { ai: boolean }) => setMode(j.ai ? "ai" : "basic")).catch(() => {}); }, []);
@@ -148,7 +152,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
     const history = messages.slice(-10).map((m) => ({ role: m.role, content: m.text }));
     const ctx = replyCtx;
     const snap: Snap = { family: famRef.current, messages, goalId, section, repeats, pending };
-    setMessages((m) => [...m, { id: uid(), role: "user", text, replyTo: ctx ? { title: ctx.title, mode: ctx.mode } : undefined }]);
+    setMessages((m) => [...m, { id: uid(), role: "user", text, answeredGoal: ctx?.goalId ?? goalId, replyTo: ctx ? { author: ctx.author, quote: ctx.quote, msgId: ctx.msgId, mode: ctx.isList ? ctx.mode : undefined } : undefined }]);
     setBusy(true);
     const sent = stripPrivate(famRef.current);
     try {
@@ -163,8 +167,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
       if (next.persons.length !== famRef.current.persons.length && !desktop && tab === "chat") setUnseen((n) => n + 1);
       afterTurn.current = JSON.stringify(next);
       setFamily(next);
-      const listGoal = j.goal && isListKind(j.goal.kind) ? (j.goal.id as string) : undefined;
-      setMessages((m) => [...m, { id: uid(), role: "assistant", text: j.reply, quick: j.quick, goalId: listGoal }]);
+      setMessages((m) => [...m, { id: uid(), role: "assistant", text: j.reply, quick: j.quick, goalId: j.goal?.id as string | undefined }]);
       setGoalId(j.goal?.id); setSection(j.goal?.section); setRepeats(j.repeats ?? 0); setPending(j.pending);
       if (j.ops > 0) setUndo((u) => [...u.slice(-14), snap]);
       if (ctx && j.ops > 0) setReplyCtx(null); // an answer that was not understood keeps the reply open
@@ -185,11 +188,18 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
     setFamily(snap.family); setMessages(snap.messages); setGoalId(snap.goalId); setSection(snap.section); setRepeats(snap.repeats); setPending(snap.pending); setReplyCtx(null);
     setNotice("Your last answer was undone.");
   };
-  /** reply to an earlier question (chat message or tree box): the next answer goes to THAT question */
-  const replyTo = (goal: string, quote?: string) => {
-    const g = goalById(famRef.current, goal);
-    if (!g) return;
-    setReplyCtx({ goalId: goal, title: replyTitle(famRef.current, goal), quote: (quote ?? g.question).slice(0, 220), mode: "add" });
+  /** reply to an earlier message or a tree box: the next answer goes to THAT question */
+  const replyTo = (goal: string, quote?: string, who = "Panji Sahayak", msgId?: string) => {
+    const kind = goal.split(":")[0]!;
+    const g = replyGoal(famRef.current, goal);
+    if (kind === "self_gotra" || kind === "self_mool") {
+      // gotra and mool are picked from the Panji list in the edit sheet
+      const m = famRef.current.persons.find((x) => x.is_me);
+      if (m) { setRelFor(undefined); setSelected(m.id); setNotice("Gotra and mool are chosen from the Panji list here."); }
+      return;
+    }
+    if (!g) { setNotice("That earlier message can’t be replied to. Tap the person in the tree to change their details."); return; }
+    setReplyCtx({ goalId: goal, title: replyTitle(famRef.current, goal), quote: (quote ?? g.question).slice(0, 220), mode: "add", isList: isListKind(kind) && !CORRECTABLE.has(kind), author: who, msgId });
     setTab("chat");
   };
   const changeRel = (id: string, toId: string, word: RelationWord) => {
@@ -225,7 +235,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const leftPane = (cls: string) => isHelper
     ? <HelperPane className={cls} name={sh.share?.memberName} onOpenShare={() => { setInviteFor(undefined); setShareOpen(true); }} ownTreeHref={inAccount ? "/app" : undefined} />
     : <ChatPane className={cls} messages={messages} busy={busy} onSend={send} section={section} mode={mode}
-      reply={replyCtx} onReply={(m) => m.goalId && replyTo(m.goalId, m.text)} onMode={(md) => setReplyCtx((c) => (c ? { ...c, mode: md } : c))} onClearReply={() => setReplyCtx(null)} canUndo={undo.length > 0} onUndo={undoLast} />;
+      reply={replyCtx} onReply={(m) => { const g = m.role === "assistant" ? m.goalId : m.answeredGoal; if (g) replyTo(g, m.text, m.role === "user" ? "You" : "Panji Sahayak", m.id); else setNotice("That older message can’t be replied to. Tap the person in the tree to change their details."); }} onMode={(md) => setReplyCtx((c) => (c ? { ...c, mode: md } : c))} onClearReply={() => setReplyCtx(null)} canUndo={undo.length > 0} onUndo={undoLast} />;
   const treePane = <LiveTree ref={tree} family={family} template={template} onTemplate={setTemplate} onSelect={setSelected} onContext={(id, x, y, touch) => setMenu({ id, x, y, touch })} className="flex min-h-0 flex-1 flex-col"
     extra={data ? <Button size="sm" variant="outline" onClick={() => setFreeOpen(true)} aria-label="Edit freely with boxes and connectors"><Pencil /> <span className="hidden min-[420px]:inline">Edit freely</span></Button> : undefined} />;
 

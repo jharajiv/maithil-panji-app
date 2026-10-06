@@ -1,12 +1,14 @@
 import { applyOps } from "./family";
 import { basicParse } from "./basic";
-import { goalById, isListGoal, nextGoal } from "./interview";
+import { correctionTurn } from "./correction";
+import { isListGoal, nextGoal, replyGoal } from "./interview";
 import { DONE_TEXT, listTurn, type ListInput } from "./list-turn";
 import type { TurnOutput } from "./agent";
 
 /** Rule-based turn (no AI): used without an API key or when the AI is unavailable. */
 export async function basicTurn(input: ListInput): Promise<TurnOutput> {
-  const asked = input.answerGoal ? goalById(input.family, input.answerGoal) : null;
+  const asked = input.answerGoal ? replyGoal(input.family, input.answerGoal) : null;
+  if (asked && !isListGoal(asked)) return correctionTurn(input, asked);
   const goal = asked ?? nextGoal(input.family, { batch: false });
   if (!goal) return { family: input.family, reply: DONE_TEXT, quick: [], goal: null, repeats: 0, offTopic: false, ops: 0 };
   if (isListGoal(goal)) return listTurn(null, input, goal);

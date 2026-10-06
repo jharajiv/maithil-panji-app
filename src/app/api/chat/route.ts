@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     repeats: typeof body.repeats === "number" ? Math.min(5, Math.max(0, body.repeats)) : 0,
     pending: cleanPending(body.pending),
     // set when the user replied to an earlier chat message or to a person's box in the tree
-    answerGoal: typeof body.answerGoal === "string" && /^[a-z]+:p\d+$/.test(body.answerGoal) ? body.answerGoal : undefined,
+    answerGoal: typeof body.answerGoal === "string" && /^[a-z_]+(:p\d+)?$/.test(body.answerGoal) ? body.answerGoal : undefined,
     mode: body.mode === "replace" ? ("replace" as const) : ("add" as const),
   };
   await loadExtras();

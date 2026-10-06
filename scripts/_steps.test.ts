@@ -133,5 +133,23 @@ const base: [RegExp, string][] = [
   assert.equal(childrenOf(fix.family, uncle).length, 1, "the cousin stays with the uncle");
   assert.ok(!changeRelation(w, byName(w, "Dad").id, me(w)!.id, "son").ok, "no cycles");
   assert.ok(!changeRelation(w, me(w)!.id, uncle, "son").ok, "cannot change yourself");
+  /* 7. replying to an EARLIER opening question corrects just that answer */
+  {
+    let c = emptyFamily();
+    for (const t of ["Rajiv Jha", "male", "skip", "skip", "skip", "skip", "Subodh Jha", "Yogmaya"]) c = (await say(c, t)).family;
+    const dad = byName(c, "Subodh Jha").id;
+    let o = await say(c, "Subodh Narayan Jha", { answerGoal: `father:p1`, mode: "replace" });
+    assert.equal(fatherOf(o.family, "p1")!.name_roman, "Subodh Narayan Jha"); assert.equal(o.family.persons.length, c.persons.length, "renamed, not duplicated");
+    assert.ok(/Updated the father/.test(o.reply) && /Back to where we were/.test(o.reply));
+    o = await say(c, "Jayanti", { answerGoal: "mother:p1" });
+    assert.equal(o.family.persons.find((p) => p.name_roman === "Jayanti") !== undefined, true); assert.equal(o.family.persons.length, c.persons.length);
+    o = await say(c, "Rajiv Kumar Jha", { answerGoal: "self_name" });
+    assert.equal(o.family.persons[0]!.name_roman, "Rajiv Kumar Jha");
+    o = await say(c, "1985", { answerGoal: "self_birth" });
+    assert.equal(o.family.persons[0]!.birth, "1985");
+    o = await say(c, "what??", { answerGoal: "father:p1" });
+    assert.equal(o.family.persons.length, c.persons.length); assert.equal(fatherOf(o.family, "p1")!.name_roman, "Subodh Jha");
+    assert.equal(dad, fatherOf(c, "p1")!.id);
+  }
   console.log("steps tests passed");
 })().catch((e) => { console.error(e); process.exit(1); });
