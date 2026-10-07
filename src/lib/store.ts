@@ -18,6 +18,8 @@ export interface Member {
   id: string; name: string; role: "owner" | "editor"; token_hash?: string; person_id?: string; created_at: string;
   /** E.164 number the owner invited (unverified contact detail) */
   phone?: string; email?: string; account_id?: string; status?: "invited" | "joined"; invite_hash?: string;
+  /** owner only: view-only links were replaced this many times / are switched off */
+  view_epoch?: number; view_off?: boolean;
 }
 export interface TreeRow { id: string; family: DFamily; rev: number; members: Member[]; updated_at: string; title?: string; people_count?: number }
 export type TreeSummary = Pick<TreeRow, "id" | "members" | "updated_at" | "title" | "people_count">;
@@ -56,6 +58,8 @@ export interface Store {
   addConsent(row: ConsentRow): Promise<void>;
   /** removes the tree and its flat rows; returns false when it did not exist */
   deleteTree(id: string): Promise<boolean>;
+  /** one anonymous usage count (a name and a time — nothing about the person) */
+  addEvent(name: string): Promise<void>;
 }
 
 export const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
@@ -108,6 +112,7 @@ function supabase(url: string, key: string): Store {
       await call("custom_refs?on_conflict=kind,key", { method: "POST", body: JSON.stringify(refs), prefer: "resolution=ignore-duplicates,return=minimal" });
     },
     async listRefs() { return (await call("custom_refs?select=kind,key,roman,dev&status=neq.rejected&order=seen_at.desc&limit=500")) as RefRow[]; },
+    async addEvent(name) { await call("events", { method: "POST", body: JSON.stringify({ name }), prefer: "return=minimal" }); },
     async syncPeople(treeId, family) {
       const { persons, rels } = flatten(treeId, family);
       const t = encodeURIComponent(treeId);
@@ -130,9 +135,9 @@ function supabase(url: string, key: string): Store {
 function file(): Store {
   const dir = path.join(process.cwd(), ".data");
   const f = path.join(dir, "store.json");
-  type Db = { trees: Record<string, TreeRow>; refs: Record<string, RefRow>; persons?: PersonRow[]; rels?: RelRow[]; consents?: ConsentRow[]; accounts?: AccountRow[]; sessions?: SessionRow[]; codes?: LoginCode[] };
+  type Db = { events?: { name: string; at: string }[]; trees: Record<string, TreeRow>; refs: Record<string, RefRow>; persons?: PersonRow[]; rels?: RelRow[]; consents?: ConsentRow[]; accounts?: AccountRow[]; sessions?: SessionRow[]; codes?: LoginCode[] };
   const read = async (): Promise<Db> => { try { return JSON.parse(await fs.readFile(f, "utf8")) as Db; } catch { return { trees: {}, refs: {} }; } };
-  const write = async (db: Db) => { await fs.mkdir(dir, { recursive: true }); await fs.writeFile(f, JSON.stringify(db)); };
+  const write = async (db: Db) => { await fs.mkdir(dir, { recursive: true }); const tmp = `${f}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`; await fs.writeFile(tmp, JSON.stringify(db)); await fs.rename(tmp, f); }; // atomic: a reader never sees half a file
   let chain: Promise<unknown> = Promise.resolve();
   const lock = <T,>(fn: () => Promise<T>): Promise<T> => { const r = chain.then(fn, fn); chain = r.catch(() => {}); return r; };
   return {
@@ -162,6 +167,7 @@ function file(): Store {
       .map(({ id, title, people_count, members, updated_at }) => ({ id, title, people_count, members, updated_at })))),
     addRefs: (refs) => lock(async () => { const db = await read(); for (const r of refs) db.refs[`${r.kind}:${r.key}`] ??= r; await write(db); }),
     listRefs: () => lock(async () => Object.values((await read()).refs)),
+    addEvent: (name) => lock(async () => { const db = await read(); db.events = [...(db.events ?? []).slice(-4999), { name, at: new Date().toISOString() }]; await write(db); }),
     syncPeople: (treeId, family) => lock(async () => {
       const db = await read(); const flat = flatten(treeId, family);
       db.persons = [...(db.persons ?? []).filter((p) => p.tree_id !== treeId), ...flat.persons];

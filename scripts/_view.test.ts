@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { generations, publicFamily, viewKey, viewKeyOk, viewMode } from "../src/lib/view";
+import { generations, publicFamily, viewKey, viewKeyOk, viewMode, viewState } from "../src/lib/view";
 import { applyOps, emptyFamily, type DFamily } from "../src/lib/family";
 
 // a small family: grandfather (passed away) → father (living, has a village, notes, phone) → me
@@ -62,3 +62,19 @@ assert.equal(oldP.name_roman, "Born Long Ago Jha"); assert.equal(oldP.birth, "18
 const forced = applyOps(old, [{ op: "update_person", id: "p2", set: { status: "living" } }]).family;
 assert.equal(publicFamily(forced, "private").persons.find((x) => x.name_roman.startsWith("Born"))!.name_roman, "Born");
 console.log("view tests passed");
+
+// the owner can replace the links (older ones stop working) or switch them off
+{
+  const id = "tree123";
+  const k0 = viewKey(id), k1 = viewKey(id, "private", 1), kf1 = viewKey(id, "full", 1);
+  assert.notEqual(k0, k1);
+  assert.equal(viewMode(id, k0), "private");
+  assert.equal(viewMode(id, k0, { epoch: 1, off: false }), null, "an old link stops working after a new one is made");
+  assert.equal(viewMode(id, k1, { epoch: 1, off: false }), "private");
+  assert.equal(viewMode(id, kf1, { epoch: 1, off: false }), "full");
+  assert.equal(viewMode(id, k1, { epoch: 1, off: true }), null, "switched off");
+  assert.equal(viewMode(id, k0, { epoch: 0, off: true }), null, "switched off");
+  assert.equal(viewState({ members: [{ role: "owner", view_epoch: 2, view_off: true }, { role: "editor" }] }).epoch, 2);
+  assert.deepEqual(viewState({ members: [{ role: "owner" }] }), { epoch: 0, off: false });
+  console.log("view links: renew / stop ok");
+}

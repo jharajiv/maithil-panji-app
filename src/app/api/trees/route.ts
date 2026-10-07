@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logEvent } from "@/lib/events";
 import { sanitizeFamily } from "@/lib/sanitize";
 import { getStore, hashToken, newMemberId, newToken, newTreeId, syncAll, treeMeta } from "@/lib/store";
 import { authEnabled, currentAccount } from "@/lib/auth";
@@ -39,6 +40,7 @@ export async function POST(req: Request) {
       members: [{ id: memberId, name: account.name, role: "owner", account_id: account.id, email: account.email, phone: account.phone, status: "joined", person_id: personId, created_at: now }],
     });
     await syncAll(store, id, family);
+    logEvent("tree_saved");
     return NextResponse.json({ id, rev: 1 });
   }
   const token = newToken();

@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { getStore } from "@/lib/store";
-import { generations, viewMode } from "@/lib/view";
+import { generations, viewMode, viewState } from "@/lib/view";
 import { clientIp, limited } from "@/lib/ratelimit";
 
 export const dynamic = "force-dynamic";
@@ -18,9 +18,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const v = new URL(req.url).searchParams.get("v");
   const store = getStore();
   const fallback = (title: string, line: string) => card(title, line, "");
-  if (!store || limited("tree-og", clientIp(req), 120) || !viewMode(id, v)) return fallback("Maithil Panji", "Build your family tree");
+  if (!store || limited("tree-og", clientIp(req), 120)) return fallback("Maithil Panji", "Build your family tree");
   const row = await store.getTree(id);
-  if (!row) return fallback("Maithil Panji", "Build your family tree");
+  if (!row || !viewMode(id, v, viewState(row))) return fallback("Maithil Panji", "Build your family tree");
   const f = row.family;
   const me = f.persons.find((p) => p.is_me);
   const gotra = me?.gotra?.roman ?? f.persons.find((p) => p.gotra?.roman)?.gotra?.roman;

@@ -3,7 +3,7 @@ import { sanitizeFamily } from "@/lib/sanitize";
 import { getStore, syncAll, treeMeta } from "@/lib/store";
 import { accessFor, currentAccount, publicMember } from "@/lib/auth";
 import { clientIp, limited } from "@/lib/ratelimit";
-import { viewKey } from "@/lib/view";
+import { viewKey, viewState } from "@/lib/view";
 
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
@@ -24,7 +24,8 @@ export async function GET(req: Request, { params }: Ctx) {
   const me = row && (await access(req, row, url.searchParams.get("k")));
   if (!row || !me) return NextResponse.json({ error: "This link is not valid any more." }, { status: 404 });
   const have = Number(url.searchParams.get("rev"));
-  const base = { rev: row.rev, role: me.role, title: row.title, viewKey: viewKey(row.id, "private"), viewKeyFull: me.role === "owner" ? viewKey(row.id, "full") : undefined, member: { id: me.id, name: me.name, person_id: me.person_id }, members: me.role === "owner" ? publicMembers(row) : undefined };
+  const vs = viewState(row);
+  const base = { rev: row.rev, role: me.role, title: row.title, viewOff: vs.off, viewKey: vs.off ? "" : viewKey(row.id, "private", vs.epoch), viewKeyFull: me.role === "owner" && !vs.off ? viewKey(row.id, "full", vs.epoch) : undefined, member: { id: me.id, name: me.name, person_id: me.person_id }, members: me.role === "owner" ? publicMembers(row) : undefined };
   if (have && have === row.rev) return NextResponse.json({ ...base, unchanged: true });
   return NextResponse.json({ ...base, family: row.family });
 }

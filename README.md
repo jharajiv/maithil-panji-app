@@ -81,7 +81,7 @@ src/
   data/seed/      gotras.json, mools.json, villages.json
   lib/            family.ts (model + reducer + changeRelation) · interview.ts (planner, fixed steps) · list-turn.ts (step answers) · turn.ts (router) · agent.ts (LLM loop) · basic.ts (fallback)
                   lookup.ts (fuzzy search) · tree-filter.ts · chart.ts · pdf.ts · motifs.ts · translit.ts
-scripts/          build-seed.py; tests (run with `npx tsx`): _agent.test.ts, _steps.test.ts (step-by-step interview, replies to any earlier message, relationship repair), _tester.test.ts, _view.test.ts (view-link kinds and living-relative protection), _basic.test.mts, _panji.test.mts, _merge.test.ts, _sim.ts; _api.test.ts (needs a running dev server); _mockpg.mjs (fake Supabase)
+scripts/          build-seed.py; tests (run with `npx tsx`): _agent.test.ts, _steps.test.ts (step-by-step interview, replies to any earlier message, relationship repair), _tester.test.ts, _view.test.ts (view-link kinds, living-relative protection, renew/stop), _sample.test.ts (the Darbhanga sample tree), _basic.test.mts, _panji.test.mts, _merge.test.ts, _sim.ts; _api.test.ts (needs a running dev server); _mockpg.mjs (fake Supabase)
 supabase/         schema.sql
 ```
 
@@ -112,3 +112,14 @@ Import the repo (framework preset: Next.js). Add the environment variables from 
 - Older private-link trees (`/build?t=…&k=…`) keep working; when a signed-in person opens one it is moved into their account.
 - Tests: `scripts/_accounts.test.ts` (sign-up, invite, single-use link, leave/remove, sign-out, delete), `scripts/_api.test.ts` (legacy links; start the server with `AUTH_OFF=1`), `scripts/_dates.test.ts`, `scripts/_basic.test.mts`.
 - **Tester list** (approved friends sign in without an email, e.g. while your sender domain is not verified): set `TEST_LOGIN_EMAILS` (comma-separated) and `TEST_LOGIN_CODE` (8–10 digits) in Vercel and redeploy; give each person the code yourself. Everyone else still gets the emailed code. The sign-in screen tells a tester to type the access code instead of waiting for an email.
+
+
+## v8.2 notes
+
+- **Sample tree** (`/sample`, button on the home page): a read-only example built from the public Darbhanga Raj line (`src/data/darbhanga-sample.ts`). It says plainly that it is a sample and not an official or actual family tree, credits rajputs.net and Wikipedia, and shows living descendants by first name only. Edit the people in that one file.
+- **Chat help**: a hint at the top ("the better your answers, the better your tree"); where to find your gotra; a Google search link for your mool (only the gotra is put in the link, never a name); "Ask a relative on WhatsApp" and "Answer later" for each question; a "Still to fill in" row for anything skipped. All in `src/lib/help.ts` and `ChatPane.tsx`.
+- **Stop sharing / make a new link** (owner, in the Share sheet): stops or replaces every view-only link and printed QR code without deleting the tree. It is kept on the owner's member record in the existing `members` column — **no database change is needed**. API: `POST /api/trees/[id]/view-link {action: stop | start | renew}`.
+- The development file store now writes atomically.
+- **Usage counts** (B-23): anonymous counts (name + time only) in a new `events` table. **One step for you:** run the last block of `supabase/schema.sql` (section 6) in the Supabase SQL editor. Until then nothing breaks — counting just does nothing. To read the numbers, open the `events_daily` view in the Supabase table editor. Counted: sample_opened, tree_started, tree_saved, pdf_downloaded (our "finished"), share_clicked, view_opened. Vercel Web Analytics is free on Hobby but only counts page views; custom events need Pro, so it is not used.
+- **Portraits for the sample tree**: add only photos that are public domain or openly licensed. Drop a small JPG into `public/sample/portraits/` and add a line to `PORTRAITS` in `src/data/darbhanga-sample.ts` with the credit. None are added yet.
+- In Hindi the product word for a family tree is **वंशावली**.

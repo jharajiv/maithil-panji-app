@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { CornerUpLeft, Loader2, Mic, MicOff, Send, Undo2, X } from "lucide-react";
+import { CornerUpLeft, ExternalLink, Loader2, MessageCircle, Mic, MicOff, Send, Undo2, X } from "lucide-react";
+import { GOTRA_SOURCES, HINT, HINT_HI } from "@/lib/help";
 import { cn } from "@/lib/utils";
 
 export interface ChatMessage {
@@ -67,16 +68,30 @@ const getSR = (): (new () => SR) | null => {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 };
 
-export function ChatPane({ messages, busy, onSend, section, mode, className, reply, onReply, onMode, onClearReply, canUndo, onUndo }: {
+/** what is offered next to the current question */
+export interface QuestionHelp {
+  kind?: "gotra" | "mool";
+  moolUrl?: string;
+  /** WhatsApp link that asks a relative this question */
+  askUrl?: string;
+  /** "Answer later" — only for optional questions about yourself */
+  onLater?: () => void;
+  /** things skipped earlier that can still be filled in */
+  still?: { label: string; onOpen: () => void }[];
+}
+
+export function ChatPane({ messages, busy, onSend, section, mode, className, reply, onReply, onMode, onClearReply, canUndo, onUndo, help }: {
   messages: ChatMessage[]; busy: boolean; onSend: (text: string) => void; section?: string; mode?: "ai" | "basic"; className?: string;
   reply?: ReplyCtx | null; onReply?: (m: ChatMessage) => void; onMode?: (m: "add" | "replace") => void; onClearReply?: () => void;
-  canUndo?: boolean; onUndo?: () => void;
+  canUndo?: boolean; onUndo?: () => void; help?: QuestionHelp;
 }) {
   const [text, setText] = useState("");
   const [listening, setListening] = useState(false);
   const [vlang, setVlang] = useState<"en-IN" | "hi-IN">("en-IN");
   const [canVoice, setCanVoice] = useState(false);
   const [tip, setTip] = useState(false);
+  const [hint, setHint] = useState(true);
+  useEffect(() => { try { if (localStorage.getItem("maithil-panji.hint.v1")) setHint(false); } catch { /* ignore */ } }, []);
   useEffect(() => { try { setTip(!localStorage.getItem("maithil-panji.replytip.v1")); } catch { /* ignore */ } }, []);
   const end = useRef<HTMLDivElement>(null);
   const rec = useRef<SR | null>(null);
@@ -118,6 +133,12 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
         </div>
       </div>
 
+      {hint && messages.length <= 6 && (
+        <div className="flex items-start gap-2 border-b bg-amber-50 px-4 py-2 text-sm text-amber-950">
+          <p className="min-w-0 flex-1"><strong>{HINT}</strong> <span lang="hi" className="text-amber-900/80">{HINT_HI}</span></p>
+          <button type="button" aria-label="Hide this hint" onClick={() => { setHint(false); try { localStorage.setItem("maithil-panji.hint.v1", "1"); } catch { /* ignore */ } }} className="shrink-0 rounded-full p-1 text-amber-900/70 hover:bg-amber-100"><X className="size-4" /></button>
+        </div>
+      )}
       {tip && messages.length > 3 && (
         <div className="flex items-start gap-2 border-b bg-primary/5 px-4 py-2 text-sm">
           <CornerUpLeft className="mt-0.5 size-4 shrink-0 text-primary" />
@@ -153,8 +174,32 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
             ) : <p className="mt-1.5 text-xs text-muted-foreground">Type the correct answer. Only this one answer is changed.</p>}
           </div>
         )}
+        {!busy && !reply && help?.kind === "gotra" && (
+          <details className="mb-2 rounded-xl border bg-secondary/40 px-3 py-2 text-sm">
+            <summary className="cursor-pointer font-medium text-primary">Don’t know your gotra? Where to find it</summary>
+            <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-muted-foreground">{GOTRA_SOURCES.map((x) => <li key={x}>{x}</li>)}</ul>
+          </details>
+        )}
+        {!busy && !reply && help?.kind === "mool" && help.moolUrl && (
+          <p className="mb-2 rounded-xl border bg-secondary/40 px-3 py-2 text-sm text-muted-foreground">
+            Your mool is tied to your ancestral village. Not sure? Ask an elder, or{" "}
+            <a href={help.moolUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2">search for your mool on Google <ExternalLink className="size-3.5" /></a>.
+          </p>
+        )}
         {canUndo && !reply && !busy && (
           <button type="button" onClick={onUndo} className="mb-2 flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary"><Undo2 className="size-4" /> Undo my last answer</button>
+        )}
+        {!busy && !reply && last?.role === "assistant" && (help?.askUrl || help?.onLater) && (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {help.askUrl && <a href={help.askUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary"><MessageCircle className="size-4" /> Ask a relative on WhatsApp</a>}
+            {help.onLater && <button type="button" onClick={help.onLater} className="rounded-full border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary">Answer later</button>}
+          </div>
+        )}
+        {!busy && !reply && !!help?.still?.length && (
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Still to fill in:</span>
+            {help.still.map((s) => <button key={s.label} type="button" onClick={s.onOpen} className="rounded-full border border-terracotta/40 bg-terracotta/5 px-3 py-1 font-medium text-terracotta">{s.label}</button>)}
+          </div>
         )}
         {quick.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2" aria-label="Quick replies">

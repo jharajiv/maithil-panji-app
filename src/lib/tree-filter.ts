@@ -94,7 +94,7 @@ export function lifespan(p: Person) {
   const b = yearOf(p.dob);
   const d = yearOf(p.dod);
   if (!b && !d) return "";
-  return d ? `${b || "?"} – ${d}` : `b. ${b}`;
+  return d ? (b ? `${b} – ${d}` : `d. ${d}`) : `b. ${b}`;
 }
 
 export function toChartData(scoped: ScopedData): Datum[] {

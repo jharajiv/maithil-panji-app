@@ -31,6 +31,7 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [viewKey, setViewKey] = useState("");
   const [viewKeyFull, setViewKeyFull] = useState("");
+  const [viewOff, setViewOff] = useState(false);
   const [adopted, setAdopted] = useState(false); // true once a tree was loaded from a link / server (BuildApp resets chat then)
   const base = useRef<DFamily | null>(null);
   const shareRef = useRef<ShareInfo | null>(null); shareRef.current = share;
@@ -50,6 +51,7 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
     const j = await res.json();
     if (j.members) setMembers(j.members);
     if (typeof j.viewKey === "string") setViewKey(j.viewKey);
+    setViewOff(!!j.viewOff);
     setViewKeyFull(typeof j.viewKeyFull === "string" ? j.viewKeyFull : "");
     if (s.role !== j.role || s.personId !== j.member?.person_id || s.memberName !== j.member?.name || s.memberId !== j.member?.id || s.title !== j.title) update({ ...s, role: j.role, personId: j.member?.person_id, memberName: j.member?.name, memberId: j.member?.id, title: j.title });
     if (j.unchanged) return true;
@@ -179,6 +181,14 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Could not leave the tree.");
   }, []);
 
+  /** owner: switch view-only links off, back on, or replace them (the old ones stop working) */
+  const viewLink = useCallback(async (action: "stop" | "start" | "renew") => {
+    const s = shareRef.current!;
+    const res = await fetch(`/api/trees/${s.treeId}/view-link`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...keyBody(s), action }) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Could not change the link.");
+    await pull();
+  }, [pull]);
+
   const ownerLink = share && !share.account ? `${typeof location !== "undefined" ? location.origin : ""}/build?t=${share.treeId}&k=${share.token}` : "";
   const leave = useCallback(() => { update(null); base.current = null; setStatus("off"); setMembers([]); }, []);
 
@@ -186,5 +196,5 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
   const viewUrl = share && viewKey && typeof location !== "undefined" ? `${location.origin}/view/${share.treeId}?v=${viewKey}` : "";
   /** the same, but living relatives show in full — only the owner gets this one, and only by choosing it */
   const viewUrlFull = share && viewKeyFull && typeof location !== "undefined" ? `${location.origin}/view/${share.treeId}?v=${viewKeyFull}` : "";
-  return { enabled, share, status, members, adopted, viewUrl, viewUrlFull, create, invite, revoke, deleteOnline, ownerLink, leave, leaveTree };
+  return { enabled, share, status, members, adopted, viewUrl, viewUrlFull, viewOff, viewLink, create, invite, revoke, deleteOnline, ownerLink, leave, leaveTree };
 }

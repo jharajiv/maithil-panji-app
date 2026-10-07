@@ -13,12 +13,15 @@ import { registerExtras, type ExtraRef } from "@/lib/lookup";
 import { romanToDevanagari } from "@/lib/translit";
 import { CORRECTABLE, isListKind, nextGoal, replyGoal } from "@/lib/interview";
 import type { TemplateId } from "@/lib/types";
-import { ChatPane, type ChatMessage, type ReplyCtx } from "./ChatPane";
+import { ChatPane, type ChatMessage, type QuestionHelp, type ReplyCtx } from "./ChatPane";
+import { track } from "@/lib/track";
+import { askRelativeUrl, GOTRA_HELP_MESSAGE, moolSearchUrl, stillToFill } from "@/lib/help";
 import { TreeMenu, type TreeMenuState } from "./TreeMenu";
 import { LiveTree, type LiveTreeHandle } from "./LiveTree";
 import { FreeformEditor } from "./FreeformEditor";
 import { HelperPane } from "./HelperPane";
-import { ChatRail, PaneDivider, usePaneLayout } from "./PaneDivider";
+import { MatchesPane } from "./MatchesPane";
+import { ChatRail, PaneDivider, SoonRail, usePaneLayout } from "./PaneDivider";
 import { PersonEditSheet } from "./PersonEditSheet";
 import { ShareSheet } from "./ShareSheet";
 import { SavePrompt } from "./SavePrompt";
@@ -148,11 +151,13 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
 
   useEffect(() => { if (undo.length && JSON.stringify(family) !== afterTurn.current) setUndo([]); }, [family]); // eslint-disable-line react-hooks/exhaustive-deps
   const data = useMemo(() => toFamilyData(family), [family]);
+  const stillTo = useMemo(() => stillToFill(family).map((s) => ({ label: s.label, onOpen: () => { const m = family.persons.find((p) => p.is_me); if (m) { setRelFor(undefined); setSelected(m.id); } } })), [family]);
   const people = family.persons.length;
 
   const send = useCallback(async (text: string) => {
     const history = messages.slice(-10).map((m) => ({ role: m.role, content: m.text }));
     const ctx = replyCtx;
+    if (!messages.some((m) => m.role === "user")) track("tree_started", "session");
     const snap: Snap = { family: famRef.current, messages, goalId, section, repeats, pending };
     setMessages((m) => [...m, { id: uid(), role: "user", text, answeredGoal: ctx?.goalId ?? goalId, replyTo: ctx ? { author: ctx.author, quote: ctx.quote, msgId: ctx.msgId, mode: ctx.isList ? ctx.mode : undefined } : undefined }]);
     setBusy(true);
@@ -169,7 +174,10 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
       if (next.persons.length !== famRef.current.persons.length && !desktop && tab === "chat") setUnseen((n) => n + 1);
       afterTurn.current = JSON.stringify(next);
       setFamily(next);
-      setMessages((m) => [...m, { id: uid(), role: "assistant", text: j.reply, quick: j.quick, goalId: j.goal?.id as string | undefined }]);
+      // told us they do not know their gotra: the next message says where to find it
+      const nm = next.persons.find((p) => p.is_me);
+      const gotraHelp = goalId === "self_gotra" && nm && !nm.gotra && nm.flags.gotra ? `${GOTRA_HELP_MESSAGE}\n\n` : "";
+      setMessages((m) => [...m, { id: uid(), role: "assistant", text: `${gotraHelp}${j.reply}`, quick: j.quick, goalId: j.goal?.id as string | undefined }]);
       setGoalId(j.goal?.id); setSection(j.goal?.section); setRepeats(j.repeats ?? 0); setPending(j.pending);
       if (j.ops > 0) setUndo((u) => [...u.slice(-14), snap]);
       if (ctx && j.ops > 0) setReplyCtx(null); // an answer that was not understood keeps the reply open
@@ -234,10 +242,23 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   );
   if (!ready || (inAccount && !sh.adopted)) return <div className="grid h-dvh place-items-center bg-background text-muted-foreground">Loading…</div>;
 
+  const questionHelp: QuestionHelp | undefined = (() => {
+    const kind = goalId?.split(":")[0];
+    const m = family.persons.find((p) => p.is_me);
+    const g = family.persons.length ? nextGoal(family) : null;
+    if (!kind || !g || g.id !== goalId) return { still: stillTo };
+    return {
+      kind: kind === "self_gotra" ? "gotra" : kind === "self_mool" ? "mool" : undefined,
+      moolUrl: kind === "self_mool" ? moolSearchUrl(m?.gotra?.roman) : undefined,
+      askUrl: kind === "self_name" || kind === "self_gender" ? undefined : askRelativeUrl(g.question),
+      onLater: g.optional && kind.startsWith("self_") && g.quick[0] ? () => send(g.quick[0]!) : undefined,
+      still: stillTo,
+    };
+  })();
   const leftPane = (cls: string) => isHelper
     ? <HelperPane className={cls} name={sh.share?.memberName} onOpenShare={() => { setInviteFor(undefined); setShareOpen(true); }} ownTreeHref={inAccount ? "/app" : undefined} />
     : <ChatPane className={cls} messages={messages} busy={busy} onSend={send} section={section} mode={mode}
-      reply={replyCtx} onReply={(m) => { const g = m.role === "assistant" ? m.goalId : m.answeredGoal; if (g) replyTo(g, m.text, m.role === "user" ? "You" : "Panji Sahayak", m.id); else setNotice("That older message can’t be replied to. Tap the person in the tree to change their details."); }} onMode={(md) => setReplyCtx((c) => (c ? { ...c, mode: md } : c))} onClearReply={() => setReplyCtx(null)} canUndo={undo.length > 0} onUndo={undoLast} />;
+      reply={replyCtx} onReply={(m) => { const g = m.role === "assistant" ? m.goalId : m.answeredGoal; if (g) replyTo(g, m.text, m.role === "user" ? "You" : "Panji Sahayak", m.id); else setNotice("That older message can’t be replied to. Tap the person in the tree to change their details."); }} onMode={(md) => setReplyCtx((c) => (c ? { ...c, mode: md } : c))} onClearReply={() => setReplyCtx(null)} canUndo={undo.length > 0} onUndo={undoLast} help={questionHelp} />;
   const treePane = <LiveTree ref={tree} family={family} template={template} onTemplate={setTemplate} onSelect={setSelected} onContext={(id, x, y, touch) => setMenu({ id, x, y, touch })} className="flex min-h-0 flex-1 flex-col"
     extra={data ? <Button size="sm" variant="outline" onClick={() => setFreeOpen(true)} aria-label="Edit freely with boxes and connectors"><Pencil /> <span className="hidden min-[420px]:inline">Edit freely</span></Button> : undefined} />;
 
@@ -264,6 +285,10 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
             : <div style={{ width: layout.width }} className="flex min-h-0 shrink-0 flex-col">{leftPane("flex-1")}</div>}
           <PaneDivider width={layout.width} collapsed={layout.collapsed} container={mainRef} onChange={layout.set} onToggle={() => { layout.toggle(); setTimeout(() => tree.current?.fit(), 60); }} onReset={() => { layout.reset(); setTimeout(() => tree.current?.fit(), 60); }} onSettled={() => tree.current?.fit()} />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">{treePane}</div>
+          <PaneDivider side="right" width={layout.soonWidth} collapsed={layout.soonCollapsed} container={mainRef} onChange={layout.setSoon} onToggle={() => { layout.toggleSoon(); setTimeout(() => tree.current?.fit(), 60); }} onReset={() => { layout.resetSoon(); setTimeout(() => tree.current?.fit(), 60); }} onSettled={() => tree.current?.fit()} />
+          {layout.soonCollapsed
+            ? <SoonRail onOpen={layout.toggleSoon} />
+            : <div style={{ width: layout.soonWidth }} className="flex min-h-0 shrink-0 flex-col"><MatchesPane className="flex-1" /></div>}
         </main>
       ) : (
         <>
@@ -291,7 +316,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
         invitePersonId={inviteFor} onCreate={sh.create} onInvite={sh.invite} onRevoke={sh.revoke} onRememberPhone={rememberPhone} onLeave={() => { sh.leave(); setShareOpen(false); }}
         onDeleteOnline={async () => { await sh.deleteOnline(); if (inAccount) router.replace("/app"); }}
         onLeaveTree={async () => { await sh.leaveTree(); router.replace("/app"); }}
-        viewUrl={sh.viewUrl} viewUrlFull={sh.viewUrlFull} signInHref={auth.enabled && !sh.share ? "/app" : undefined} ownerName={family.persons.find((p) => p.is_me)?.name_roman ?? sh.share?.memberName} />
+        viewUrl={sh.viewUrl} viewUrlFull={sh.viewUrlFull} viewOff={sh.viewOff} onViewLink={sh.viewLink} signInHref={auth.enabled && !sh.share ? "/app" : undefined} ownerName={family.persons.find((p) => p.is_me)?.name_roman ?? sh.share?.memberName} />
       <Sheet open={resetOpen} onClose={() => setResetOpen(false)} title="Start over">
         <h2 className="font-display text-xl font-semibold">Start over?</h2>
         <p className="mt-1 text-sm text-muted-foreground">This clears the tree and the conversation on this device. It cannot be undone.{sh.share ? " The online copy is not deleted, but this device stops syncing with it — copy your private link from Share first if you want to open it again." : ""}</p>

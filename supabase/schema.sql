@@ -131,3 +131,19 @@ alter table public.persons     enable row level security;
 alter table public.relations   enable row level security;
 alter table public.consents    enable row level security;
 alter table public.custom_refs enable row level security;
+
+-- 6. USAGE COUNTS — anonymous: only a name and a time (see src/lib/events.ts). Safe to run again.
+create table if not exists public.events (
+  id   bigint generated always as identity primary key,
+  name text        not null,      -- sample_opened | tree_started | tree_saved | pdf_downloaded | share_clicked | view_opened
+  at   timestamptz not null default now()
+);
+create index if not exists events_name_at_idx on public.events (name, at);
+alter table public.events enable row level security;
+
+-- per day and name: open this view in the Supabase table editor to see the numbers
+create or replace view public.events_daily as
+select date_trunc('day', at)::date as day, name, count(*) as times
+from public.events
+group by 1, 2
+order by 1 desc, 2;

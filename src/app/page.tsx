@@ -53,6 +53,7 @@ export default function Home() {
           </p>
           <div id="hero-cta" className="mt-8 flex justify-center"><Cta /></div>
           <p className="mt-3 text-sm font-medium text-indigo/80">Free · you can start right now — no sign-up</p>
+          <p className="mt-2 text-sm"><Link href="/sample" className="font-medium text-terracotta underline underline-offset-4 hover:text-terracotta/80">Not sure yet? View a sample family tree</Link></p>
           <p className="mx-auto mt-6 max-w-xl text-indigo/70">
             Chat with our assistant on your phone, watch your tree grow, print and frame it, and invite relatives to add their own branches.
           </p>

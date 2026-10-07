@@ -31,7 +31,9 @@ export const LiveTree = forwardRef<LiveTreeHandle, {
   extra?: React.ReactNode;
   /** the read-only page opened from a printed QR code */
   readOnly?: boolean;
-}>(function LiveTree({ family, template, onTemplate, onSelect, onContext, className, extra, readOnly }, ref) {
+  /** no "YOU" badge — for a tree that is not the viewer's own (the sample) */
+  plain?: boolean;
+}>(function LiveTree({ family, template, onTemplate, onSelect, onContext, className, extra, readOnly, plain }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const mounted = useRef<MountedTree | null>(null);
   const view = useRef<{ k: number; x: number; y: number } | null>(null);
@@ -42,6 +44,11 @@ export const LiveTree = forwardRef<LiveTreeHandle, {
   const data = useMemo(() => toFamilyData(family), [family]);
   const scoped = useMemo(() => (data ? paternalLineage(data) : null), [data]);
   const count = family.persons.length;
+  // the oldest ancestor in the tree: where the sample tree starts, and what its "Top" button returns to
+  const apex = useMemo(() => {
+    const kid = new Set(family.rels.filter((r) => r.type === "parent_of").map((r) => r.b));
+    return family.persons.find((p) => !kid.has(p.id) && family.rels.some((r) => r.type === "parent_of" && r.a === p.id))?.id;
+  }, [family]);
   const [full, setFull] = useState(false);
   const [finding, setFinding] = useState(false);
   const [q, setQ] = useState("");
@@ -57,10 +64,13 @@ export const LiveTree = forwardRef<LiveTreeHandle, {
     const el = host.current;
     // small debounce: the chat can change the family several times in a second
     const t = setTimeout(() => {
-      mountTree(el, scoped, template, { rootId: data.root_person_id, onSelect: (id) => select.current(id), onContext: ctx.current ? (id, x, y, touch) => ctx.current?.(id, x, y, touch) : undefined, transition: 0 }).then((m) => {
+      mountTree(el, scoped, template, { rootId: plain ? "" : data.root_person_id, onSelect: (id) => select.current(id), onContext: ctx.current ? (id, x, y, touch) => ctx.current?.(id, x, y, touch) : undefined, transition: 0 }).then((m) => {
         if (cancelled) { m.destroy(); return; }
         mounted.current = m;
-        if (scoped.persons.length > BIG) {
+        if (plain && apex) {
+          // a long line of descent: begin at the founder at a readable size, and let the reader scroll down the generations
+          if (view.current) m.setView(view.current); else m.panTo(apex, 0.8, 0.16);
+        } else if (scoped.persons.length > BIG) {
           // a big family cannot be read when squeezed onto the screen: keep the reader's place, or start at "me" at a readable size
           if (view.current) m.setView(view.current); else m.panTo(data.root_person_id, 0.7);
         }
@@ -71,7 +81,7 @@ export const LiveTree = forwardRef<LiveTreeHandle, {
       if (mounted.current) view.current = mounted.current.getView() ?? view.current;
       mounted.current?.destroy(); mounted.current = null;
     };
-  }, [scoped, template, data]);
+  }, [scoped, template, data, plain, apex]);
 
   // after entering/leaving full screen the pane changes size: fit again
   useEffect(() => { const t = setTimeout(() => mounted.current?.fit(), 120); return () => clearTimeout(t); }, [full]);
@@ -96,7 +106,7 @@ export const LiveTree = forwardRef<LiveTreeHandle, {
           <Button size="icon" variant="outline" onClick={() => mounted.current?.zoomBy(1 / 1.35)} disabled={!scoped} aria-label="Zoom out"><Minus /></Button>
           <Button size="icon" variant="outline" onClick={() => mounted.current?.zoomBy(1.35)} disabled={!scoped} aria-label="Zoom in"><Plus /></Button>
           <Button size="sm" variant="outline" onClick={() => mounted.current?.fit()} disabled={!scoped}><Scan /> Fit</Button>
-          {data && <Button size="sm" variant="outline" onClick={() => mounted.current?.panTo(data.root_person_id, 1)}><Crosshair /> Me</Button>}
+          {data && <Button size="sm" variant="outline" onClick={() => mounted.current?.panTo(plain && apex ? apex : data.root_person_id, 1, plain && apex ? 0.16 : undefined)}><Crosshair /> {plain ? "Start" : "Me"}</Button>}
           {count > 8 && <Button size="icon" variant={finding ? "default" : "outline"} onClick={() => { setFinding((v) => !v); setQ(""); }} aria-label="Find a person" aria-pressed={finding}><Search /></Button>}
           {extra}
           <Button size="icon" variant="outline" onClick={() => setFull((v) => !v)} aria-label={full ? "Leave full screen" : "Full screen"} disabled={!scoped}>{full ? <Minimize2 /> : <Maximize2 />}</Button>

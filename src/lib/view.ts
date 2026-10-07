@@ -15,20 +15,27 @@ const secret = () => process.env.AUTH_SECRET || process.env.SUPABASE_SERVICE_ROL
 export type ViewMode = "private" | "full";
 
 /** "full" keeps the original derivation, so QR codes printed before the privacy option existed keep working */
-export const viewKey = (treeId: string, mode: ViewMode = "private") =>
-  createHmac("sha256", secret()).update(mode === "full" ? `view|${treeId}` : `view|${treeId}|private`).digest("base64url").slice(0, 22);
+export const viewKey = (treeId: string, mode: ViewMode = "private", epoch = 0) =>
+  createHmac("sha256", secret()).update(`${mode === "full" ? `view|${treeId}` : `view|${treeId}|private`}${epoch > 0 ? `|e${epoch}` : ""}`).digest("base64url").slice(0, 22);
+
+/** The owner can switch view links off, or replace them (older links stop working). Both live on the owner's member record, so no database change is needed. */
+export interface ViewState { epoch: number; off: boolean }
+export const viewState = (row: { members: { role: string; view_epoch?: number; view_off?: boolean }[] }): ViewState => {
+  const o = row.members.find((m) => m.role === "owner");
+  return { epoch: o?.view_epoch ?? 0, off: !!o?.view_off };
+};
 
 const same = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
 /** which kind of link this key is — or null when it is not valid for this tree */
-export function viewMode(treeId: string, key: string | null | undefined): ViewMode | null {
-  if (!key || key.length !== 22) return null;
-  if (same(key, viewKey(treeId, "private"))) return "private";
-  if (same(key, viewKey(treeId, "full"))) return "full";
+export function viewMode(treeId: string, key: string | null | undefined, st: ViewState = { epoch: 0, off: false }): ViewMode | null {
+  if (st.off || !key || key.length !== 22) return null;
+  if (same(key, viewKey(treeId, "private", st.epoch))) return "private";
+  if (same(key, viewKey(treeId, "full", st.epoch))) return "full";
   return null;
 }
 
-export const viewKeyOk = (treeId: string, key: string | null | undefined) => viewMode(treeId, key) !== null;
+export const viewKeyOk = (treeId: string, key: string | null | undefined, st?: ViewState) => viewMode(treeId, key, st) !== null;
 
 const first = (s: string) => s.trim().split(/\s+/)[0] ?? s;
 

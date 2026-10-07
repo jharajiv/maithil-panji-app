@@ -23,7 +23,7 @@ export interface MountedTree {
   fit: () => void;
   centreOn: (id: string) => void;
   /** move the view to a person WITHOUT changing which family is drawn (keeps the whole lineage on screen) */
-  panTo: (id: string, scale?: number) => void;
+  panTo: (id: string, scale?: number, atY?: number) => void;
   zoomBy: (factor: number) => void;
   /** current pan/zoom, so a redraw after an edit can keep the reader where they were */
   getView: () => { k: number; x: number; y: number } | null;
@@ -270,13 +270,13 @@ export async function mountTree(
       chart.updateMainId(id);
       chart.updateTree({ tree_position: "main_to_middle" });
     },
-    panTo: (id, scale) => {
+    panTo: (id, scale, atY) => {
       const h = zoomHost();
       const node = (chart.store.getTree() as { data: { data: { id: string }; x: number; y: number }[] }).data.find((n) => n.data.id === id);
       if (!h?.__zoomObj || !node) return;
       const k = scale ?? Math.max(d3.zoomTransform(h).k, 0.7);
       const w = chartEl.clientWidth, ht = chartEl.clientHeight;
-      d3.select(h).transition().duration(transition ? 350 : 0).call(h.__zoomObj.transform, d3.zoomIdentity.translate(w / 2 - node.x * k, ht / 2 - node.y * k).scale(k));
+      d3.select(h).transition().duration(transition ? 350 : 0).call(h.__zoomObj.transform, d3.zoomIdentity.translate(w / 2 - node.x * k, ht * (atY ?? 0.5) - node.y * k).scale(k));
     },
     zoomBy: (factor) => {
       const h = zoomHost();

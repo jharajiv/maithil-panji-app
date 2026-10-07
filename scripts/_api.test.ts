@@ -23,6 +23,33 @@ const post = (path: string, body: unknown, method = "POST") => j(path, { method,
   assert.equal(g.body.role, "owner"); assert.equal(g.body.family.persons[0].photo?.startsWith("data:image/jpeg"), true);
   assert.equal((await j(`/api/trees/${id}?k=${token}&rev=1`)).body.unchanged, true);
 
+  // anonymous usage counts: only known names are kept; the page never waits for the answer
+  assert.equal((await fetch(BASE + "/api/ev", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "sample_opened" }) })).status, 204);
+  assert.equal((await fetch(BASE + "/api/ev", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "<script>" }) })).status, 204);
+  assert.equal((await fetch(BASE + "/api/ev", { method: "POST", body: "not json" })).status, 204);
+
+  // view-only links: stop, renew, switch back on (owner only)
+  {
+    const vk = g.body.viewKey as string;
+    assert.equal((await j(`/api/trees/${id}/view?v=${vk}`)).status, 200);
+    const hv = await j(`/api/trees/${id}?k=${token}`);
+    assert.equal(hv.body.viewOff, false);
+    assert.equal((await post(`/api/trees/${id}/view-link`, { k: "nope", action: "stop" })).status, 404);
+    assert.equal((await post(`/api/trees/${id}/view-link`, { k: token, action: "bogus" })).status, 400);
+    assert.equal((await post(`/api/trees/${id}/view-link`, { k: token, action: "renew" })).status, 200);
+    assert.equal((await j(`/api/trees/${id}/view?v=${vk}`)).status, 404, "the old link stops working");
+    const nv = (await j(`/api/trees/${id}?k=${token}`)).body.viewKey as string;
+    assert.notEqual(nv, vk);
+    assert.equal((await j(`/api/trees/${id}/view?v=${nv}`)).status, 200);
+    assert.equal((await post(`/api/trees/${id}/view-link`, { k: token, action: "stop" })).status, 200);
+    assert.equal((await j(`/api/trees/${id}/view?v=${nv}`)).status, 404, "switched off");
+    const off = await j(`/api/trees/${id}?k=${token}`);
+    assert.equal(off.body.viewOff, true); assert.equal(off.body.viewKey, "");
+    assert.equal((await post(`/api/trees/${id}/view-link`, { k: token, action: "start" })).status, 200);
+    assert.equal((await j(`/api/trees/${id}/view?v=${nv}`)).status, 200, "back on, same link");
+    assert.equal(g.body.rev, (await j(`/api/trees/${id}?k=${token}`)).body.rev, "changing links does not touch the tree");
+  }
+
   // invite a helper; helper sees tree but cannot invite
   const inv = await post(`/api/trees/${id}/members`, { k: token, name: "Vikram", personId: "p1" });
   assert.equal(inv.status, 200); const hk = inv.body.token as string;

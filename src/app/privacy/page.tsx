@@ -22,11 +22,11 @@ export default function Privacy() {
         <section lang="hi" className="mt-6 rounded-2xl border border-primary/20 bg-primary/5 p-5" aria-label="हिन्दी में सार">
           <h2 className="font-display text-lg font-semibold text-indigo">संक्षेप में (हिन्दी)</h2>
           <ul className="mt-2 list-disc space-y-1.5 pl-5 leading-relaxed">
-            <li>आपका वंश-वृक्ष आपका है। हम आपकी जानकारी बेचते नहीं हैं और न ही विज्ञापन के लिए किसी को देते हैं।</li>
-            <li>जब तक आप “ऑनलाइन सेव करें” नहीं चुनते, आपका वृक्ष सिर्फ़ आपके फ़ोन या कंप्यूटर में रहता है।</li>
+            <li>आपकी वंशावली आपकी है। हम आपकी जानकारी बेचते नहीं हैं और न ही विज्ञापन के लिए किसी को देते हैं।</li>
+            <li>जब तक आप “ऑनलाइन सेव करें” नहीं चुनते, आपकी वंशावली सिर्फ़ आपके फ़ोन या कंप्यूटर में रहती है।</li>
             <li>जीवित रिश्तेदारों की जानकारी या फ़ोटो उनकी सहमति से ही डालें।</li>
-            <li>वृक्ष को सोशल मीडिया या WhatsApp पर दिखाने के लिए “सिर्फ़ देखने वाला” लिंक बनता है। उसमें कोई बदलाव या डाउनलोड नहीं कर सकता। शुरू से जीवित लोगों का सिर्फ़ पहला नाम दिखता है; जन्म-तिथि, गाँव और फ़ोटो छिपे रहते हैं।</li>
-            <li>आप जब चाहें अपना ऑनलाइन वृक्ष मिटा सकते हैं (Share → “Delete online copy”)।</li>
+            <li>वंशावली को सोशल मीडिया या WhatsApp पर दिखाने के लिए “सिर्फ़ देखने वाला” लिंक बनता है। उसमें कोई बदलाव या डाउनलोड नहीं कर सकता। शुरू से जीवित लोगों का सिर्फ़ पहला नाम दिखता है; जन्म-तिथि, गाँव और फ़ोटो छिपे रहते हैं।</li>
+            <li>आप जब चाहें अपनी ऑनलाइन वंशावली मिटा सकते हैं (Share → “Delete online copy”)।</li>
           </ul>
         </section>
 
@@ -44,6 +44,7 @@ export default function Privacy() {
           <li><strong>Your email address and name</strong> — to sign you in with a one-time code (no password). We use the email address only for sign-in codes and, if you ask, for a message about your tree.</li>
           <li><strong>Phone numbers of relatives</strong> — only if you invite someone on WhatsApp. The number is used to open WhatsApp for you. It is never shown on shared view-only pages.</li>
           <li><strong>Your consent</strong> — we record that you agreed to the terms of sharing a family tree, and when.</li>
+          <li><strong>Simple usage counts</strong> — we count how often the sample tree is opened, trees are started and saved, PDFs are downloaded and share buttons are used. Each count is only a name and a time: no name, no tree, no IP address, no cookie.</li>
           <li><strong>Roughly where you are</strong> — the country your connection comes from, used only to suggest a sensible contribution amount. It is not stored.</li>
         </L>
 

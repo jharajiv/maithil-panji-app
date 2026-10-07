@@ -4,6 +4,7 @@ import { FileDown, Loader2 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { track } from "@/lib/track";
 import { exportTreePdf, FIT_MAX_PEOPLE, type ExportMode } from "@/lib/pdf";
 import { scopeData } from "@/lib/tree-filter";
 import { recentlyDonated } from "@/lib/donate";
@@ -59,6 +60,7 @@ export function ExportSheet({
     setBusy("Preparing…");
     try {
       await exportTreePdf({ data, scope, template, format, mode, sample, onProgress: setBusy, viewUrl });
+      if (!sample) track("pdf_downloaded");
       onClose();
     } catch (e) {
       console.error(e);
