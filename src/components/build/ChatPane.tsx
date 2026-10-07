@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { CornerUpLeft, ExternalLink, Loader2, MessageCircle, Mic, MicOff, Send, Undo2, X } from "lucide-react";
 import { GOTRA_SOURCES, HINT, HINT_HI } from "@/lib/help";
 import { cn } from "@/lib/utils";
+import { hiSection, quickLabel, tr, type Lang } from "@/lib/hi";
 
 export interface ChatMessage {
   id: string; role: "user" | "assistant"; text: string; quick?: string[];
@@ -80,8 +81,9 @@ export interface QuestionHelp {
   still?: { label: string; onOpen: () => void }[];
 }
 
-export function ChatPane({ messages, busy, onSend, section, mode, className, reply, onReply, onMode, onClearReply, canUndo, onUndo, help }: {
-  messages: ChatMessage[]; busy: boolean; onSend: (text: string) => void; section?: string; mode?: "ai" | "basic"; className?: string;
+export function ChatPane({ messages, busy, onSend, section, mode, className, reply, onReply, onMode, onClearReply, canUndo, onUndo, help, lang = "en", onLang }: {
+  lang?: Lang; onLang?: (l: Lang) => void;
+  messages: ChatMessage[]; busy: boolean; onSend: (text: string, display?: string) => void; section?: string; mode?: "ai" | "basic"; className?: string;
   reply?: ReplyCtx | null; onReply?: (m: ChatMessage) => void; onMode?: (m: "add" | "replace") => void; onClearReply?: () => void;
   canUndo?: boolean; onUndo?: () => void; help?: QuestionHelp;
 }) {
@@ -103,12 +105,13 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => { if (reply) input.current?.focus(); }, [reply]);
 
-  const submit = (v = text) => {
+  const submit = (v = text, display?: string) => {
     const t = v.trim();
     if (!t || busy) return;
     setText("");
-    onSend(t);
+    onSend(t, display);
   };
+  useEffect(() => setVlang(lang === "hi" ? "hi-IN" : "en-IN"), [lang]);
   const toggleMic = () => {
     if (listening) { rec.current?.stop(); return; }
     const Ctor = getSR();
@@ -125,11 +128,18 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
     <section className={cn("flex min-h-0 flex-col bg-background", className)} aria-label="Family interview chat">
       <div className="border-b bg-card px-4 py-2.5">
         <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="font-display text-base font-semibold leading-tight">Panji Sahayak <span lang="hi" className="text-muted-foreground">· पञ्जी सहायक</span></h2>
-            <p className="text-xs text-muted-foreground">{section ? `${section} · ` : ""}I only help with your family tree</p>
-          </div>
+          <h2 className="font-display text-base font-semibold leading-tight">Panji Sahayak <span lang="hi" className="text-muted-foreground">· पञ्जी सहायक</span></h2>
           {mode && <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium", mode === "ai" ? "bg-green-100 text-green-800" : "bg-secondary text-muted-foreground")}>{mode === "ai" ? "AI assistant" : "Simple mode"}</span>}
+        </div>
+        <div className="mt-1 flex items-center justify-between gap-3">
+          <p className="min-w-0 text-xs text-muted-foreground">{section ? `${lang === "hi" ? hiSection(section) : section} · ` : ""}{lang === "hi" ? "मैं केवल आपकी वंशावली में मदद करता हूँ" : "I only help with your family tree"}</p>
+          {onLang && (
+            <div role="radiogroup" aria-label="Language of the questions" className="flex shrink-0 overflow-hidden rounded-full border text-xs font-medium">
+              {([["en", "English"], ["hi", "हिन्दी"]] as const).map(([v, l]) => (
+                <button key={v} type="button" role="radio" aria-checked={lang === v} onClick={() => onLang(v)} className={cn("px-3 py-1.5", lang === v ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground")}>{l}</button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -149,7 +159,7 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4" role="log" aria-live="polite">
         {messages.map((m) => <Bubble key={m.id} m={m} onReply={(x) => onReply?.(x)} />)}
         {busy && (
-          <div className="flex justify-start"><div className="flex items-center gap-2 rounded-2xl rounded-bl-md border bg-card px-4 py-3 text-muted-foreground"><Loader2 className="size-4 animate-spin" /> <span className="text-sm">Writing…</span></div></div>
+          <div className="flex justify-start"><div className="flex items-center gap-2 rounded-2xl rounded-bl-md border bg-card px-4 py-3 text-muted-foreground"><Loader2 className="size-4 animate-spin" /> <span className="text-sm">{tr(lang, "Writing…")}</span></div></div>
         )}
         <div ref={end} />
       </div>
@@ -176,35 +186,35 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
         )}
         {!busy && !reply && help?.kind === "gotra" && (
           <details className="mb-2 rounded-xl border bg-secondary/40 px-3 py-2 text-sm">
-            <summary className="cursor-pointer font-medium text-primary">Don’t know your gotra? Where to find it</summary>
-            <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-muted-foreground">{GOTRA_SOURCES.map((x) => <li key={x}>{x}</li>)}</ul>
+            <summary className="cursor-pointer font-medium text-primary">{tr(lang, "Don’t know your gotra? Where to find it")}</summary>
+            <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-muted-foreground">{GOTRA_SOURCES.map((x) => <li key={x}>{tr(lang, x)}</li>)}</ul>
           </details>
         )}
         {!busy && !reply && help?.kind === "mool" && help.moolUrl && (
           <p className="mb-2 rounded-xl border bg-secondary/40 px-3 py-2 text-sm text-muted-foreground">
-            Your mool is tied to your ancestral village. Not sure? Ask an elder, or{" "}
-            <a href={help.moolUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2">search for your mool on Google <ExternalLink className="size-3.5" /></a>.
+            {tr(lang, "Your mool is tied to your ancestral village. Not sure? Ask an elder, or")}{" "}
+            <a href={help.moolUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2">{tr(lang, "search for your mool on Google")} <ExternalLink className="size-3.5" /></a>.
           </p>
         )}
         {canUndo && !reply && !busy && (
-          <button type="button" onClick={onUndo} className="mb-2 flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary"><Undo2 className="size-4" /> Undo my last answer</button>
+          <button type="button" onClick={onUndo} className="mb-2 flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary"><Undo2 className="size-4" /> {tr(lang, "Undo my last answer")}</button>
         )}
         {!busy && !reply && last?.role === "assistant" && (help?.askUrl || help?.onLater) && (
           <div className="mb-2 flex flex-wrap gap-2">
-            {help.askUrl && <a href={help.askUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary"><MessageCircle className="size-4" /> Ask a relative on WhatsApp</a>}
-            {help.onLater && <button type="button" onClick={help.onLater} className="rounded-full border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary">Answer later</button>}
+            {help.askUrl && <a href={help.askUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary"><MessageCircle className="size-4" /> {tr(lang, "Ask a relative on WhatsApp")}</a>}
+            {help.onLater && <button type="button" onClick={help.onLater} className="rounded-full border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary">{tr(lang, "Answer later")}</button>}
           </div>
         )}
         {!busy && !reply && !!help?.still?.length && (
           <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Still to fill in:</span>
-            {help.still.map((s) => <button key={s.label} type="button" onClick={s.onOpen} className="rounded-full border border-terracotta/40 bg-terracotta/5 px-3 py-1 font-medium text-terracotta">{s.label}</button>)}
+            <span className="text-muted-foreground">{tr(lang, "Still to fill in:")}</span>
+            {help.still.map((s) => <button key={s.label} type="button" onClick={s.onOpen} className="rounded-full border border-terracotta/40 bg-terracotta/5 px-3 py-1 font-medium text-terracotta">{tr(lang, s.label)}</button>)}
           </div>
         )}
         {quick.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2" aria-label="Quick replies">
             {quick.map((q) => (
-              <button key={q} type="button" onClick={() => submit(q)} className="rounded-full border border-primary/30 bg-primary/5 px-4 py-2 text-[15px] font-medium text-primary active:bg-primary/15">{q}</button>
+              <button key={q} type="button" onClick={() => submit(q, quickLabel(q, lang))} className="rounded-full border border-primary/30 bg-primary/5 px-4 py-2 text-[15px] font-medium text-primary active:bg-primary/15">{quickLabel(q, lang)}</button>
             ))}
           </div>
         )}
@@ -219,7 +229,7 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
             </div>
           )}
           <input ref={input} value={text} onChange={(e) => setText(e.target.value)} maxLength={700} enterKeyHint="send" autoComplete="off"
-            placeholder={reply ? "Type the names…" : "Type your answer…  English / हिन्दी"} aria-label="Your answer" lang="en"
+            placeholder={reply ? (lang === "hi" ? "नाम लिखिए…" : "Type the names…") : lang === "hi" ? "अपना उत्तर लिखिए…  हिन्दी / English" : "Type your answer…  English / हिन्दी"} aria-label="Your answer" lang="en"
             className="h-12 min-w-0 flex-1 rounded-full border border-input bg-background px-5 text-[17px] outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/20" />
           <button type="submit" disabled={busy || !text.trim()} aria-label="Send"
             className="grid size-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground disabled:opacity-40"><Send className="size-5" /></button>

@@ -26,6 +26,8 @@ export interface TurnInput {
   repeats?: number;
   /** Simple mode: a suggestion waiting for yes/no */
   pending?: Pending;
+  /** the language the user chose for the questions (default English) */
+  lang?: "en" | "hi";
 }
 
 export interface TurnOutput {
@@ -265,7 +267,8 @@ export async function runTurn(deps: AgentDeps, input: TurnInput): Promise<TurnOu
 
   const dynamic =
     `THE USER IS NOW ANSWERING THIS QUESTION (the one you asked last):\n${lastGoal ? lastGoal.instruction : "(none — interview complete)"}\n\n` +
-    `FAMILY SAVED SO FAR (ids you may reference):\n${describeFamily(family)}`;
+    `FAMILY SAVED SO FAR (ids you may reference):\n${describeFamily(family)}` +
+    (input.lang === "hi" ? "\n\nLANGUAGE: The user has chosen Hindi. Write every message to the user, and every quick reply, in simple, warm, respectful Hindi in Devanagari script (use आप). Say वंशावली for \"family tree\". Keep people's names in the spelling the user gave. Still read English, Hindi and Hinglish answers." : "");
 
   const messages: Anthropic.Messages.MessageParam[] = [
     ...input.history.slice(-10).map((m) => ({ role: m.role, content: m.content.slice(0, 700) })),

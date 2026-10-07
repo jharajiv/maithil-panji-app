@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, Copy, Link2, Loader2, LogOut, MessageCircle, Trash2, Users } from "lucide-react";
+import { Check, Copy, GitMerge, Link2, Loader2, LogOut, MessageCircle, Trash2, Users } from "lucide-react";
 import { parsePhoneNumberFromString } from "libphonenumber-js/min";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ interface Props {
   /** read-only links (living relatives protected / shown in full); empty until the tree is online */
   viewUrl?: string; viewUrlFull?: string;
   viewOff?: boolean; onViewLink?: (action: "stop" | "start" | "renew") => Promise<void>;
+  /** owner: other families' trees may find this one when matching married women */
+  discoverable?: boolean; onDiscoverable?: (on: boolean) => Promise<void>;
   onRevoke: (memberId: string) => void;
   onRememberPhone: (personId: string, e164: string) => void;
   onLeave: () => void;
@@ -139,6 +141,19 @@ export function ShareSheet(p: Props) {
               </div>
             )}
           </section>
+
+          <p className="rounded-xl bg-secondary px-3 py-2 text-sm text-muted-foreground">Relatives who open your view-only link can tap anyone and suggest a correction. You and your helpers see these under “Corrections” at the top, and decide what to apply.</p>
+
+          {p.onDiscoverable && (
+            <section aria-label="Find other family trees" className="space-y-2 rounded-xl border p-3">
+              <h3 className="flex items-center gap-2 font-medium"><GitMerge className="size-5" /> Connect with other families</h3>
+              <label className="flex gap-3 text-sm">
+                <input type="checkbox" className="mt-1 size-5 accent-[var(--primary)]" checked={!!p.discoverable} disabled={busy}
+                  onChange={async (e) => { setBusy(true); setErr(""); try { await p.onDiscoverable!(e.target.checked); } catch (x) { setErr(x instanceof Error ? x.message : "Could not change this."); } finally { setBusy(false); } }} />
+                <span>Let other families’ trees find this one, so a married woman can be linked to her father’s or husband’s tree. Nothing is linked until someone confirms, and living people appear by first name only. You can switch this off any time.</span>
+              </label>
+            </section>
+          )}
 
           <section aria-label="People with access" className="space-y-2">
             <h3 className="flex items-center gap-2 font-medium"><Users className="size-5" /> People with access</h3>

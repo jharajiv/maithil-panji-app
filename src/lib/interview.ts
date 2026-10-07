@@ -41,7 +41,7 @@ const flagOps = (ids: string[], flag: Flag, value: "unknown" | "skipped" | "done
   ids.map((id) => ({ op: "set_flag" as const, id, flag, value }));
 
 /** How many generations above "me" is this person (me = 0, father = 1, …)? */
-function generation(f: DFamily, id: string): number {
+export function generation(f: DFamily, id: string): number {
   const m = me(f);
   let g = 0;
   for (let c = m; c; c = fatherOf(f, c.id)) { if (c.id === id) return g; g++; if (g > 20) break; }

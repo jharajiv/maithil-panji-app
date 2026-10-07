@@ -14,6 +14,7 @@ const POLL_MS = 15_000;
 /** token = private link (guest mode); in account mode (account: true) the cookie session is the key and token is "" */
 export interface ShareInfo { treeId: string; token: string; role: "owner" | "editor"; rev: number; memberName?: string; personId?: string; memberId?: string; account?: boolean; title?: string }
 export interface MemberRow { id: string; name: string; role: "owner" | "editor"; person_id?: string; status?: "invited" | "joined"; phone_hint?: string; email_hint?: string }
+export interface Activity { at: string; by: string; text: string }
 export type SyncStatus = "off" | "synced" | "saving" | "offline" | "invalid";
 
 const canon = (v: unknown): string => JSON.stringify(v, (_k, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x));
@@ -32,6 +33,8 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
   const [viewKey, setViewKey] = useState("");
   const [viewKeyFull, setViewKeyFull] = useState("");
   const [viewOff, setViewOff] = useState(false);
+  const [discoverable, setDiscoverableState] = useState(false);
+  const [activity, setActivity] = useState<Activity[]>([]);
   const [adopted, setAdopted] = useState(false); // true once a tree was loaded from a link / server (BuildApp resets chat then)
   const base = useRef<DFamily | null>(null);
   const shareRef = useRef<ShareInfo | null>(null); shareRef.current = share;
@@ -52,6 +55,8 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
     if (j.members) setMembers(j.members);
     if (typeof j.viewKey === "string") setViewKey(j.viewKey);
     setViewOff(!!j.viewOff);
+    setDiscoverableState(!!j.discoverable);
+    setActivity(Array.isArray(j.activity) ? j.activity : []);
     setViewKeyFull(typeof j.viewKeyFull === "string" ? j.viewKeyFull : "");
     if (s.role !== j.role || s.personId !== j.member?.person_id || s.memberName !== j.member?.name || s.memberId !== j.member?.id || s.title !== j.title) update({ ...s, role: j.role, personId: j.member?.person_id, memberName: j.member?.name, memberId: j.member?.id, title: j.title });
     if (j.unchanged) return true;
@@ -189,6 +194,16 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
     await pull();
   }, [pull]);
 
+  /** owner: let other families’ trees find this one (needed to match married women across trees) */
+  const setDiscoverable = useCallback(async (on: boolean) => {
+    const s = shareRef.current!;
+    const res = await fetch(`/api/trees/${s.treeId}/settings`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...keyBody(s), discoverable: on }) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Could not change this.");
+    setDiscoverableState(on);
+  }, []);
+  /** fetch the newest server copy now (after the server itself changed the tree, e.g. a link was confirmed) */
+  const refresh = useCallback(async () => { await push(); await pull(true); }, [push, pull]);
+
   const ownerLink = share && !share.account ? `${typeof location !== "undefined" ? location.origin : ""}/build?t=${share.treeId}&k=${share.token}` : "";
   const leave = useCallback(() => { update(null); base.current = null; setStatus("off"); setMembers([]); }, []);
 
@@ -196,5 +211,5 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
   const viewUrl = share && viewKey && typeof location !== "undefined" ? `${location.origin}/view/${share.treeId}?v=${viewKey}` : "";
   /** the same, but living relatives show in full — only the owner gets this one, and only by choosing it */
   const viewUrlFull = share && viewKeyFull && typeof location !== "undefined" ? `${location.origin}/view/${share.treeId}?v=${viewKeyFull}` : "";
-  return { enabled, share, status, members, adopted, viewUrl, viewUrlFull, viewOff, viewLink, create, invite, revoke, deleteOnline, ownerLink, leave, leaveTree };
+  return { enabled, share, status, members, adopted, discoverable, setDiscoverable, activity, refresh, keyQs: share ? keyQs(share) : "", keyBody: share ? keyBody(share) : {}, viewUrl, viewUrlFull, viewOff, viewLink, create, invite, revoke, deleteOnline, ownerLink, leave, leaveTree };
 }

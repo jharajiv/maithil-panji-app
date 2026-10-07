@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Camera, Crosshair, MessageCircle, Plus, Shuffle, Trash2 } from "lucide-react";
+import { Camera, Crosshair, GitMerge, MessageCircle, Plus, Shuffle, Trash2 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -77,7 +77,7 @@ function relativeChoices(family: DFamily, p: DPerson): Rel[] {
   return out;
 }
 
-export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, onCentre, onAdd, canInvite, onInvite, openRelation, onChangeRelation }: {
+export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, onCentre, onAdd, canInvite, onInvite, openRelation, onChangeRelation, onSeeLinked, hasMatch, onOpenMatches }: {
   family: DFamily; personId?: string; onClose: () => void;
   onSave: (id: string, set: PersonFields) => void; onDelete: (id: string) => void; onCentre: (id: string) => void;
   onAdd: (toId: string, type: RelationSpec["type"], name: string, gender?: Gender) => void;
@@ -85,6 +85,10 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
   /** open the "wrong relationship" panel straight away (from the tree menu) */
   openRelation?: boolean;
   onChangeRelation?: (id: string, toId: string, word: RelationWord) => { ok: boolean; message: string };
+  /** she is linked to a woman in another tree: show that tree's view of her */
+  onSeeLinked?: (personId: string, tree: string, p: string) => void;
+  /** a possible match for her exists in another tree */
+  hasMatch?: boolean; onOpenMatches?: () => void;
 }) {
   const person = family.persons.find((p) => p.id === personId);
   const [draft, setDraft] = useState<DPerson | undefined>(person);
@@ -151,6 +155,20 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
             <p className="mt-1 text-xs text-muted-foreground">Shown on her card as a short note. His own family is recorded on his chart.</p>
           </div>
         )}
+        {person.links?.length ? (
+          <div className="rounded-xl border border-green-300 bg-green-50 p-3 text-sm text-green-950">
+            {person.links.map((l) => (
+              <div key={l.tree + l.person} className="flex flex-wrap items-center justify-between gap-2">
+                <span><GitMerge className="mr-1 inline size-4" /> Also in “{l.title ?? "another tree"}”</span>
+                {onSeeLinked && <button type="button" className="font-medium underline" onClick={() => onSeeLinked(person.id, l.tree, l.person)}>See her family there</button>}
+              </div>
+            ))}
+          </div>
+        ) : hasMatch && onOpenMatches ? (
+          <button type="button" onClick={() => { onClose(); onOpenMatches(); }} className="flex w-full items-center gap-2 rounded-xl border border-primary/40 bg-primary/5 px-4 py-3 text-left text-sm font-medium">
+            <GitMerge className="size-5 shrink-0 text-primary" /> She may be in another family’s tree. Look at the possible match
+          </button>
+        ) : null}
         <details className="rounded-xl border p-3" open={!!(draft.gotra || draft.mool)}>
           <summary className="cursor-pointer text-sm font-medium">Panji details — gotra and mool</summary>
           <div className="mt-3 space-y-4">

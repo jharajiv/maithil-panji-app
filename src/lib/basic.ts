@@ -8,16 +8,20 @@ import { me, type DFamily, type Flag, type Op, type PanjiRef, type Pending, type
 import type { Goal } from "./interview";
 import { romanToDevanagari } from "./translit";
 
+const SKIP_HI = /^\s*(छोड़ें|छोड़ो|छोड़\s*दें|नहीं\s*(पता|मालूम|याद)|पता\s*नहीं|मालूम\s*नहीं|याद\s*नहीं|इससे\s*आगे\s*पता\s*नहीं|मुझे\s*[^\n]{0,25}नहीं\s*(पता|मालूम))/;
+const NO_HI = /^\s*(नहीं(?!\s*(पता|मालूम|याद))|नही(?!ं)(?!\s*(पता|मालूम|याद))|कोई\s*(भाई|बहन|पुत्र|पुत्री|बेटा|बेटी|संतान)?\s*नहीं|अविवाहित|कुँवारा|कुंवारा)/;
+const YES_HI = /^\s*(हाँ|हां|जी\s*हाँ|जी\s*हां|जी|विवाहित)/;
 const SKIP = /^\s*(i\s+)?(skip|pass|don'?t know|do not know|dont know|don'?t remember|do not remember|dont remember|not sure|no idea|pata nahi|pata nhi|nahi pata|नहीं पता|पता नहीं|याद नहीं|नहीं मालूम|he had no|she had no|no brothers|no sisters)\b/i;
 const NO = /^\s*(no|none|nope|nahi|nahin|नहीं|not married|no children|no brothers|no sisters|none are married|no grandchildren|unmarried)\b/i;
 const YES = /^\s*(yes|yeah|yep|ha|haan|हाँ|हां|married|same|same as (my )?mool)\b/i;
-const FEMALE = /\b(daughters?|sisters?|girl|female|wife|beti|behen|bahan|didi|bua|बेटी|बहन|दीदी)\b/i;
-const MALE = /\b(sons?|brothers?|boy|male|husband|beta|bhai|बेटा|भाई)\b/i;
+const FEMALE = /\b(daughters?|sisters?|girl|female|wife|beti|behen|bahan|didi|bua)\b|बेटी|बहन|दीदी|पुत्री|महिला|स्त्री|लड़की/i;
+const MALE = /\b(sons?|brothers?|boy|male|husband|beta|bhai)\b|बेटा|भाई|पुत्र(?!ी)|पुरुष|लड़का/i;
 
 /** phones type ’ (curly) where the patterns below use ' — treat them the same */
 const straight = (t: string) => t.replace(/[’‘`´]/g, "'");
-export const isSkip = (t: string) => SKIP.test(straight(t)) || /^\s*(i\s+)?(do not|don'?t)\s+(know|remember)\b/i.test(straight(t));
-export const isNo = (t: string) => NO.test(straight(t));
+export const isSkip = (t: string) => SKIP.test(straight(t)) || SKIP_HI.test(t) || /^\s*(i\s+)?(do not|don'?t)\s+(know|remember)\b/i.test(straight(t));
+export const isNo = (t: string) => NO.test(straight(t)) || NO_HI.test(t);
+export const isYes = (t: string) => YES.test(straight(t)) || YES_HI.test(t);
 
 export interface ParsedName { name: string; gender?: "male" | "female" }
 
@@ -92,7 +96,7 @@ export function basicParse(f: DFamily, goal: Goal, text: string, pending?: Pendi
       const kind = goal.kind === "self_gotra" ? "gotra" : "mool";
       const set = (r: PanjiRef): Op => ({ op: "update_person", id: m!.id, set: { [kind]: r } as PersonFields });
       const mine = pending && pending.goalId === goal.id && pending.kind === kind ? pending : undefined;
-      if (mine && YES.test(t)) return { ops: [set(mine.ref)], ack: `Noted: ${kind} ${mine.ref.roman}${mine.ref.dev ? ` (${mine.ref.dev})` : ""}.` };
+      if (mine && isYes(t)) return { ops: [set(mine.ref)], ack: `Noted: ${kind} ${mine.ref.roman}${mine.ref.dev ? ` (${mine.ref.dev})` : ""}.` };
       if (mine && isNo(t)) return { ops: [], ack: "", ask: `No problem — please type your ${kind} exactly as you want it recorded.`, pending: { ...mine, rejected: true } };
       const hits: { item: { id: string; roman: string; dev: string }; score: number }[] = kind === "gotra" ? searchGotras(t) : searchMools(t, { gotraId: m!.gotra?.id });
       const hit = classify(hits);

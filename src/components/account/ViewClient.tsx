@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, MessageCircle, ShieldCheck, X } from "lucide-react";
+import { ArrowRight, MessageCircle, PencilLine, ShieldCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SuggestForm } from "./SuggestForm";
 import { LiveTree } from "@/components/build/LiveTree";
 import type { DFamily } from "@/lib/family";
 import type { TemplateId } from "@/lib/types";
@@ -12,6 +13,8 @@ export function ViewClient({ id, v }: { id: string; v: string }) {
   const [state, setState] = useState<{ title: string; mode?: "private" | "full"; family: DFamily } | "loading" | "invalid">("loading");
   const [template, setTemplate] = useState<TemplateId>("madhubani");
   const [sel, setSel] = useState<string | undefined>();
+  const [suggest, setSuggest] = useState(false);
+  useEffect(() => setSuggest(false), [sel]);
 
   useEffect(() => {
     let live = true;
@@ -71,6 +74,11 @@ export function ViewClient({ id, v }: { id: string; v: string }) {
               {person.place && <div>{person.place}</div>}
               {(person.gotra || person.mool) && <div>{[person.gotra?.roman && `Gotra ${person.gotra.roman}`, person.mool?.roman && `Mool ${person.mool.roman}`].filter(Boolean).join(" · ")}</div>}
             </dl>
+            {suggest ? (
+              <div className="mt-3 max-h-[60dvh] overflow-y-auto border-t pt-3"><SuggestForm treeId={id} v={v} personId={person.id} personName={person.name_roman} onClose={() => setSuggest(false)} /></div>
+            ) : (
+              <button type="button" onClick={() => setSuggest(true)} className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-terracotta underline-offset-2 hover:underline"><PencilLine className="size-4" /> Something wrong? Suggest a correction</button>
+            )}
           </div>
         )}
       </div>

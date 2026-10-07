@@ -53,8 +53,8 @@ export function publicFamily(f: DFamily, mode: ViewMode = "private"): DFamily {
   return {
     ...f,
     persons: f.persons.map((person) => {
-      const { whatsapp: _w, notes: _n, ...p } = person;
-      void _w; void _n;
+      const { whatsapp: _w, notes: _n, links: _l, ...p } = person;
+      void _w; void _n; void _l;
       if (mode === "full" || !isLiving(p as DPerson)) return p as DPerson;
       // living relatives: first name only; nothing that could locate or identify them further
       const { birth: _b, place: _pl, photo: _ph, married_to: _m, death: _d, ...rest } = p as DPerson;

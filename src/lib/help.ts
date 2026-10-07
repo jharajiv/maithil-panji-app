@@ -1,5 +1,6 @@
 import type { DFamily } from "./family";
 import { me } from "./family";
+import { ASK_RELATIVE_HI, GOTRA_HELP_HI, type Lang } from "./hi";
 
 /** Small helpers for the chat: where to find a gotra or mool, asking a relative on WhatsApp, and what is still to be filled in. */
 
@@ -11,6 +12,7 @@ export const GOTRA_SOURCES = [
 ];
 
 /** the text added to the chat after someone says they do not know their gotra */
+export const gotraHelpMessage = (lang: Lang) => (lang === "hi" ? GOTRA_HELP_HI(GOTRA_SOURCES) : GOTRA_HELP_MESSAGE);
 export const GOTRA_HELP_MESSAGE = `No problem — you can add it later. Your gotra is usually written or known in:\n\n${GOTRA_SOURCES.map((s) => `• ${s}`).join("\n")}\n\nTap “Still to fill in” below whenever you find it.`;
 
 /** a Google search the person can open to look up their mool — only the gotra is in the link, never their name */
@@ -20,8 +22,8 @@ export function moolSearchUrl(gotra?: string): string {
 }
 
 /** WhatsApp message to a relative who might know the answer; no phone number — the person picks who to send it to */
-export function askRelativeUrl(question: string): string {
-  const text = `Namaste! I am building our family tree on Maithil Panji. Could you help me with this one?\n\n${question}\n\nThank you!`;
+export function askRelativeUrl(question: string, lang: Lang = "en"): string {
+  const text = lang === "hi" ? ASK_RELATIVE_HI(question) : `Namaste! I am building our family tree on Maithil Panji. Could you help me with this one?\n\n${question}\n\nThank you!`;
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 

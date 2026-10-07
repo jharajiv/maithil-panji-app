@@ -44,7 +44,7 @@ export default function Privacy() {
           <li><strong>Your email address and name</strong> — to sign you in with a one-time code (no password). We use the email address only for sign-in codes and, if you ask, for a message about your tree.</li>
           <li><strong>Phone numbers of relatives</strong> — only if you invite someone on WhatsApp. The number is used to open WhatsApp for you. It is never shown on shared view-only pages.</li>
           <li><strong>Your consent</strong> — we record that you agreed to the terms of sharing a family tree, and when.</li>
-          <li><strong>Simple usage counts</strong> — we count how often the sample tree is opened, trees are started and saved, PDFs are downloaded and share buttons are used. Each count is only a name and a time: no name, no tree, no IP address, no cookie.</li>
+          <li><strong>Simple usage counts</strong> — we count how often the sample tree is opened, trees are started and saved, PDFs are downloaded, share buttons are used, corrections are suggested and women are linked. Each count is only a name and a time: no name, no tree, no IP address, no cookie.</li>
           <li><strong>Roughly where you are</strong> — the country your connection comes from, used only to suggest a sensible contribution amount. It is not stored.</li>
         </L>
 
@@ -65,6 +65,12 @@ export default function Privacy() {
           <li><strong>Show your tree (view-only link).</strong> Anyone who has the link can look at the tree. They cannot edit it, download it, or see phone numbers or private notes. By default, living relatives appear by first name only; their birth dates, villages and photos stay hidden, and people not recorded as having passed away are treated as living. You can choose “show full details” instead, but then everything entered about living relatives is visible to anyone who gets the link — including if it is forwarded.</li>
         </L>
         <P>When a link is pasted into WhatsApp, Facebook or similar apps, a preview picture appears. It shows the family name, the number of people and generations, and the gotra and mool — never a living person’s name. A printed QR code on a downloaded tree opens the same protected view-only page. Anyone can take a screenshot of what they can see, so please share only with people you are comfortable with.</P>
+
+        <H>Suggested corrections</H>
+        <P>Anyone who opens a view-only link can tap a person and suggest a correction. What they type (what is wrong, what it should be, an optional note, and an optional name) is kept for you and your helpers until one of you applies or dismisses it. Nothing in your tree changes by itself. Please do not add phone numbers or web links to a suggestion; they are not accepted.</P>
+
+        <H>Connecting families through married women</H>
+        <P>This is off until the owner of a tree switches it on, and can be switched off any time. When on, married women in your tree are compared with married women in other trees that also switched it on, using first name, year of birth, gotra, mool and the husband’s name. Nothing is linked until someone confirms. To confirm, the person sees a short preview of the other tree — the woman, her husband, parents, brothers, sisters and children — and living people appear by first name only. Once linked, both trees show that she also appears in the other. Either side can remove the link. When a helper makes a link, the owner is told.</P>
 
         <H>Living relatives and children</H>
         <P>Please add details or photos of living relatives only if they are comfortable with it. If you are adding a child’s details, you are responsible for keeping them private — we suggest first name only. If someone asks you to remove their details, please do so; you can edit or remove anyone from the tree at any time.</P>

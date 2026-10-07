@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { logEvent } from "@/lib/events";
 import { sanitizeFamily } from "@/lib/sanitize";
+import { keepLinks } from "@/lib/connect-server";
 import { getStore, hashToken, newMemberId, newToken, newTreeId, syncAll, treeMeta } from "@/lib/store";
 import { authEnabled, currentAccount } from "@/lib/auth";
 import { clientIp, limited } from "@/lib/ratelimit";
@@ -26,6 +27,7 @@ export async function POST(req: Request) {
   let body: Record<string, unknown>;
   try { body = JSON.parse(text); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   const family = sanitizeFamily(body.family, { stored: true });
+  if (family) keepLinks(family, { persons: [], rels: [], next: 1 }); // a new tree starts with no links to other trees
   if (!family || !family.persons.length) return NextResponse.json({ error: "Add at least yourself to the tree first." }, { status: 400 });
   const name = typeof body.ownerName === "string" ? body.ownerName.trim().slice(0, 80) : "";
   const account = await currentAccount(req);

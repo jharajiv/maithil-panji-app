@@ -9,8 +9,10 @@ import { getStore } from "./store";
  *  pdf_downloaded  someone downloaded their tree as a PDF (our "finished")
  *  share_clicked   someone used a share button (WhatsApp, Facebook, X, copy)
  *  view_opened     someone opened a shared view-only link
+ *  correction_suggested  a viewer suggested a correction to a tree
+ *  woman_linked    a married woman was linked to her other family's tree
  */
-export const EVENT_NAMES = ["sample_opened", "tree_started", "tree_saved", "pdf_downloaded", "share_clicked", "view_opened"] as const;
+export const EVENT_NAMES = ["sample_opened", "tree_started", "tree_saved", "pdf_downloaded", "share_clicked", "view_opened", "correction_suggested", "woman_linked"] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 export const isEvent = (n: unknown): n is EventName => typeof n === "string" && (EVENT_NAMES as readonly string[]).includes(n);
 

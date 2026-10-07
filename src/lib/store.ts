@@ -20,7 +20,12 @@ export interface Member {
   phone?: string; email?: string; account_id?: string; status?: "invited" | "joined"; invite_hash?: string;
   /** owner only: view-only links were replaced this many times / are switched off */
   view_epoch?: number; view_off?: boolean;
+  /** owner only: other families may find this tree when matching married women (off until the owner turns it on) */
+  discoverable?: boolean;
+  /** owner only: short notes about changes others made (a link confirmed, a correction applied) — newest last, at most 30 */
+  activity?: { at: string; by: string; text: string }[];
 }
+export interface Suggestion { id: string; tree_id: string; person_id: string; field: string; value: string; note?: string; from_name?: string; created_at: string; status: "new" | "applied" | "dismissed" }
 export interface TreeRow { id: string; family: DFamily; rev: number; members: Member[]; updated_at: string; title?: string; people_count?: number }
 export type TreeSummary = Pick<TreeRow, "id" | "members" | "updated_at" | "title" | "people_count">;
 export interface AccountRow { id: string; email: string; phone?: string; name: string; created_at: string; consent_version?: string }
@@ -58,6 +63,12 @@ export interface Store {
   addConsent(row: ConsentRow): Promise<void>;
   /** removes the tree and its flat rows; returns false when it did not exist */
   deleteTree(id: string): Promise<boolean>;
+  /** women whose name starts with any of these letters (1–3 each), in any tree — used to find the same woman in another family's tree */
+  findWomen(prefixes: string[], limit?: number): Promise<{ tree_id: string; person_id: string }[]>;
+  /* corrections suggested by people viewing a tree */
+  addSuggestion(row: Suggestion): Promise<void>;
+  listSuggestions(treeId: string): Promise<Suggestion[]>;
+  resolveSuggestion(treeId: string, id: string, status: "applied" | "dismissed"): Promise<boolean>;
   /** one anonymous usage count (a name and a time — nothing about the person) */
   addEvent(name: string): Promise<void>;
 }
@@ -112,6 +123,18 @@ function supabase(url: string, key: string): Store {
       await call("custom_refs?on_conflict=kind,key", { method: "POST", body: JSON.stringify(refs), prefer: "resolution=ignore-duplicates,return=minimal" });
     },
     async listRefs() { return (await call("custom_refs?select=kind,key,roman,dev&status=neq.rejected&order=seen_at.desc&limit=500")) as RefRow[]; },
+    async findWomen(prefixes, limit = 600) {
+      const ps = [...new Set(prefixes.map((x) => x.replace(/[^A-Za-z]/g, "").slice(0, 3)).filter(Boolean))].slice(0, 8);
+      if (!ps.length) return [];
+      const or = ps.map((x) => `name_roman.ilike.${x}*`).join(",");
+      return (await call(`persons?gender=eq.female&or=(${encodeURIComponent(or)})&select=tree_id,person_id&limit=${limit}`)) as { tree_id: string; person_id: string }[];
+    },
+    async addSuggestion(row) { await call("suggestions", { method: "POST", body: JSON.stringify(row), prefer: "return=minimal" }); },
+    async listSuggestions(treeId) { return (await call(`suggestions?tree_id=eq.${encodeURIComponent(treeId)}&status=eq.new&order=created_at.desc&limit=100&select=*`)) as Suggestion[]; },
+    async resolveSuggestion(treeId, id, status) {
+      const rows = (await call(`suggestions?tree_id=eq.${encodeURIComponent(treeId)}&id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ status }), prefer: "return=representation" })) as unknown[] | null;
+      return !!rows?.length;
+    },
     async addEvent(name) { await call("events", { method: "POST", body: JSON.stringify({ name }), prefer: "return=minimal" }); },
     async syncPeople(treeId, family) {
       const { persons, rels } = flatten(treeId, family);
@@ -135,7 +158,7 @@ function supabase(url: string, key: string): Store {
 function file(): Store {
   const dir = path.join(process.cwd(), ".data");
   const f = path.join(dir, "store.json");
-  type Db = { events?: { name: string; at: string }[]; trees: Record<string, TreeRow>; refs: Record<string, RefRow>; persons?: PersonRow[]; rels?: RelRow[]; consents?: ConsentRow[]; accounts?: AccountRow[]; sessions?: SessionRow[]; codes?: LoginCode[] };
+  type Db = { suggestions?: Suggestion[]; events?: { name: string; at: string }[]; trees: Record<string, TreeRow>; refs: Record<string, RefRow>; persons?: PersonRow[]; rels?: RelRow[]; consents?: ConsentRow[]; accounts?: AccountRow[]; sessions?: SessionRow[]; codes?: LoginCode[] };
   const read = async (): Promise<Db> => { try { return JSON.parse(await fs.readFile(f, "utf8")) as Db; } catch { return { trees: {}, refs: {} }; } };
   const write = async (db: Db) => { await fs.mkdir(dir, { recursive: true }); const tmp = `${f}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`; await fs.writeFile(tmp, JSON.stringify(db)); await fs.rename(tmp, f); }; // atomic: a reader never sees half a file
   let chain: Promise<unknown> = Promise.resolve();
@@ -167,6 +190,16 @@ function file(): Store {
       .map(({ id, title, people_count, members, updated_at }) => ({ id, title, people_count, members, updated_at })))),
     addRefs: (refs) => lock(async () => { const db = await read(); for (const r of refs) db.refs[`${r.kind}:${r.key}`] ??= r; await write(db); }),
     listRefs: () => lock(async () => Object.values((await read()).refs)),
+    findWomen: (prefixes, limit = 600) => lock(async () => {
+      const ps = [...new Set(prefixes.map((x) => x.replace(/[^A-Za-z]/g, "").slice(0, 3).toLowerCase()).filter(Boolean))];
+      if (!ps.length) return [];
+      const out: { tree_id: string; person_id: string }[] = [];
+      for (const t of Object.values((await read()).trees)) for (const x of t.family.persons) if (x.gender === "female" && ps.some((q) => x.name_roman.toLowerCase().startsWith(q))) out.push({ tree_id: t.id, person_id: x.id });
+      return out.slice(0, limit);
+    }),
+    addSuggestion: (row) => lock(async () => { const db = await read(); db.suggestions = [...(db.suggestions ?? []), row]; await write(db); }),
+    listSuggestions: (treeId) => lock(async () => ((await read()).suggestions ?? []).filter((x) => x.tree_id === treeId && x.status === "new").sort((a, b) => b.created_at.localeCompare(a.created_at))),
+    resolveSuggestion: (treeId, id, status) => lock(async () => { const db = await read(); const s = db.suggestions?.find((x) => x.tree_id === treeId && x.id === id); if (!s) return false; s.status = status; await write(db); return true; }),
     addEvent: (name) => lock(async () => { const db = await read(); db.events = [...(db.events ?? []).slice(-4999), { name, at: new Date().toISOString() }]; await write(db); }),
     syncPeople: (treeId, family) => lock(async () => {
       const db = await read(); const flat = flatten(treeId, family);
@@ -180,6 +213,7 @@ function file(): Store {
       delete db.trees[id];
       db.persons = (db.persons ?? []).filter((p) => p.tree_id !== id);
       db.rels = (db.rels ?? []).filter((r) => r.tree_id !== id);
+      db.suggestions = (db.suggestions ?? []).filter((x) => x.tree_id !== id);
       await write(db); return true;
     }),
   };

@@ -39,6 +39,8 @@ export interface DPerson {
   notes?: string;
   /** a sister's or daughter's husband, kept as one short note ("Rajesh Jha, Darbhanga") — his own family is recorded on his chart */
   married_to?: string;
+  /** the same woman in another family's tree (she appears as a daughter in one and as a wife in the other) — set only after someone confirmed the match */
+  links?: PersonLink[];
   /** E.164 number, only if the owner chose to invite this person on WhatsApp */
   whatsapp?: string;
   is_me?: boolean;
@@ -46,6 +48,8 @@ export interface DPerson {
   placeholder?: boolean;
   flags: Partial<Record<Flag, FlagVal>>;
 }
+
+export interface PersonLink { tree: string; person: string; title?: string; at: string; by?: string }
 
 export interface DRel { type: "parent_of" | "spouse_of"; a: string; b: string }
 

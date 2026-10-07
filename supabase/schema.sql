@@ -135,7 +135,7 @@ alter table public.custom_refs enable row level security;
 -- 6. USAGE COUNTS — anonymous: only a name and a time (see src/lib/events.ts). Safe to run again.
 create table if not exists public.events (
   id   bigint generated always as identity primary key,
-  name text        not null,      -- sample_opened | tree_started | tree_saved | pdf_downloaded | share_clicked | view_opened
+  name text        not null,      -- sample_opened | tree_started | tree_saved | pdf_downloaded | share_clicked | view_opened | correction_suggested | woman_linked
   at   timestamptz not null default now()
 );
 create index if not exists events_name_at_idx on public.events (name, at);
@@ -147,3 +147,19 @@ select date_trunc('day', at)::date as day, name, count(*) as times
 from public.events
 group by 1, 2
 order by 1 desc, 2;
+
+-- 7. CORRECTIONS suggested by people who view a tree (the "Suggest a correction" button on view-only pages).
+--    The owner and helpers see them in an inbox and can apply or dismiss each one. Safe to run again.
+create table if not exists public.suggestions (
+  id         text primary key,
+  tree_id    text not null references public.trees(id) on delete cascade,
+  person_id  text not null,                -- id inside that tree ("p3")
+  field      text not null,                -- name | birth | death | place | gotra | mool | relation | other
+  value      text not null,                -- what the viewer says it should be
+  note       text,                         -- optional explanation
+  from_name  text,                         -- optional: who suggested it
+  created_at timestamptz not null default now(),
+  status     text not null default 'new' check (status in ('new', 'applied', 'dismissed'))
+);
+create index if not exists suggestions_tree_idx on public.suggestions (tree_id, status);
+alter table public.suggestions enable row level security;

@@ -64,6 +64,7 @@ export async function POST(req: Request) {
     // set when the user replied to an earlier chat message or to a person's box in the tree
     answerGoal: typeof body.answerGoal === "string" && /^[a-z_]+(:p\d+)?$/.test(body.answerGoal) ? body.answerGoal : undefined,
     mode: body.mode === "replace" ? ("replace" as const) : ("add" as const),
+    lang: body.lang === "hi" ? ("hi" as const) : ("en" as const),
   };
   await loadExtras();
 

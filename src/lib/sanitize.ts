@@ -1,7 +1,16 @@
-import type { DFamily, DPerson, DRel, PanjiRef } from "./family";
+import type { DFamily, DPerson, DRel, PanjiRef, PersonLink } from "./family";
 
 const s = (v: unknown, n = 120) => (typeof v === "string" ? v.slice(0, n) : undefined);
 const photo = (v: unknown) => (typeof v === "string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length <= 120_000 ? v : undefined);
+const links = (v: unknown): PersonLink[] | undefined => {
+  if (!Array.isArray(v)) return undefined;
+  const out = v.slice(0, 5).flatMap((x) => {
+    const o = x as Record<string, unknown>;
+    const tree = s(o?.tree, 40), person = s(o?.person, 20), at = s(o?.at, 30);
+    return tree && person && at && /^[\w-]+$/.test(tree) && /^[\w-]+$/.test(person) ? [{ tree, person, at, title: s(o.title, 80), by: s(o.by, 60) }] : [];
+  });
+  return out.length ? out : undefined;
+};
 const ref = (v: unknown): PanjiRef | undefined => {
   if (!v || typeof v !== "object") return undefined;
   const o = v as Record<string, unknown>;
@@ -35,6 +44,7 @@ export function sanitizeFamily(raw: unknown, opts: { stored?: boolean } = {}): D
       gotra: ref(o.gotra), mool: ref(o.mool),
       photo: opts.stored ? photo(o.photo) : undefined,
       whatsapp: opts.stored && typeof o.whatsapp === "string" && /^\+\d{6,15}$/.test(o.whatsapp) ? o.whatsapp : undefined,
+      links: opts.stored ? links(o.links) : undefined,
       is_me: o.is_me === true || undefined, placeholder: o.placeholder === true || undefined, flags,
     });
   }
