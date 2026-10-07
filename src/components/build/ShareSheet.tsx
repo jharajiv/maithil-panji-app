@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import type { DFamily } from "@/lib/family";
 import type { MemberRow, ShareInfo, SyncStatus } from "./useShare";
 import { inputCls, Label, PhoneField, phoneState, type PhoneValue } from "./widgets";
+import { SocialShare } from "./SocialShare";
 
 interface Props {
   open: boolean; onClose: () => void;
@@ -19,6 +20,8 @@ interface Props {
   /** guest mode on a site with accounts: saving and inviting happen after signing in */
   signInHref?: string;
   ownerName?: string;
+  /** read-only links (living relatives protected / shown in full); empty until the tree is online */
+  viewUrl?: string; viewUrlFull?: string;
   onRevoke: (memberId: string) => void;
   onRememberPhone: (personId: string, e164: string) => void;
   onLeave: () => void;
@@ -92,14 +95,14 @@ export function ShareSheet(p: Props) {
 
       {p.enabled && !p.share && !p.signInHref && (
         <div className="mt-2 space-y-4">
-          <p className="text-sm text-muted-foreground">Save your tree online to open it on any phone, and invite relatives on WhatsApp to add and correct their own branches. No passwords — each person gets a private link.</p>
+          <p className="text-sm text-muted-foreground">Save your tree online to open it on any phone, invite relatives on WhatsApp to add and correct their own branches, and share a view-only picture link on WhatsApp or Facebook. No passwords — each person gets a private link.</p>
           <div>
             <Label htmlFor="owner-name">Your first name</Label>
             <input id="owner-name" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} autoComplete="given-name" />
           </div>
           <label className="flex gap-3 rounded-xl border p-3 text-sm">
             <input type="checkbox" className="mt-1 size-5 accent-[var(--primary)]" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-            <span>I understand this is a community genealogy project. I have the consent of living relatives whose details or photos I add, anyone with a link can edit this tree, and I can ask for it to be deleted at any time. My data is never sold.</span>
+            <span>I understand this is a community genealogy project. I have the consent of living relatives whose details or photos I add, anyone with a link can edit this tree, and I can ask for it to be deleted at any time. My data is never sold. <Link href="/privacy" target="_blank" className="underline">Read the privacy page</Link>.</span>
           </label>
           {err && <p role="alert" className="text-sm text-terracotta">{err}</p>}
           <Button size="lg" className="h-12 w-full" disabled={!consent || busy || !me} onClick={create}>{busy ? <Loader2 className="animate-spin" /> : <Link2 />} Save online and start sharing</Button>
@@ -109,6 +112,8 @@ export function ShareSheet(p: Props) {
       {p.enabled && p.share?.role === "owner" && (
         <div className="mt-2 space-y-5">
           <p className="flex items-center gap-2 text-sm text-green-800"><Check className="size-4" /> {STATUS_TEXT[p.status] || "Saved online"}</p>
+
+          <SocialShare viewUrl={p.viewUrl ?? ""} viewUrlFull={p.viewUrlFull ?? ""} familyName={`${(p.ownerName ?? me?.name_roman ?? "our").split(" ")[0]}${p.ownerName || me ? "’s" : ""}`} />
 
           <section aria-label="Invite" className="space-y-3 rounded-xl border p-3">
             <h3 className="flex items-center gap-2 font-medium"><MessageCircle className="size-5 text-[#128c4a]" /> Invite a family member</h3>

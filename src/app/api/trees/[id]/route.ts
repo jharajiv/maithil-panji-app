@@ -24,7 +24,7 @@ export async function GET(req: Request, { params }: Ctx) {
   const me = row && (await access(req, row, url.searchParams.get("k")));
   if (!row || !me) return NextResponse.json({ error: "This link is not valid any more." }, { status: 404 });
   const have = Number(url.searchParams.get("rev"));
-  const base = { rev: row.rev, role: me.role, title: row.title, viewKey: viewKey(row.id), member: { id: me.id, name: me.name, person_id: me.person_id }, members: me.role === "owner" ? publicMembers(row) : undefined };
+  const base = { rev: row.rev, role: me.role, title: row.title, viewKey: viewKey(row.id, "private"), viewKeyFull: me.role === "owner" ? viewKey(row.id, "full") : undefined, member: { id: me.id, name: me.name, person_id: me.person_id }, members: me.role === "owner" ? publicMembers(row) : undefined };
   if (have && have === row.rev) return NextResponse.json({ ...base, unchanged: true });
   return NextResponse.json({ ...base, family: row.family });
 }

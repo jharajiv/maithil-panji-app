@@ -13,8 +13,9 @@ export function AuthLink() {
   );
 }
 
-/** the big "Start" buttons: a new visitor goes straight to building (no sign-up first); someone signed in goes to their trees */
-export function StartLink({ children }: { children: React.ReactNode }) {
+/** the big "Start" buttons: a new visitor goes straight to building (no sign-up first); someone signed in goes to their trees.
+ *  Takes the styling a <Button asChild> hands down — without forwarding it the button looked like plain text. */
+export function StartLink({ children, ...props }: Omit<React.ComponentProps<typeof Link>, "href">) {
   const a = useAccount();
-  return <Link href={a.account ? "/app" : "/build"}>{children}</Link>;
+  return <Link {...props} href={a.account ? "/app" : "/build"}>{children}</Link>;
 }

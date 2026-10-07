@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, Download, GitMerge, MessageCircle, Network, Pencil, RotateCcw, Share2, Users } from "lucide-react";
+import { ChevronLeft, Download, MessageCircle, Network, Pencil, RotateCcw, Share2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { ExportSheet } from "@/components/tree/ExportSheet";
@@ -18,7 +18,7 @@ import { TreeMenu, type TreeMenuState } from "./TreeMenu";
 import { LiveTree, type LiveTreeHandle } from "./LiveTree";
 import { FreeformEditor } from "./FreeformEditor";
 import { HelperPane } from "./HelperPane";
-import { MatchesPane } from "./MatchesPane";
+import { ChatRail, PaneDivider, usePaneLayout } from "./PaneDivider";
 import { PersonEditSheet } from "./PersonEditSheet";
 import { ShareSheet } from "./ShareSheet";
 import { SavePrompt } from "./SavePrompt";
@@ -26,7 +26,7 @@ import { useShare } from "./useShare";
 import { useAccount } from "@/components/account/useAccount";
 
 const KEY = "maithil-panji.session.v1";
-type Tab = "chat" | "tree" | "matches";
+type Tab = "chat" | "tree";
 interface Session { family: DFamily; messages: ChatMessage[]; goalId?: string; section?: string; repeats: number; template: TemplateId; pending?: Pending }
 
 /** everything the chat needs to step back one answer */
@@ -98,6 +98,8 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const [undo, setUndo] = useState<Snap[]>([]);
   const [menu, setMenu] = useState<TreeMenuState | null>(null);
   const [relFor, setRelFor] = useState<string | undefined>();
+  const layout = usePaneLayout();
+  const mainRef = useRef<HTMLElement>(null);
   const afterTurn = useRef("");
   const tree = useRef<LiveTreeHandle>(null);
   const famRef = useRef(family); famRef.current = family;
@@ -256,24 +258,24 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
       {notice && <div role="status" className="border-b bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">{notice}</div>}
 
       {desktop ? (
-        <main className="grid min-h-0 flex-1 grid-cols-[400px_minmax(0,1fr)_300px]">
-          {leftPane("border-r")}
-          {treePane}
-          <MatchesPane className="border-l" />
+        <main ref={mainRef} className="flex min-h-0 flex-1">
+          {layout.collapsed
+            ? <ChatRail onOpen={layout.toggle} />
+            : <div style={{ width: layout.width }} className="flex min-h-0 shrink-0 flex-col">{leftPane("flex-1")}</div>}
+          <PaneDivider width={layout.width} collapsed={layout.collapsed} container={mainRef} onChange={layout.set} onToggle={() => { layout.toggle(); setTimeout(() => tree.current?.fit(), 60); }} onReset={() => { layout.reset(); setTimeout(() => tree.current?.fit(), 60); }} onSettled={() => tree.current?.fit()} />
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">{treePane}</div>
         </main>
       ) : (
         <>
           <main className="flex min-h-0 flex-1 flex-col">
             {tab === "chat" && leftPane("flex-1")}
             {tab === "tree" && treePane}
-            {tab === "matches" && <MatchesPane className="flex-1" />}
           </main>
-          <nav className="grid grid-cols-3 border-t bg-card pb-[max(0.25rem,env(safe-area-inset-bottom))]" aria-label="Sections">
-            {([["chat", isHelper ? "Welcome" : "Chat", isHelper ? Users : MessageCircle], ["tree", "My tree", Network], ["matches", "Matches", GitMerge]] as const).map(([k, l, Icon]) => (
+          <nav className="grid grid-cols-2 border-t bg-card pb-[max(0.25rem,env(safe-area-inset-bottom))]" aria-label="Sections">
+            {([["chat", isHelper ? "Welcome" : "Chat", isHelper ? Users : MessageCircle], ["tree", "My tree", Network]] as const).map(([k, l, Icon]) => (
               <button key={k} onClick={() => goTab(k)} aria-current={tab === k} className={cn("relative flex flex-col items-center gap-0.5 py-2 text-xs font-medium", tab === k ? "text-primary" : "text-muted-foreground")}>
                 <Icon className="size-5" />{l}
                 {k === "tree" && unseen > 0 && <span className="absolute right-[calc(50%-1.6rem)] top-1.5 size-2.5 rounded-full bg-terracotta" aria-label="New people added" />}
-                {k === "matches" && <span className="absolute right-[calc(50%-2.3rem)] top-1 rounded-full bg-secondary px-1.5 text-[9px] text-muted-foreground">soon</span>}
               </button>
             ))}
           </nav>
@@ -289,7 +291,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
         invitePersonId={inviteFor} onCreate={sh.create} onInvite={sh.invite} onRevoke={sh.revoke} onRememberPhone={rememberPhone} onLeave={() => { sh.leave(); setShareOpen(false); }}
         onDeleteOnline={async () => { await sh.deleteOnline(); if (inAccount) router.replace("/app"); }}
         onLeaveTree={async () => { await sh.leaveTree(); router.replace("/app"); }}
-        signInHref={auth.enabled && !sh.share ? "/app" : undefined} ownerName={family.persons.find((p) => p.is_me)?.name_roman ?? sh.share?.memberName} />
+        viewUrl={sh.viewUrl} viewUrlFull={sh.viewUrlFull} signInHref={auth.enabled && !sh.share ? "/app" : undefined} ownerName={family.persons.find((p) => p.is_me)?.name_roman ?? sh.share?.memberName} />
       <Sheet open={resetOpen} onClose={() => setResetOpen(false)} title="Start over">
         <h2 className="font-display text-xl font-semibold">Start over?</h2>
         <p className="mt-1 text-sm text-muted-foreground">This clears the tree and the conversation on this device. It cannot be undone.{sh.share ? " The online copy is not deleted, but this device stops syncing with it — copy your private link from Share first if you want to open it again." : ""}</p>

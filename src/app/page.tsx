@@ -1,8 +1,10 @@
 import Image from "next/image";
-import { ArrowRight, ListChecks, Printer, Sprout } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, GitMerge, ListChecks, MapPin, Printer, Sprout, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Motif, PatternBand } from "@/components/landing/Motif";
 import { AuthLink, StartLink } from "@/components/account/AuthLink";
+import { StickyStart } from "@/components/landing/StickyStart";
 
 const TEMPLATES = [
   { id: "classic", name: "Classic", blurb: "Warm, formal, built for printing.", img: "/templates/classic.png" },
@@ -16,24 +18,31 @@ const STEPS = [
   { icon: Printer, title: "Download and share", text: "A print-ready PDF in A3 or A4, and a WhatsApp invite so relatives can join your tree with their own mobile number." },
 ];
 
-function Cta({ className }: { className?: string }) {
+/** the one thing we want every visitor to do — large, high-contrast, and repeated on phones in a bar that stays on screen */
+function Cta({ className, onDark }: { className?: string; onDark?: boolean }) {
   return (
-    <Button asChild size="lg" className={`h-14 px-7 text-base ${className ?? ""}`}>
-      <StartLink>Start building your family tree <ArrowRight /></StartLink>
+    <Button asChild size="lg" className={`h-16 rounded-xl px-8 text-lg font-semibold shadow-lg ring-offset-2 transition-transform hover:-translate-y-0.5 ${onDark ? "bg-cream text-indigo hover:bg-white" : "bg-terracotta text-white hover:bg-terracotta/90"} ${className ?? ""}`}>
+      <StartLink>Start building your family tree <ArrowRight className="size-5" /></StartLink>
     </Button>
   );
 }
 
+const SOON = [
+  { icon: GitMerge, title: "Find and connect family trees", text: "As more families join and records are digitised, we will suggest trees that match the names, gotra, mool and villages you enter — and let you connect them with one tap." },
+  { icon: Users, title: "Trees joined through daughters", text: "A daughter belongs to her father’s tree and to her husband’s. Soon you will be able to link the two, so families can discover how they are related." },
+  { icon: MapPin, title: "Relatives from your village", text: "If you choose to, see families from your mool and nearby villages, and say yes or no to being introduced. Nothing is shown about you without your permission." },
+] as const;
+
 export default function Home() {
   return (
-    <div className="min-h-dvh bg-background">
+    <div className="min-h-dvh bg-background pb-24 sm:pb-0">
       {/* Hero */}
       <section className="relative overflow-hidden bg-wash">
         <PatternBand className="absolute inset-x-0 top-0" />
         <AuthLink />
         <Motif name="sun" className="pointer-events-none absolute right-4 top-7 size-16 opacity-90 sm:right-10 sm:top-10 sm:size-44" />
         <Motif name="fish" className="pointer-events-none absolute bottom-6 left-4 size-16 opacity-90 sm:left-10 sm:size-32" />
-        <div className="relative mx-auto max-w-3xl px-5 pb-28 pt-28 text-center sm:pb-24 sm:pt-28">
+        <div className="relative mx-auto max-w-4xl px-5 pb-28 pt-28 text-center sm:pb-24 sm:pt-28">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-terracotta">Maithil Panji</p>
           <h1 className="font-display mt-3 text-4xl font-bold leading-tight text-indigo sm:text-6xl">
             Preserve your Maithil ancestry.
@@ -42,11 +51,12 @@ export default function Home() {
           <p className="mx-auto mt-5 max-w-xl text-lg text-indigo/80">
             A free community project built around the Panji Prabandh tradition: gotra, mool and pravara are first-class, not footnotes.
           </p>
-          <p className="mx-auto mt-3 max-w-xl text-indigo/70">
+          <div id="hero-cta" className="mt-8 flex justify-center"><Cta /></div>
+          <p className="mt-3 text-sm font-medium text-indigo/80">Free · you can start right now — no sign-up</p>
+          <p className="mx-auto mt-6 max-w-xl text-indigo/70">
             Chat with our assistant on your phone, watch your tree grow, print and frame it, and invite relatives to add their own branches.
           </p>
-          <div className="mt-8"><Cta /></div>
-          <p className="mt-3 text-sm text-indigo/70">No marketing. Your data is never sold or shared.</p>
+          <p className="mt-2 text-sm text-indigo/70">No marketing. Your data is never sold or shared.</p>
         </div>
         <PatternBand className="absolute inset-x-0 bottom-0" />
       </section>
@@ -87,17 +97,38 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Coming soon — moved here from the builder so the chat and tree get the whole screen */}
+      <section className="mx-auto max-w-5xl px-5 py-14" aria-labelledby="soon">
+        <h2 id="soon" className="font-display text-2xl font-semibold sm:text-3xl">Coming soon</h2>
+        <p className="mt-1 text-muted-foreground">What we are building next. Your tree today becomes the starting point for these.</p>
+        <ul className="mt-6 grid gap-4 md:grid-cols-3">
+          {SOON.map((c) => (
+            <li key={c.title} className="rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-5">
+              <div className="flex items-center justify-between">
+                <c.icon className="size-6 text-terracotta" />
+                <span className="rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">Coming soon</span>
+              </div>
+              <h3 className="mt-3 font-semibold">{c.title}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">{c.text}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       {/* Footer CTA */}
       <section className="relative overflow-hidden bg-indigo text-cream">
         <Motif name="lotus" className="pointer-events-none absolute -left-6 -top-4 size-28 opacity-20" />
         <div className="relative mx-auto max-w-3xl px-5 py-14 text-center">
           <h2 className="font-display text-2xl font-semibold sm:text-4xl">Your family’s story, in your family’s tradition.</h2>
           <div className="mt-6 flex justify-center">
-            <Button asChild size="lg" variant="secondary" className="h-14 px-7 text-base"><StartLink>Start building your family tree <ArrowRight /></StartLink></Button>
+            <Cta onDark />
           </div>
-          <p className="mt-6 text-sm text-cream/70">A community project preserving the Panji Prabandh.</p>
+          <p className="mt-6 text-sm text-cream/70">A community project preserving the Panji Prabandh. · <Link href="/privacy" className="underline underline-offset-2 hover:text-cream">Privacy</Link></p>
         </div>
       </section>
+
+      {/* phones: the main action stays in reach once the hero button has scrolled away */}
+      <StickyStart watch="hero-cta"><Cta className="h-14 w-full text-base" /></StickyStart>
     </div>
   );
 }

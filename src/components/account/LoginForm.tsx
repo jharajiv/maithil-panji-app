@@ -102,7 +102,7 @@ export function LoginForm({ next, invitedBy, defaultName, defaultPhone, onSigned
               </div>
               <label className="flex gap-3 rounded-xl border p-3 text-sm">
                 <input type="checkbox" className="mt-1 size-5 accent-[var(--primary)]" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-                <span>I understand this is a community genealogy project. I will add details and photos of living relatives only with their consent, family members I invite can edit the tree, and I can ask for my tree to be deleted at any time. My data is never sold.</span>
+                <span>I understand this is a community genealogy project. I will add details and photos of living relatives only with their consent, family members I invite can edit the tree, and I can ask for my tree to be deleted at any time. My data is never sold. <Link href="/privacy" target="_blank" className="underline">Read the privacy page</Link>.</span>
               </label>
             </>
           )}

@@ -13,7 +13,8 @@ npm run build
 
 ## Screens
 - `/` landing — hero, template gallery, how it works
-- `/build` — the app: **chat interviewer (left) · live tree (middle, Madhubani / Classic / Modern) · matching-trees placeholder (right)**.
+- `/build` — the app: **chat interviewer (left) · live tree (right, Madhubani / Classic / Modern)**. The divider between them can be dragged (or moved with the arrow keys), double-clicked to reset, and the chat can be folded away with the little arrow so the tree gets the whole screen; the choice is remembered on the device (`PaneDivider.tsx`). The "matching trees" teaser now lives on the home page under *Coming soon*.
+- `/privacy` — plain-language privacy page with a Hindi summary. Set `NEXT_PUBLIC_CONTACT_EMAIL` to show a contact address on it.
   On phones these are bottom tabs. Tap any person in the tree to edit details, add a photo or remove them. **PDF** exports the paternal lineage or full tree (A3 / A4).
 - `/tree` — read-only sample family (fictional) used for template previews
 - `/intake` — redirects to `/build`
@@ -40,7 +41,9 @@ npm run build
 ## Start without an account, save later, contribute at download
 - The home button goes straight to `/build`. Nothing asks for sign-up first. After 5 people a gentle **Save your tree** card appears (`SavePrompt.tsx`; "Not now" hides it until 10 more people are added). "Save my tree" signs in with an email code and `/app?import=1` moves the tree from this device into the new account.
 - **Download PDF → contribution step** (`DonateStep.tsx`, `lib/donate.ts`): suggested amounts by country (India ₹51/101/251/501 via UPI link or QR; US $5/11/21; Switzerland CHF 10/20/50; euro countries, UK, UAE, Australia, Canada have their own). Country comes from Vercel's `x-vercel-ip-country` header (`/api/geo`), else the browser's time zone and language. **Skip** is always there; someone who has contributed is not asked again for 45 days. Set `NEXT_PUBLIC_DONATE_UPI_ID` and/or `NEXT_PUBLIC_DONATE_CARD_URL` in Vercel; with neither set the step is not shown.
-- **Personal QR code on every printout:** for a tree saved online, the footer QR opens `/view/<tree>?v=<key>`, a read-only page (zoom, search, tap for details). The key is derived from the tree id and `AUTH_SECRET` (no extra database column), phone numbers and notes are removed from what visitors get. A tree that is only on one device gets the home-page QR and a hint to save it online.
+- **Personal QR code on every printout:** for a tree saved online, the footer QR opens `/view/<tree>?v=<key>`, a read-only page (zoom, search, tap for details). The key is derived from the tree id and `AUTH_SECRET` (no extra database column), phone numbers and notes are removed from what visitors get.
+- **Two kinds of view link** (`src/lib/view.ts`): *protected* (default, also used for the QR code) shows living relatives by first name only, without birth date, village, photo or husband note; *full* shows everything but phone numbers and notes, and only the owner can pick it, in Share → *Show your tree to others*. The kind is part of the key, so a visitor cannot edit a link to get more. Someone with no status recorded is treated as living unless born 100+ years ago. Keys printed before this change keep working as *full* links.
+- **Sharing on social media** (`SocialShare.tsx`): WhatsApp, Facebook, X, copy link and the phone's own share sheet. Pasting the link shows a 1200×630 preview picture (`/api/trees/<id>/og?v=<key>`) with the family name, number of people and generations and the gotra/mool — never a living person's name. Set `NEXT_PUBLIC_SITE_URL` to the real address once the domain is live, so preview pictures point there. A shared link cannot yet be switched off on its own: deleting the online copy stops all of them. A tree that is only on one device gets the home-page QR and a hint to save it online.
 
 ## Editing the tree directly
 Tap anyone: edit name (+ Devanagari with on-screen keyboard), gender, birth (year or calendar), living/passed away (hidden for yourself), village/district/state, gotra, mool, photo (shown on the tree cards in all three styles). **Add a relative** adds a wife/husband, son, daughter, brother, sister, father or mother in place; **Remove this person** deletes a node. A married-in woman gets no parents/siblings options (Panji convention).
@@ -72,19 +75,26 @@ Place search uses OpenStreetMap **Photon** (public demo server — fine for test
 src/
   app/            routes: page.tsx, build/, tree/, api/chat/
   components/
-    build/        BuildApp, ChatPane, LiveTree, MatchesPane, PersonEditSheet, SaveSheet, widgets (date, phone, mool search, Devanagari keyboard, place search)
+    build/        BuildApp, ChatPane, LiveTree, PaneDivider, SocialShare, PersonEditSheet, SaveSheet, widgets (date, phone, mool search, Devanagari keyboard, place search)
     tree/         TreeView, ExportSheet, tree-templates.css
     ui/ landing/
   data/seed/      gotras.json, mools.json, villages.json
   lib/            family.ts (model + reducer + changeRelation) · interview.ts (planner, fixed steps) · list-turn.ts (step answers) · turn.ts (router) · agent.ts (LLM loop) · basic.ts (fallback)
                   lookup.ts (fuzzy search) · tree-filter.ts · chart.ts · pdf.ts · motifs.ts · translit.ts
-scripts/          build-seed.py; tests (run with `npx tsx`): _agent.test.ts, _steps.test.ts (step-by-step interview, replies to any earlier message, relationship repair), _tester.test.ts, _basic.test.mts, _panji.test.mts, _merge.test.ts, _sim.ts; _api.test.ts (needs a running dev server); _mockpg.mjs (fake Supabase)
+scripts/          build-seed.py; tests (run with `npx tsx`): _agent.test.ts, _steps.test.ts (step-by-step interview, replies to any earlier message, relationship repair), _tester.test.ts, _view.test.ts (view-link kinds and living-relative protection), _basic.test.mts, _panji.test.mts, _merge.test.ts, _sim.ts; _api.test.ts (needs a running dev server); _mockpg.mjs (fake Supabase)
 supabase/         schema.sql
 ```
 
 ## Before a public launch
 - Add a spend cap on the Anthropic key and a shared rate limiter (Upstash/Redis) — the in-memory limits are per serverless instance.
 - Photos → Supabase Storage; the matching/merge database (right-hand panel, can now be built on `persons`).
+
+## Going live on your own domain, with a staging site
+1. **Domain.** Vercel → your project → Settings → Domains → *Add*, then create the DNS records Vercel shows at your domain registrar. Wait until Vercel shows a green tick.
+2. **Tell the app its address.** In Vercel → Settings → Environment Variables set `NEXT_PUBLIC_SITE_URL` (for example `https://www.your-domain.com`) and `NEXT_PUBLIC_CONTACT_EMAIL`, then redeploy. Preview pictures for shared links and the privacy page use these.
+3. **Email that reaches everyone.** Resend → Domains → *Add domain* → add the DNS records it shows → *Verify*. Then set `EMAIL_FROM="Maithil Panji <login@your-domain.com>"` and redeploy. After that the tester list (`TEST_LOGIN_*`) is no longer needed.
+4. **Donations.** Set `NEXT_PUBLIC_DONATE_UPI_ID` / `NEXT_PUBLIC_DONATE_CARD_URL` and redeploy (see above).
+5. **Staging.** Create a Git branch called `staging`. Vercel builds every non-production branch as a *Preview*. Under Settings → Domains add `staging.your-domain.com` and assign it to the `staging` branch. Under Environment Variables, give the *Preview* environment its own values — above all a **separate Supabase project** (so test families never mix with real ones), a different `AUTH_SECRET`, and no donation variables. Working routine: commit to `staging` in GitHub Desktop → push → try it on the staging address → merge `staging` into `main` to release.
 
 ## Deploy (Vercel)
 Import the repo (framework preset: Next.js). Add the environment variables from `.env.example` (`ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`), run `supabase/schema.sql` in Supabase (re-run it after every update — it only adds what is missing), and redeploy.
