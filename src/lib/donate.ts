@@ -2,7 +2,7 @@
  * Voluntary contribution at download time. Amounts are suggested by country; nothing is ever required.
  * Set these in Vercel (all optional — with neither set, the contribution step is simply not shown):
  *   NEXT_PUBLIC_DONATE_UPI_ID    e.g. name@okaxis   (India: UPI link on phones, QR code on computers)
- *   NEXT_PUBLIC_DONATE_UPI_NAME  name shown in the UPI app, e.g. "Maithil Panji"
+ *   NEXT_PUBLIC_DONATE_UPI_NAME  name shown in the UPI app, e.g. "PAAG Foundation" (use the exact payee name of the account)
  *   NEXT_PUBLIC_DONATE_CARD_URL  a hosted payment link (Stripe / Razorpay / Buy Me a Coffee …) for everyone else.
  *                                May contain {amount} and {currency}; without them the amount is chosen on that page.
  */
@@ -46,12 +46,12 @@ export function guessCountry(): string {
 export interface DonateConfig { upiId: string; upiName: string; cardUrl: string }
 export const donateConfig = (): DonateConfig => ({
   upiId: (process.env.NEXT_PUBLIC_DONATE_UPI_ID ?? "").trim(),
-  upiName: (process.env.NEXT_PUBLIC_DONATE_UPI_NAME ?? "Maithil Panji").trim(),
+  upiName: (process.env.NEXT_PUBLIC_DONATE_UPI_NAME ?? "PAAG Foundation").trim(),
   cardUrl: (process.env.NEXT_PUBLIC_DONATE_CARD_URL ?? "").trim(),
 });
 
 export const upiLink = (c: DonateConfig, amount: number) =>
-  `upi://pay?pa=${encodeURIComponent(c.upiId)}&pn=${encodeURIComponent(c.upiName)}&am=${amount}&cu=INR&tn=${encodeURIComponent("Maithil Panji contribution")}`;
+  `upi://pay?pa=${encodeURIComponent(c.upiId)}&pn=${encodeURIComponent(c.upiName)}&am=${amount}&cu=INR&tn=${encodeURIComponent("PAAG Foundation contribution")}`;
 
 export const cardLink = (c: DonateConfig, amount: number, currency: string) =>
   /^https:\/\//.test(c.cardUrl) ? c.cardUrl.replace(/\{amount\}/g, String(amount)).replace(/\{currency\}/g, currency) : "";

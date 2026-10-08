@@ -22,9 +22,9 @@ export interface Woman {
   father?: string;
 }
 
-const TITLES = /\b(smt|shrimati|mrs|ms|devi|dai|daiji|kumari|babuain|musammat|mst|w\/o|d\/o)\b\.?/gi;
+export const TITLES = /\b(smt|shrimati|mrs|ms|devi|dai|daiji|kumari|babuain|musammat|mst|w\/o|d\/o)\b\.?/gi;
 export const givenName = (n: string) => n.replace(TITLES, " ").trim().split(/\s+/)[0] ?? "";
-const yearOf = (p: DPerson) => { const y = Number(/^\d{4}/.exec(p.birth ?? "")?.[0]); return y || undefined; };
+export const yearOf = (p: DPerson) => { const y = Number(/^\d{4}/.exec(p.birth ?? "")?.[0]); return y || undefined; };
 
 /** married women in this tree who are not linked yet */
 export function womenToMatch(f: DFamily): Woman[] {
@@ -47,7 +47,7 @@ export function prefixesFor(name: string): string[] {
   return c === "v" ? ["v", "b", "w"] : c === "j" ? ["j", "z"] : [c];
 }
 
-function lev(a: string, b: string): number {
+export function lev(a: string, b: string): number {
   const m = a.length, n = b.length;
   if (!m) return n;
   let prev = Array.from({ length: n + 1 }, (_, j) => j);
@@ -59,7 +59,7 @@ function lev(a: string, b: string): number {
   return prev[n]!;
 }
 /** 3 = same, 2 = one letter apart (spelling), 0 = different */
-function nameSim(a: string, b: string): number {
+export function nameSim(a: string, b: string): number {
   const x = fold(givenName(a)), y = fold(givenName(b));
   if (!x || !y) return 0;
   if (x === y) return 3;
@@ -125,13 +125,13 @@ export interface Preview {
   connects: PreviewPerson[];
 }
 
-const living = (p: DPerson) => {
+export const living = (p: DPerson) => {
   if (p.status === "deceased") return false;
   if (p.status === "living") return true;
   const y = yearOf(p);
   return !(y && y <= new Date().getFullYear() - 100);
 };
-const firstOf = (n: string) => n.trim().split(/\s+/)[0] ?? n;
+export const firstOf = (n: string) => n.trim().split(/\s+/)[0] ?? n;
 
 export function previewOf(f: DFamily, personId: string, treeTitle: string): Preview | null {
   const p = f.persons.find((x) => x.id === personId);

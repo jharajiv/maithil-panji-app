@@ -163,3 +163,9 @@ create table if not exists public.suggestions (
 );
 create index if not exists suggestions_tree_idx on public.suggestions (tree_id, status);
 alter table public.suggestions enable row level security;
+
+-- 8. PROFILE — the extra facts a person adds about themselves (pravar, native village, city, marital status…) in "My profile".
+--    Kept as one JSON column on the account. Safe to run again.
+alter table public.accounts add column if not exists profile jsonb;
+-- Similar-tree matching (same gotra + mool) reads the flat people table, so these two make it fast:
+create index if not exists persons_is_me_idx on public.persons (gotra, mool) where is_me;

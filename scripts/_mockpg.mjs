@@ -15,10 +15,15 @@ const srv = http.createServer(async (req, res) => {
       const want = JSON.parse(u.searchParams.get("members").slice(3))[0];
       return send(200, [...trees.values()].filter((t) => t.members.some((m) => Object.entries(want).every(([k, v]) => m[k] === v))));
     }
+    if (req.method === "GET" && !u.searchParams.get("id")) return send(200, [...trees.values()]);
     if (req.method === "GET") { const r = trees.get(eq("id")); return send(200, r ? [r] : []); }
     if (req.method === "PATCH") { const r = trees.get(eq("id")); if (!r || (eq("rev") !== undefined && String(r.rev) !== eq("rev"))) return send(200, []); const n = { ...r, ...body }; trees.set(r.id, n); return send(200, [n]); }
   }
   if (u.pathname === "/rest/v1/trees" && req.method === "DELETE") { const r = trees.get(eq("id")); if (!r) return send(200, []); trees.delete(r.id); for (const [k, v] of persons) if (v.tree_id === r.id) persons.delete(k); rels = rels.filter((x) => x.tree_id !== r.id); return send(200, [r]); }
+  if (u.pathname === "/rest/v1/persons" && req.method === "GET" && u.searchParams.get("is_me")) {
+    const like = (v, pat) => !!pat && new RegExp("^" + pat.replace(/^ilike\./, "").replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") + "$", "i").test(v ?? "");
+    return send(200, [...persons.values()].filter((p) => p.is_me && like(p.gotra, u.searchParams.get("gotra")) && like(p.mool, u.searchParams.get("mool"))).map((p) => ({ tree_id: p.tree_id })));
+  }
   if (u.pathname === "/rest/v1/persons") {
     if (!trees.has(body?.[0]?.tree_id ?? eq("tree_id"))) return send(409, { message: "fk" });
     if (req.method === "POST") { for (const r of body) persons.set(r.tree_id + "/" + r.person_id, r); return send(201); }
@@ -31,6 +36,7 @@ const srv = http.createServer(async (req, res) => {
   if (u.pathname === "/rest/v1/accounts") {
     if (req.method === "POST") { if (accounts.has(body.id) || [...accounts.values()].some((a) => a.email === body.email)) return send(409, {}); accounts.set(body.id, body); return send(201); }
     if (req.method === "GET") return send(200, [...accounts.values()].filter((a) => (eq("id") ? a.id === eq("id") : a.email === eq("email"))));
+    if (req.method === "PATCH") { const a = accounts.get(eq("id")); if (!a) return send(200, []); const n = { ...a, ...body }; accounts.set(a.id, n); return send(200, [n]); }
     if (req.method === "DELETE") { accounts.delete(eq("id")); return send(204); }
   }
   if (u.pathname === "/rest/v1/login_codes") {

@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
+import { SiteFooter } from "@/components/landing/SiteFooter";
 
-export const metadata: Metadata = { title: "Privacy — Maithil Panji", description: "What Maithil Panji keeps, who can see it, and how to have it removed." };
+export const metadata: Metadata = { title: "Privacy — Maithil Panji · PAAG Foundation", description: "What Maithil Panji (PAAG Foundation) keeps, who can see it, and how to have it removed." };
 
-const UPDATED = "7 October 2026";
+const UPDATED = "8 October 2026";
 const contact = process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim();
 
 function H({ children }: { children: React.ReactNode }) { return <h2 className="font-display mt-9 text-xl font-semibold text-indigo">{children}</h2>; }
@@ -30,9 +31,12 @@ export default function Privacy() {
           </ul>
         </section>
 
+        <H>Who we are</H>
+        <P>Maithil Panji is run by <Link href="/about" className="underline">PAAG Foundation</Link> (Panji Ancestry &amp; Graph), at paag.org.in. When this page says “we”, it means PAAG Foundation.</P>
+
         <H>The short version</H>
         <L>
-          <li>Maithil Panji is a community project to help Maithil families record their lineage in the Panji Prabandh tradition.</li>
+          <li>Maithil Panji is a community project of PAAG Foundation (Panji Ancestry &amp; Graph, paag.org.in) to help Maithil families record their lineage in the Panji Prabandh tradition.</li>
           <li>Your tree belongs to you. We do not sell your data, show advertising, or pass it to marketers.</li>
           <li>Until you choose to save it online, your tree stays on your own phone or computer.</li>
           <li>You can delete your online tree yourself at any time.</li>
@@ -42,9 +46,11 @@ export default function Privacy() {
         <L>
           <li><strong>Your tree</strong> — names, relationships, and anything you choose to add such as birth year, village, gotra, mool and photos. It is kept on this device. If you save it online, a copy is stored on our database provider so you can open it on other phones and invite relatives.</li>
           <li><strong>Your email address and name</strong> — to sign you in with a one-time code (no password). We use the email address only for sign-in codes and, if you ask, for a message about your tree.</li>
+          <li><strong>Sign in with Google</strong> — if you choose “Continue with Google”, Google tells us your email address (confirmed) and your name, and nothing else. We do not receive your Google password, contacts or other data.</li>
+          <li><strong>Your profile</strong> — if you add them in “My profile”: your mobile number, pravar, native village, city, address, marital status, occupation and a short note about yourself. Gotra and mool come from your tree. None of it is public or searchable.</li>
           <li><strong>Phone numbers of relatives</strong> — only if you invite someone on WhatsApp. The number is used to open WhatsApp for you. It is never shown on shared view-only pages.</li>
           <li><strong>Your consent</strong> — we record that you agreed to the terms of sharing a family tree, and when.</li>
-          <li><strong>Simple usage counts</strong> — we count how often the sample tree is opened, trees are started and saved, PDFs are downloaded, share buttons are used, corrections are suggested and women are linked. Each count is only a name and a time: no name, no tree, no IP address, no cookie.</li>
+          <li><strong>Simple usage counts</strong> — we count how often the sample tree is opened, trees are started and saved, PDFs are downloaded, share buttons are used, corrections are suggested, women are linked, owners are put in touch, and people sign in with Google. Each count is only a name and a time: no name, no tree, no IP address, no cookie.</li>
           <li><strong>Roughly where you are</strong> — the country your connection comes from, used only to suggest a sensible contribution amount. It is not stored.</li>
         </L>
 
@@ -61,6 +67,7 @@ export default function Privacy() {
         <H>Sharing your tree with others</H>
         <P>There are two ways to share, and they are different on purpose.</P>
         <L>
+          <li><strong>Let families find each other (off until you switch it on).</strong> If you do, your tree is compared with other trees that also agreed: married women are matched, and trees with the same gotra and mool are compared to see whether the same family was entered twice. Another owner sees a preview only for a tree that looks similar to theirs, with living people by first name only. If you ask an owner to connect — or accept their request — your name and profile details are shown to that one owner, and your mobile number and email too, because you agree to that for that request. Nothing is merged or linked unless the owners confirm it.</li>
           <li><strong>Invite someone to help.</strong> Invited relatives can edit your tree. Only invite people you trust. You can remove access at any time.</li>
           <li><strong>Show your tree (view-only link).</strong> Anyone who has the link can look at the tree. They cannot edit it, download it, or see phone numbers or private notes. By default, living relatives appear by first name only; their birth dates, villages and photos stay hidden, and people not recorded as having passed away are treated as living. You can choose “show full details” instead, but then everything entered about living relatives is visible to anyone who gets the link — including if it is forwarded.</li>
         </L>
@@ -89,6 +96,7 @@ export default function Privacy() {
         <P>If this page changes in a way that matters, we will say so here.</P>
         {contact && <P>Questions: <a className="underline" href={`mailto:${contact}`}>{contact}</a></P>}
       </div>
+      <SiteFooter />
     </div>
   );
 }

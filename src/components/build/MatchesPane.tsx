@@ -7,6 +7,8 @@ import type { DFamily } from "@/lib/family";
 import type { Candidate, Preview } from "@/lib/connect";
 import type { Connect } from "./useConnect";
 import type { Activity } from "./useShare";
+import type { Similar } from "./useSimilar";
+import { SimilarTrees } from "./SimilarTrees";
 
 /** the other tree, as much as is safe to show: the woman herself and her immediate family (living people by first name only) */
 export function PreviewBody({ preview }: { preview: Preview }) {
@@ -83,6 +85,7 @@ export interface MatchesProps {
   online: boolean;
   role?: "owner" | "editor";
   connect: Connect;
+  similar: Similar;
   discoverable: boolean;
   onDiscoverable: (on: boolean) => Promise<void>;
   activity: Activity[];
@@ -90,7 +93,7 @@ export interface MatchesProps {
   onOpenShare: () => void;
 }
 
-export function MatchesPane({ className, family, online, role, connect, discoverable, onDiscoverable, activity, onSee, onOpenShare }: MatchesProps) {
+export function MatchesPane({ className, family, online, role, connect, similar, discoverable, onDiscoverable, activity, onSee, onOpenShare }: MatchesProps) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const linked = family.persons.filter((p) => p.links?.length);
@@ -126,8 +129,10 @@ export function MatchesPane({ className, family, online, role, connect, discover
           </div>
         ) : (
           <>
+            <SimilarTrees sim={similar} />
+
             <section aria-label="Possible matches" className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Possible matches</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Married women who may be in another tree</h3>
               {connect.loading && !connect.data && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Looking…</p>}
               {connect.error && <p role="alert" className="text-sm text-terracotta">{connect.error} <button className="underline" onClick={() => connect.reload()}>Try again</button></p>}
               {connect.matches.length > 0 && <ul className="space-y-3">{connect.matches.map((m) => <CandidateCard key={`${m.person}|${m.tree}|${m.treePerson}`} m={m} connect={connect} canAct />)}</ul>}

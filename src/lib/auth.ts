@@ -8,6 +8,7 @@
  */
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { parsePhoneNumberFromString } from "libphonenumber-js/min";
+import { googleEnabled } from "./google";
 import { getStore, hashToken, newAccountId, type AccountRow, type Member, type Store, type TreeRow } from "./store";
 
 export const SESSION_COOKIE = "pj_session";
@@ -30,8 +31,11 @@ const testerCode = () => { const c = (process.env.TEST_LOGIN_CODE ?? "").trim();
 const testerEmails = () => new Set((process.env.TEST_LOGIN_EMAILS ?? "").split(/[,;\s]+/).map((e) => normalizeEmail(e)).filter((e): e is string => !!e));
 export const isTester = (email: string) => !!testerCode() && testerEmails().has(email);
 
+/** can people sign in with an emailed code (or the tester code)? false when Google is the only way in */
+export const emailLoginEnabled = () => !!otpProvider() || !!testerCode();
+
 /** AUTH_OFF=1 switches accounts off (used to test the guest/private-link flow) */
-export const authEnabled = () => !process.env.AUTH_OFF && !!getStore() && (!!otpProvider() || !!testerCode());
+export const authEnabled = () => !process.env.AUTH_OFF && !!getStore() && (!!otpProvider() || !!testerCode() || googleEnabled());
 
 /** any way of typing an email → lower-case address, or null when it cannot be one */
 export function normalizeEmail(raw: unknown): string | null {
@@ -54,10 +58,11 @@ const codeHash = (email: string, code: string) => createHash("sha256").update(`$
 async function sendEmail(to: string, code: string): Promise<boolean> {
   const r = resend()!;
   const html = `<div style="font-family:Georgia,serif;max-width:420px;margin:auto;padding:24px;color:#1f2a5c">
-<p style="letter-spacing:.2em;font-size:12px;color:#b5482a;margin:0 0 12px">MAITHIL PANJI</p>
+<p style="letter-spacing:.2em;font-size:12px;color:#b5482a;margin:0 0 12px">MAITHIL PANJI · PAAG FOUNDATION</p>
 <p style="font-size:16px;margin:0 0 8px">Your sign-in code is</p>
 <p style="font-size:34px;letter-spacing:.35em;font-weight:bold;margin:0 0 16px">${code}</p>
-<p style="font-size:14px;color:#555;margin:0">It works for ${CODE_MINUTES} minutes. If you did not ask for it, you can ignore this email.</p></div>`;
+<p style="font-size:14px;color:#555;margin:0">It works for ${CODE_MINUTES} minutes. If you did not ask for it, you can ignore this email.</p>
+<p style="font-size:12px;color:#888;margin:16px 0 0">PAAG Foundation (Panji Ancestry &amp; Graph) · paag.org.in</p></div>`;
   const res = await fetch(process.env.RESEND_API_URL ?? "https://api.resend.com/emails", {
     method: "POST", cache: "no-store",
     headers: { Authorization: `Bearer ${r.key}`, "content-type": "application/json" },
@@ -91,7 +96,7 @@ export async function checkLoginCode(store: Store, email: string, code: string):
 }
 
 /* ───────── sessions ───────── */
-const readCookie = (req: Request, name: string) => {
+export const readCookie = (req: Request, name: string) => {
   for (const part of (req.headers.get("cookie") ?? "").split(";")) {
     const i = part.indexOf("=");
     if (i > 0 && part.slice(0, i).trim() === name) return decodeURIComponent(part.slice(i + 1).trim());
@@ -158,3 +163,10 @@ export const publicMember = (m: Member, forOwner: boolean) => ({
 /** the secret in an invitation link: random, single-use, stored only as a hash */
 export const newInviteSecret = () => randomBytes(18).toString("base64url");
 export const inviteHash = (secret: string) => hashToken(secret);
+
+/** operators of the site: the emails in ADMIN_EMAILS (comma separated). They must still be signed in with that address. */
+export const isAdmin = (a: AccountRow | null) => {
+  if (!a) return false;
+  const list = (process.env.ADMIN_EMAILS ?? "").split(/[,;\s]+/).map((e) => normalizeEmail(e)).filter(Boolean);
+  return list.includes(a.email);
+};

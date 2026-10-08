@@ -1,10 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, GitMerge, ListChecks, MapPin, Printer, Sprout, Users } from "lucide-react";
+import { ArrowRight, BookOpen, GitMerge, Languages, ListChecks, Network, Printer, Sparkles, Sprout, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Motif, PatternBand } from "@/components/landing/Motif";
 import { AuthLink, StartLink } from "@/components/account/AuthLink";
 import { StickyStart } from "@/components/landing/StickyStart";
+import { SiteFooter } from "@/components/landing/SiteFooter";
+import { ORG_NAME } from "@/lib/site";
 
 const TEMPLATES = [
   { id: "classic", name: "Classic", blurb: "Warm, formal, built for printing.", img: "/templates/classic.png" },
@@ -27,10 +29,16 @@ function Cta({ className, onDark }: { className?: string; onDark?: boolean }) {
   );
 }
 
+const NOW = [
+  { icon: GitMerge, title: "Find the same family, entered twice", text: "If you agree, we compare your tree with others that have the same gotra and mool, and show how alike they are. You can preview them and ask the other owner to get in touch." },
+  { icon: Users, title: "Trees joined through daughters", text: "A daughter belongs to her father’s tree and to her husband’s. Confirm the match and the two trees are linked, so families can see how they are related." },
+  { icon: Network, title: "How are we connected?", text: "Once trees are linked, see your path to another family: through whom, and in how many steps. Only families who chose to take part appear." },
+] as const;
+
 const SOON = [
-  { icon: GitMerge, title: "Find and connect family trees", text: "As more families join and records are digitised, we will suggest trees that match the names, gotra, mool and villages you enter — and let you connect them with one tap." },
-  { icon: Users, title: "Trees joined through daughters", text: "A daughter belongs to her father’s tree and to her husband’s. Soon you will be able to link the two, so families can discover how they are related." },
-  { icon: MapPin, title: "Relatives from your village", text: "If you choose to, see families from your mool and nearby villages, and say yes or no to being introduced. Nothing is shown about you without your permission." },
+  { icon: BookOpen, title: "The digitised Panji records", text: "We are working with Panjikars to convert the traditional records into a searchable form, so your family can find its place in them." },
+  { icon: Languages, title: "Maithili in the chat", text: "Questions in Hindi are here today. Maithili is next, once native speakers have reviewed the wording." },
+  { icon: Sparkles, title: "Richer family profiles", text: "Pravar, native village and more, so relatives can recognise each other. This part is live now for signed-in families, and we will keep growing it." },
 ] as const;
 
 export default function Home() {
@@ -43,7 +51,7 @@ export default function Home() {
         <Motif name="sun" className="pointer-events-none absolute right-4 top-7 size-16 opacity-90 sm:right-10 sm:top-10 sm:size-44" />
         <Motif name="fish" className="pointer-events-none absolute bottom-6 left-4 size-16 opacity-90 sm:left-10 sm:size-32" />
         <div className="relative mx-auto max-w-4xl px-5 pb-28 pt-28 text-center sm:pb-24 sm:pt-28">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-terracotta">Maithil Panji</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-terracotta">Maithil Panji <span className="text-indigo/50">·</span> by {ORG_NAME}</p>
           <h1 className="font-display mt-3 text-4xl font-bold leading-tight text-indigo sm:text-6xl">
             Preserve your Maithil ancestry.
             <br />Build a tree. Join the lineage.
@@ -98,22 +106,39 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Coming soon — moved here from the builder so the chat and tree get the whole screen */}
-      <section className="mx-auto max-w-5xl px-5 py-14" aria-labelledby="soon">
-        <h2 id="soon" className="font-display text-2xl font-semibold sm:text-3xl">Coming soon</h2>
-        <p className="mt-1 text-muted-foreground">What we are building next. Your tree today becomes the starting point for these.</p>
+      {/* What is already here */}
+      <section className="mx-auto max-w-5xl px-5 py-14" aria-labelledby="now">
+        <h2 id="now" className="font-display text-2xl font-semibold sm:text-3xl">More than a tree</h2>
+        <p className="mt-1 text-muted-foreground">Families who sign in can find each other. It is off until you switch it on, and nothing is linked without your yes.</p>
         <ul className="mt-6 grid gap-4 md:grid-cols-3">
-          {SOON.map((c) => (
-            <li key={c.title} className="rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-5">
-              <div className="flex items-center justify-between">
-                <c.icon className="size-6 text-terracotta" />
-                <span className="rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">Coming soon</span>
-              </div>
+          {NOW.map((c) => (
+            <li key={c.title} className="rounded-2xl border bg-card p-5">
+              <c.icon className="size-6 text-terracotta" />
               <h3 className="mt-3 font-semibold">{c.title}</h3>
               <p className="mt-1 text-sm text-muted-foreground">{c.text}</p>
             </li>
           ))}
         </ul>
+      </section>
+
+      {/* Coming soon */}
+      <section className="border-t bg-secondary/40" aria-labelledby="soon">
+        <div className="mx-auto max-w-5xl px-5 py-14">
+          <h2 id="soon" className="font-display text-2xl font-semibold sm:text-3xl">Coming soon</h2>
+          <p className="mt-1 text-muted-foreground">What {ORG_NAME} is building next. Your tree today becomes the starting point for these.</p>
+          <ul className="mt-6 grid gap-4 md:grid-cols-3">
+            {SOON.map((c) => (
+              <li key={c.title} className="rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-5">
+                <div className="flex items-center justify-between">
+                  <c.icon className="size-6 text-terracotta" />
+                  <span className="rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">Coming soon</span>
+                </div>
+                <h3 className="mt-3 font-semibold">{c.title}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">{c.text}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
       </section>
 
       {/* Footer CTA */}
@@ -124,9 +149,9 @@ export default function Home() {
           <div className="mt-6 flex justify-center">
             <Cta onDark />
           </div>
-          <p className="mt-6 text-sm text-cream/70">A community project preserving the Panji Prabandh. · <Link href="/privacy" className="underline underline-offset-2 hover:text-cream">Privacy</Link></p>
         </div>
       </section>
+      <SiteFooter dark />
 
       {/* phones: the main action stays in reach once the hero button has scrolled away */}
       <StickyStart watch="hero-cta"><Cta className="h-14 w-full text-base" /></StickyStart>

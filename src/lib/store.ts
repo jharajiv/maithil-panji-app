@@ -7,7 +7,10 @@
 import { createHash, randomBytes } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { fold } from "./lookup";
 import type { DFamily } from "./family";
+import type { CombineDelta } from "./combine";
+import type { Profile } from "./profile";
 import { flatten, type PersonRow, type RelRow } from "./flatten";
 
 /**
@@ -24,11 +27,25 @@ export interface Member {
   discoverable?: boolean;
   /** owner only: short notes about changes others made (a link confirmed, a correction applied) — newest last, at most 30 */
   activity?: { at: string; by: string; text: string }[];
+  /** owner only: requests to connect with the owner of a similar tree (sent "out" or received "in"), at most 40 */
+  requests?: ConnectRequest[];
+  /** owner only: the last combine of two trees, kept so it can be undone */
+  combine_undo?: { at: string; req: string; title: string; delta: CombineDelta };
+}
+/** what the other owner is shown about a person: community facts always, contact details because they agreed to share them with this one request */
+export interface OwnerCard { name: string; pravar?: string; native_place?: string; current_city?: string; marital_status?: string; occupation?: string; about?: string; phone?: string; email?: string; address?: string }
+export interface ConnectRequest {
+  id: string; dir: "in" | "out"; tree: string; title: string; percent: number; message?: string; at: string;
+  status: "pending" | "accepted" | "declined";
+  /** the other owner: on an incoming request, the person who asked; on an outgoing one, filled in once they accept */
+  who?: OwnerCard;
+  /** once connected, one owner may offer their whole tree to be combined into the other's (the same note sits on both sides) */
+  combine?: { from: string; status: "offered" | "applied"; at: string };
 }
 export interface Suggestion { id: string; tree_id: string; person_id: string; field: string; value: string; note?: string; from_name?: string; created_at: string; status: "new" | "applied" | "dismissed" }
 export interface TreeRow { id: string; family: DFamily; rev: number; members: Member[]; updated_at: string; title?: string; people_count?: number }
 export type TreeSummary = Pick<TreeRow, "id" | "members" | "updated_at" | "title" | "people_count">;
-export interface AccountRow { id: string; email: string; phone?: string; name: string; created_at: string; consent_version?: string }
+export interface AccountRow { id: string; email: string; phone?: string; name: string; created_at: string; consent_version?: string; profile?: Profile }
 /** a pending one-time sign-in code (only its hash is kept) */
 export interface LoginCode { email: string; code_hash: string; expires_at: string; attempts: number }
 export interface SessionRow { token_hash: string; account_id: string; expires_at: string; created_at: string }
@@ -49,6 +66,8 @@ export interface Store {
   setLoginAttempts(email: string, attempts: number): Promise<void>;
   deleteLoginCode(email: string): Promise<void>;
   createAccount(row: AccountRow): Promise<void>;
+  /** change the name, mobile or profile of an account (a field set to null is removed) */
+  updateAccount(id: string, patch: { name?: string; phone?: string | null; profile?: Profile }): Promise<AccountRow | null>;
   /** removes the account and its sessions; trees it owns are NOT touched here */
   deleteAccount(id: string): Promise<void>;
   createSession(row: SessionRow): Promise<void>;
@@ -65,6 +84,10 @@ export interface Store {
   deleteTree(id: string): Promise<boolean>;
   /** women whose name starts with any of these letters (1–3 each), in any tree — used to find the same woman in another family's tree */
   findWomen(prefixes: string[], limit?: number): Promise<{ tree_id: string; person_id: string }[]>;
+  /** ids of other trees whose root person has this gotra AND mool (the first filter for "may be the same family") */
+  findTreesBySameStock(gotra: { id?: string; roman: string }, mool: { id?: string; roman: string }, limit?: number): Promise<string[]>;
+  /** every tree, newest first — admin tools only */
+  listAllTrees(limit?: number): Promise<TreeRow[]>;
   /* corrections suggested by people viewing a tree */
   addSuggestion(row: Suggestion): Promise<void>;
   listSuggestions(treeId: string): Promise<Suggestion[]>;
@@ -108,6 +131,15 @@ function supabase(url: string, key: string): Store {
     async setLoginAttempts(email, attempts) { await call(`login_codes?email=eq.${encodeURIComponent(email)}`, { method: "PATCH", body: JSON.stringify({ attempts }), prefer: "return=minimal" }); },
     async deleteLoginCode(email) { await call(`login_codes?email=eq.${encodeURIComponent(email)}`, { method: "DELETE", prefer: "return=minimal" }); },
     async createAccount(row) { await call("accounts", { method: "POST", body: JSON.stringify(row), prefer: "return=minimal" }); },
+    async updateAccount(id, patch) {
+      const body: Record<string, unknown> = {};
+      if (patch.name !== undefined) body.name = patch.name;
+      if (patch.phone !== undefined) body.phone = patch.phone;
+      if (patch.profile !== undefined) body.profile = patch.profile;
+      if (!Object.keys(body).length) return ((await call(`accounts?id=eq.${encodeURIComponent(id)}&select=*`)) as AccountRow[])[0] ?? null;
+      const rows = (await call(`accounts?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body), prefer: "return=representation" })) as AccountRow[];
+      return rows[0] ?? null;
+    },
     async deleteAccount(id) {
       await call(`sessions?account_id=eq.${encodeURIComponent(id)}`, { method: "DELETE", prefer: "return=minimal" });
       await call(`accounts?id=eq.${encodeURIComponent(id)}`, { method: "DELETE", prefer: "return=minimal" });
@@ -129,6 +161,12 @@ function supabase(url: string, key: string): Store {
       const or = ps.map((x) => `name_roman.ilike.${x}*`).join(",");
       return (await call(`persons?gender=eq.female&or=(${encodeURIComponent(or)})&select=tree_id,person_id&limit=${limit}`)) as { tree_id: string; person_id: string }[];
     },
+    async findTreesBySameStock(gotra, mool, limit = 200) {
+      const pat = (x: string) => encodeURIComponent(x.trim().replace(/[^A-Za-z0-9 ]+/g, "*"));
+      const rows = (await call(`persons?is_me=eq.true&gotra=ilike.${pat(gotra.roman)}&mool=ilike.${pat(mool.roman)}&select=tree_id&limit=${limit}`)) as { tree_id: string }[];
+      return [...new Set(rows.map((r) => r.tree_id))];
+    },
+    async listAllTrees(limit = 5000) { return (await call(`trees?select=*&order=updated_at.desc&limit=${limit}`)) as TreeRow[]; },
     async addSuggestion(row) { await call("suggestions", { method: "POST", body: JSON.stringify(row), prefer: "return=minimal" }); },
     async listSuggestions(treeId) { return (await call(`suggestions?tree_id=eq.${encodeURIComponent(treeId)}&status=eq.new&order=created_at.desc&limit=100&select=*`)) as Suggestion[]; },
     async resolveSuggestion(treeId, id, status) {
@@ -156,7 +194,7 @@ function supabase(url: string, key: string): Store {
 
 /* ───────── local JSON file (development) ───────── */
 function file(): Store {
-  const dir = path.join(process.cwd(), ".data");
+  const dir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(process.cwd(), ".data"); // DATA_DIR: keep the dev file outside the project so editing/testing never makes the dev server recompile
   const f = path.join(dir, "store.json");
   type Db = { suggestions?: Suggestion[]; events?: { name: string; at: string }[]; trees: Record<string, TreeRow>; refs: Record<string, RefRow>; persons?: PersonRow[]; rels?: RelRow[]; consents?: ConsentRow[]; accounts?: AccountRow[]; sessions?: SessionRow[]; codes?: LoginCode[] };
   const read = async (): Promise<Db> => { try { return JSON.parse(await fs.readFile(f, "utf8")) as Db; } catch { return { trees: {}, refs: {} }; } };
@@ -181,6 +219,13 @@ function file(): Store {
     setLoginAttempts: (email, attempts) => lock(async () => { const db = await read(); for (const c of db.codes ?? []) if (c.email === email) c.attempts = attempts; await write(db); }),
     deleteLoginCode: (email) => lock(async () => { const db = await read(); db.codes = (db.codes ?? []).filter((c) => c.email !== email); await write(db); }),
     createAccount: (row) => lock(async () => { const db = await read(); (db.accounts ??= []).push(row); await write(db); }),
+    updateAccount: (id, patch) => lock(async () => {
+      const db = await read(); const a = db.accounts?.find((x) => x.id === id); if (!a) return null;
+      if (patch.name !== undefined) a.name = patch.name;
+      if (patch.phone !== undefined) { if (patch.phone === null) delete a.phone; else a.phone = patch.phone; }
+      if (patch.profile !== undefined) a.profile = patch.profile;
+      await write(db); return a;
+    }),
     deleteAccount: (id) => lock(async () => { const db = await read(); db.accounts = (db.accounts ?? []).filter((a) => a.id !== id); db.sessions = (db.sessions ?? []).filter((x) => x.account_id !== id); await write(db); }),
     createSession: (row) => lock(async () => { const db = await read(); (db.sessions ??= []).push(row); await write(db); }),
     getSession: (h) => lock(async () => (await read()).sessions?.find((x) => x.token_hash === h) ?? null),
@@ -197,6 +242,11 @@ function file(): Store {
       for (const t of Object.values((await read()).trees)) for (const x of t.family.persons) if (x.gender === "female" && ps.some((q) => x.name_roman.toLowerCase().startsWith(q))) out.push({ tree_id: t.id, person_id: x.id });
       return out.slice(0, limit);
     }),
+    findTreesBySameStock: (gotra, mool, limit = 200) => lock(async () => {
+      const same = (r: { id?: string; roman?: string } | undefined, w: { id?: string; roman: string }) => !!r && (r.id && w.id ? r.id === w.id : fold(r.roman ?? "") === fold(w.roman) && !!fold(w.roman));
+      return Object.values((await read()).trees).filter((t) => { const me = t.family.persons.find((x) => x.is_me); return same(me?.gotra, gotra) && same(me?.mool, mool); }).map((t) => t.id).slice(0, limit);
+    }),
+    listAllTrees: (limit = 5000) => lock(async () => Object.values((await read()).trees).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, limit)),
     addSuggestion: (row) => lock(async () => { const db = await read(); db.suggestions = [...(db.suggestions ?? []), row]; await write(db); }),
     listSuggestions: (treeId) => lock(async () => ((await read()).suggestions ?? []).filter((x) => x.tree_id === treeId && x.status === "new").sort((a, b) => b.created_at.localeCompare(a.created_at))),
     resolveSuggestion: (treeId, id, status) => lock(async () => { const db = await read(); const s = db.suggestions?.find((x) => x.tree_id === treeId && x.id === id); if (!s) return false; s.status = status; await write(db); return true; }),

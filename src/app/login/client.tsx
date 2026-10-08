@@ -4,5 +4,5 @@ import { LoginForm } from "@/components/account/LoginForm";
 
 export function LoginClient() {
   const q = useSearchParams();
-  return <LoginForm next={q.get("next") ?? undefined} />;
+  return <LoginForm next={q.get("next") ?? undefined} error={q.get("error") ?? undefined} />;
 }

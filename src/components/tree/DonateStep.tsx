@@ -59,7 +59,7 @@ export function DonateStep({ onContinue, onBack }: { onContinue: () => void; onB
       <button type="button" onClick={onBack} className="mb-2 text-sm text-muted-foreground underline-offset-2 hover:underline">← Back</button>
       <h2 className="font-display text-2xl font-semibold">Your family tree is ready</h2>
       <p className="mt-2 text-muted-foreground">
-        Maithil Panji is a free community project to keep our family records safe for the next generation. If it was useful to you, a small contribution helps us keep it free for every family.
+        Maithil Panji, a project of PAAG Foundation, is a free community effort to keep our family records safe for the next generation. If it was useful to you, a small contribution helps us keep it free for every family.
       </p>
 
       <div role="radiogroup" aria-label="Contribution amount" className="mt-4 grid grid-cols-4 gap-2 max-sm:grid-cols-2">

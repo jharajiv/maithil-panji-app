@@ -23,6 +23,7 @@ import { FreeformEditor } from "./FreeformEditor";
 import { HelperPane } from "./HelperPane";
 import { MatchesPane, PreviewBody } from "./MatchesPane";
 import { useConnect } from "./useConnect";
+import { useSimilar } from "./useSimilar";
 import { useSuggestions } from "./useSuggestions";
 import { SuggestionsSheet } from "./SuggestionsSheet";
 import { ChatRail, PaneDivider, SoonRail, usePaneLayout } from "./PaneDivider";
@@ -121,6 +122,8 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const sh = useShare(family, setFamily, ready, { treeId });
   const isHelper = sh.share?.role === "editor";
   const cx = useConnect(sh.share, family, { qs: sh.keyQs, body: sh.keyBody }, sh.refresh, sh.discoverable);
+  const simSig = family.persons.length + "|" + (family.persons.find((p) => p.is_me)?.gotra?.roman ?? "") + "|" + (family.persons.find((p) => p.is_me)?.mool?.roman ?? "");
+  const sm = useSimilar(sh.share?.treeId, sh.keyQs, sh.share?.role, sh.discoverable, simSig, sh.refresh);
   const sg = useSuggestions(sh.share, { qs: sh.keyQs, body: sh.keyBody }, sh.refresh);
   const [sgOpen, setSgOpen] = useState(false);
   const [see, setSee] = useState<{ person: string; tree: string; p: string; state?: { loading?: boolean; preview?: import("@/lib/connect").Preview; error?: string } } | null>(null);
@@ -288,7 +291,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
       still: stillTo,
     };
   })();
-  const matchesProps = { family, online: !!sh.share, role: sh.share?.role, connect: cx, discoverable: sh.discoverable, onDiscoverable: sh.setDiscoverable, activity: sh.activity, onSee: seeLinked, onOpenShare: () => { setInviteFor(undefined); setShareOpen(true); } };
+  const matchesProps = { family, online: !!sh.share, role: sh.share?.role, connect: cx, similar: sm, discoverable: sh.discoverable, onDiscoverable: sh.setDiscoverable, activity: sh.activity, onSee: seeLinked, onOpenShare: () => { setInviteFor(undefined); setShareOpen(true); } };
   const leftPane = (cls: string) => isHelper
     ? <HelperPane className={cls} name={sh.share?.memberName} onOpenShare={() => { setInviteFor(undefined); setShareOpen(true); }} ownTreeHref={inAccount ? "/app" : undefined} />
     : <ChatPane className={cls} messages={messages} busy={busy} onSend={send} section={section} mode={mode}

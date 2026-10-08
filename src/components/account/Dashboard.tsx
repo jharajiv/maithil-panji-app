@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, Loader2, LogOut, Plus, Trees } from "lucide-react";
+import { ArrowRight, Loader2, LogOut, Network, Plus, Trees } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { familyFor } from "@/lib/new-tree";
 import { useAccount } from "./useAccount";
@@ -31,6 +31,7 @@ export function Dashboard() {
   const [draft, setDraft] = useState<{ family: unknown; people: number } | null>(null);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  const [complete, setComplete] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/me/trees", { cache: "no-store" });
@@ -43,6 +44,7 @@ export function Dashboard() {
     if (!auth.enabled) { router.replace("/build"); return; }
     if (!auth.account) { router.replace("/login?next=/app"); return; }
     load().catch(() => setErr("Could not load your trees. Please refresh."));
+    fetch("/api/me/profile", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((j) => j && setComplete(j.complete)).catch(() => {});
     setDraft(localDraft());
   }, [auth.loading, auth.enabled, auth.account, load, router]);
 
@@ -87,13 +89,25 @@ export function Dashboard() {
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-5 py-3">
           <Link href="/" className="text-xs font-semibold uppercase tracking-[0.2em] text-terracotta">Maithil Panji</Link>
           <span className="flex-1" />
-          <span className="truncate text-sm text-muted-foreground">{auth.account.name}</span>
+          <Link href="/app/profile" className="truncate text-sm font-medium text-indigo underline-offset-4 hover:underline">{auth.account.name}</Link>
           <Button size="sm" variant="outline" onClick={async () => { await auth.logout(); router.replace("/"); }}><LogOut /> Sign out</Button>
         </div>
       </header>
       <main className="mx-auto max-w-3xl space-y-8 px-5 py-8">
         <h1 className="font-display text-3xl font-bold text-indigo">Namaste, {first}</h1>
+        <Link href="/app/connections" className="flex items-center gap-3 rounded-2xl border bg-card p-4 hover:bg-secondary/50">
+          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-secondary text-primary"><Network className="size-5" /></span>
+          <span className="min-w-0 flex-1"><span className="block font-semibold">My connections</span><span className="block text-sm text-muted-foreground">See how your family is connected to other families, and through whom.</span></span>
+          <ArrowRight className="size-4 text-muted-foreground" />
+        </Link>
         {err && <p role="alert" className="rounded-xl bg-terracotta/10 p-3 text-sm text-terracotta">{err}</p>}
+        {complete !== null && complete < 100 && (
+          <Link href="/app/profile" className="flex items-center gap-3 rounded-2xl border bg-secondary/50 p-4 hover:bg-secondary">
+            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-card text-sm font-semibold text-primary">{complete}%</span>
+            <span className="min-w-0 flex-1"><span className="block font-semibold">Complete your profile</span><span className="block text-sm text-muted-foreground">Add your pravar, native village and city so other families can recognise yours.</span></span>
+            <ArrowRight className="size-4 text-muted-foreground" />
+          </Link>
+        )}
 
         <section aria-label="My trees" className="space-y-3">
           <h2 className="text-lg font-semibold">My family trees</h2>
