@@ -1,4 +1,4 @@
--- Maithil Panji — database. Run once in Supabase: SQL Editor → New query → paste → Run. Safe to run again (it only adds what is missing).
+-- PAAG Foundation — database. Run once in Supabase: SQL Editor → New query → paste → Run. Safe to run again (it only adds what is missing).
 -- Only the server (service-role key) reads or writes these tables; the browser never talks to Supabase directly.
 
 -- 1. WORKING COPY — one row per shared family tree

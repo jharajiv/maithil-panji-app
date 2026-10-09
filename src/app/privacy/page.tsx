@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { SiteFooter } from "@/components/landing/SiteFooter";
 
-export const metadata: Metadata = { title: "Privacy — Maithil Panji · PAAG Foundation", description: "What Maithil Panji (PAAG Foundation) keeps, who can see it, and how to have it removed." };
+export const metadata: Metadata = { title: "Privacy — PAAG Foundation", description: "What PAAG Foundation keeps, who can see it, and how to have it removed." };
 
 const UPDATED = "8 October 2026";
 const contact = process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim();
@@ -17,7 +17,7 @@ export default function Privacy() {
   return (
     <div className="min-h-dvh bg-background">
       <div className="mx-auto max-w-2xl px-5 pb-20 pt-6">
-        <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ChevronLeft className="size-4" /> Maithil Panji home</Link>
+        <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ChevronLeft className="size-4" /> PAAG Foundation home</Link>
         <PaagLogo height={34} className="mt-5" />
         <h1 className="font-display mt-4 text-3xl font-bold text-indigo sm:text-4xl">Privacy</h1>
         <p className="mt-1 text-sm text-muted-foreground">Last updated {UPDATED}</p>
@@ -34,11 +34,11 @@ export default function Privacy() {
         </section>
 
         <H>Who we are</H>
-        <P>Maithil Panji is run by <Link href="/about" className="underline">PAAG Foundation</Link> (Panji Ancestry &amp; Graph), at paag.org.in. When this page says “we”, it means PAAG Foundation.</P>
+        <P>This site is run by <Link href="/about" className="underline">PAAG Foundation</Link> (Panji Ancestry &amp; Graph), at paag.org.in. When this page says “we”, it means PAAG Foundation.</P>
 
         <H>The short version</H>
         <L>
-          <li>Maithil Panji is a community project of PAAG Foundation (Panji Ancestry &amp; Graph, paag.org.in) to help Maithil families record their lineage in the Panji Prabandh tradition.</li>
+          <li>PAAG Foundation (Panji Ancestry &amp; Graph, paag.org.in) is a community project to help Maithil families record their lineage in the Panji Prabandh tradition.</li>
           <li>Your tree belongs to you. We do not sell your data, show advertising, or pass it to marketers.</li>
           <li>Until you choose to save it online, your tree stays on your own phone or computer.</li>
           <li>You can delete your online tree yourself at any time.</li>
@@ -88,7 +88,7 @@ export default function Privacy() {
         <L>
           <li>On this device: use “Start over” in the builder, or clear your browser’s site data.</li>
           <li>Online tree: open <em>Share</em> and choose <em>Delete online copy</em>. This removes the tree and every person in it from our database for you and everyone you invited, and all view-only links stop working.</li>
-          <li>Anything else, including your account: {contact ? <>write to <a className="underline" href={`mailto:${contact}`}>{contact}</a>.</> : "contact the person who invited you to Maithil Panji."}</li>
+          <li>Anything else, including your account: {contact ? <>write to <a className="underline" href={`mailto:${contact}`}>{contact}</a>.</> : "contact the person who invited you to PAAG Foundation."}</li>
         </L>
 
         <H>Cookies</H>

@@ -185,4 +185,4 @@ const UI_HI: Record<string, string> = {
 export const tr = (lang: Lang, en: string) => (lang === "hi" ? UI_HI[en] ?? en : en);
 
 export const GOTRA_HELP_HI = (sources: string[]) => `कोई बात नहीं — इसे आप बाद में भी भर सकते हैं। गोत्र आमतौर पर यहाँ लिखा या पता मिलता है:\n\n${sources.map((x) => `• ${tr("hi", x)}`).join("\n")}\n\nजब मिल जाए, नीचे “अभी भरना बाकी” में उस पर टैप कीजिए।`;
-export const ASK_RELATIVE_HI = (question: string) => `नमस्ते! मैं मैथिल पंजी पर हमारी वंशावली तैयार कर रहा/रही हूँ। क्या आप इसमें मेरी मदद कर सकते हैं?\n\n${question}\n\nधन्यवाद!`;
+export const ASK_RELATIVE_HI = (question: string) => `नमस्ते! मैं PAAG Foundation पर हमारी वंशावली तैयार कर रहा/रही हूँ। क्या आप इसमें मेरी मदद कर सकते हैं?\n\n${question}\n\nधन्यवाद!`;

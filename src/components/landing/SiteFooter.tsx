@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { PaagLogo } from "@/components/brand/Logo";
-import { contactEmail, ORG_LONG, ORG_NAME, SITE_DOMAIN, SITE_NAME } from "@/lib/site";
+import { contactEmail, ORG_LONG, ORG_NAME, SITE_DOMAIN } from "@/lib/site";
 
 /** footer for the public pages: who is behind the site, and where to read more */
 export function SiteFooter({ dark }: { dark?: boolean }) {
@@ -10,7 +10,7 @@ export function SiteFooter({ dark }: { dark?: boolean }) {
     <footer className={`px-5 py-8 text-center text-sm ${dark ? "bg-indigo text-cream/70" : "border-t bg-secondary/40 text-muted-foreground"}`}>
       <Link href="/about" aria-label={ORG_NAME} className="mb-2 inline-block"><PaagLogo height={36} onDark={dark} /></Link>
       <span className="sr-only">{ORG_NAME}</span>
-      <p>{ORG_LONG} · {SITE_NAME} is a community project of the foundation</p>
+      <p>{ORG_NAME} ({ORG_LONG}) · a community project for Maithil families</p>
       <nav aria-label="Footer" className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-1">
         <Link href="/about" className={link}>About PAAG</Link>
         <Link href="/sample" className={link}>Sample tree</Link>

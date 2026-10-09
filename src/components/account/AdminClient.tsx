@@ -62,7 +62,7 @@ export function AdminClient() {
 
   return (
     <div className="min-h-dvh bg-background pb-16">
-      <header className="border-b bg-card"><div className="mx-auto flex max-w-4xl items-center gap-3 px-5 py-3"><Link href="/app" className="text-xs font-semibold uppercase tracking-[0.2em] text-terracotta">Maithil Panji</Link><span className="text-sm text-muted-foreground">Admin · connections</span></div></header>
+      <header className="border-b bg-card"><div className="mx-auto flex max-w-4xl items-center gap-3 px-5 py-3"><Link href="/app" className="text-xs font-semibold uppercase tracking-[0.2em] text-terracotta">PAAG Foundation</Link><span className="text-sm text-muted-foreground">Admin · connections</span></div></header>
       <main className="mx-auto max-w-4xl space-y-6 px-5 py-6">
         {stats && (
           <section aria-label="Overview" className="grid grid-cols-2 gap-3 sm:grid-cols-5">
