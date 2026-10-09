@@ -5,12 +5,12 @@
  * of that other tree (her husband, parents, children — living people by first name only) to judge whether it is the same person.
  * Nothing is linked until a person confirms it.
  */
-import { childrenOf, fatherOf, motherOf, parentsOf, siblingsOf, spousesOf, type DFamily, type DPerson } from "./family";
+import { childrenOf, fatherOf, motherOf, siblingsOf, spousesOf, type DFamily, type DPerson } from "./family";
 import { fold } from "./lookup";
 
 export interface Woman {
   id: string;
-  /** "wife": appears as someone's wife (her own parents are not in this tree). "daughter": appears as a daughter whose marriage is noted. */
+  /** "wife": appears as someone's wife (her own father may or may not be drawn in this tree). "daughter": appears as a daughter whose marriage is noted. */
   kind: "wife" | "daughter";
   name: string;
   birthYear?: number;
@@ -26,7 +26,10 @@ export const TITLES = /\b(smt|shrimati|mrs|ms|devi|dai|daiji|kumari|babuain|musa
 export const givenName = (n: string) => n.replace(TITLES, " ").trim().split(/\s+/)[0] ?? "";
 export const yearOf = (p: DPerson) => { const y = Number(/^\d{4}/.exec(p.birth ?? "")?.[0]); return y || undefined; };
 
-/** married women in this tree who are not linked yet */
+/**
+ * Married women in this tree who are not linked yet. The woman is the connector between two family trees:
+ * a wife (mother, grandmother…) is looked for as a daughter in her father's tree; a married daughter is looked for as a wife in her husband's.
+ */
 export function womenToMatch(f: DFamily): Woman[] {
   const out: Woman[] = [];
   for (const p of f.persons) {
@@ -34,7 +37,9 @@ export function womenToMatch(f: DFamily): Woman[] {
     const base = { id: p.id, name: p.name_roman, birthYear: yearOf(p), gotra: p.gotra?.roman, mool: p.mool?.roman };
     const husbands = spousesOf(f, p.id).filter((s) => s.gender !== "female");
     const dad = fatherOf(f, p.id);
-    if (husbands.length && !parentsOf(f, p.id).length) out.push({ ...base, kind: "wife", husband: husbands[0]!.name_roman, husbandPlace: husbands[0]!.place });
+    const dadName = dad && !dad.placeholder && !dad.name_roman.startsWith("(") ? dad.name_roman : undefined;
+    // a wife is looked for in her father's tree whether or not her own parents are drawn here (a mother is usually entered with her father's name)
+    if (husbands.length) out.push({ ...base, kind: "wife", husband: husbands[0]!.name_roman, husbandPlace: husbands[0]!.place, ...(dadName ? { father: dadName } : {}) });
     else if (dad && p.married_to?.trim()) out.push({ ...base, kind: "daughter", husband: p.married_to, father: dad.name_roman });
   }
   return out;

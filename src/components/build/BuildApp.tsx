@@ -291,7 +291,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
       still: stillTo,
     };
   })();
-  const matchesProps = { family, online: !!sh.share, role: sh.share?.role, connect: cx, similar: sm, discoverable: sh.discoverable, onDiscoverable: sh.setDiscoverable, activity: sh.activity, onSee: seeLinked, onOpenShare: () => { setInviteFor(undefined); setShareOpen(true); } };
+  const matchesProps = { family, online: !!sh.share, role: sh.share?.role, connect: cx, similar: sm, discoverable: sh.discoverable, onDiscoverable: sh.setDiscoverable, activity: sh.activity, onSee: seeLinked, bridgeHref: sh.share ? (tree: string) => `/app/bridge/${sh.share!.treeId}/${tree}${sh.keyQs ? `?${sh.keyQs}` : ""}` : undefined, onOpenShare: () => { setInviteFor(undefined); setShareOpen(true); } };
   const leftPane = (cls: string) => isHelper
     ? <HelperPane className={cls} name={sh.share?.memberName} onOpenShare={() => { setInviteFor(undefined); setShareOpen(true); }} ownTreeHref={inAccount ? "/app" : undefined} />
     : <ChatPane className={cls} messages={messages} busy={busy} onSend={send} section={section} mode={mode}
@@ -350,9 +350,9 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
       <FreeformEditor open={freeOpen} onClose={() => setFreeOpen(false)} family={family} onFamily={setFamily} onEdit={setSelected} />
       <TreeMenu family={family} menu={menu} onClose={() => setMenu(null)} onChat={(kind, id) => replyTo(`${kind}:${id}`)} onEdit={(id) => { setRelFor(undefined); setSelected(id); }} onChange={(id) => { setRelFor(id); setSelected(id); }} />
       <PersonEditSheet family={family} personId={selected} openRelation={!!selected && relFor === selected} onChangeRelation={changeRel} onClose={() => { setSelected(undefined); setRelFor(undefined); }} onSave={saveEdit} onDelete={deletePerson} onCentre={(id) => tree.current?.centreOn(id)}
-        onSeeLinked={seeLinked} hasMatch={!!selected && cx.matches.some((m) => m.person === selected)} onOpenMatches={openMatches}
+        onSeeLinked={seeLinked} bridgeHref={matchesProps.bridgeHref} hasMatch={!!selected && cx.matches.some((m) => m.person === selected)} onOpenMatches={openMatches}
         onAdd={addRelative} canInvite={(sh.enabled === true || auth.enabled) && sh.share?.role !== "editor"} onInvite={(id) => { setInviteFor(id); setShareOpen(true); }} />
-      {data && <ExportSheet open={exportOpen} onClose={() => setExportOpen(false)} data={data} template={template} defaultScope="paternal" viewUrl={sh.viewUrl || undefined} saveHref={auth.enabled && !sh.share ? `/login?next=${encodeURIComponent("/app?import=1")}` : undefined} />}
+      {data && <ExportSheet open={exportOpen} onClose={() => setExportOpen(false)} data={data} template={template} defaultScope="all" viewUrl={sh.viewUrl || undefined} saveHref={auth.enabled && !sh.share ? `/login?next=${encodeURIComponent("/app?import=1")}` : undefined} />}
       <ShareSheet open={shareOpen} onClose={() => setShareOpen(false)} family={family} enabled={sh.enabled} share={sh.share} status={sh.status} members={sh.members} ownerLink={sh.ownerLink}
         invitePersonId={inviteFor} onCreate={sh.create} onInvite={sh.invite} onRevoke={sh.revoke} onRememberPhone={rememberPhone} onLeave={() => { sh.leave(); setShareOpen(false); }}
         onDeleteOnline={async () => { await sh.deleteOnline(); if (inAccount) router.replace("/app"); }}

@@ -64,6 +64,9 @@ const WIVES = [
  * The key is the person's ref from LINE above. People without a line here simply have no portrait.
  */
 export const PORTRAITS: Record<string, { file: string; credit: string }> = {
+  lakshmeshwar: { file: "lakshmeshwar.jpg", credit: "photograph of his statue, via Wikipedia (Lakshmeshwar Singh)" },
+  rameshwar: { file: "rameshwar.jpg", credit: "old photograph, via Wikipedia (Rameshwar Singh)" },
+  kameshwar: { file: "kameshwar.jpg", credit: "portrait from the cover of “Courage and Benevolence: Maharajadhiraja Kameshwar Singh” (ed. Hetukar Jha), via Wikipedia" },
 };
 
 export function darbhangaSample(): DFamily {

@@ -77,7 +77,7 @@ function relativeChoices(family: DFamily, p: DPerson): Rel[] {
   return out;
 }
 
-export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, onCentre, onAdd, canInvite, onInvite, openRelation, onChangeRelation, onSeeLinked, hasMatch, onOpenMatches }: {
+export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, onCentre, onAdd, canInvite, onInvite, openRelation, onChangeRelation, onSeeLinked, bridgeHref, hasMatch, onOpenMatches }: {
   family: DFamily; personId?: string; onClose: () => void;
   onSave: (id: string, set: PersonFields) => void; onDelete: (id: string) => void; onCentre: (id: string) => void;
   onAdd: (toId: string, type: RelationSpec["type"], name: string, gender?: Gender) => void;
@@ -87,6 +87,7 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
   onChangeRelation?: (id: string, toId: string, word: RelationWord) => { ok: boolean; message: string };
   /** she is linked to a woman in another tree: show that tree's view of her */
   onSeeLinked?: (personId: string, tree: string, p: string) => void;
+  bridgeHref?: (tree: string) => string;
   /** a possible match for her exists in another tree */
   hasMatch?: boolean; onOpenMatches?: () => void;
 }) {
@@ -160,7 +161,7 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
             {person.links.map((l) => (
               <div key={l.tree + l.person} className="flex flex-wrap items-center justify-between gap-2">
                 <span><GitMerge className="mr-1 inline size-4" /> Also in “{l.title ?? "another tree"}”</span>
-                {onSeeLinked && <button type="button" className="font-medium underline" onClick={() => onSeeLinked(person.id, l.tree, l.person)}>See her family there</button>}
+                {bridgeHref ? <a className="font-medium underline" href={bridgeHref(l.tree)}>Open her family’s tree</a> : onSeeLinked && <button type="button" className="font-medium underline" onClick={() => onSeeLinked(person.id, l.tree, l.person)}>See her family there</button>}
               </div>
             ))}
           </div>
@@ -168,6 +169,10 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
           <button type="button" onClick={() => { onClose(); onOpenMatches(); }} className="flex w-full items-center gap-2 rounded-xl border border-primary/40 bg-primary/5 px-4 py-3 text-left text-sm font-medium">
             <GitMerge className="size-5 shrink-0 text-primary" /> She may be in another family’s tree. Look at the possible match
           </button>
+        ) : draft.gender === "female" && !person.is_me && spousesOf(family, person.id).length > 0 && !fatherOf(family, person.id) ? (
+          <p className="rounded-xl border border-dashed px-4 py-3 text-sm text-muted-foreground">
+            <GitMerge className="mr-1 inline size-4 text-primary" /> A wife is the bridge between two families. Her own family’s chart is drawn by <em>her</em> family — you do not need to add her parents here. Open “Families”: when her family has recorded her as a daughter, we will offer to link the two trees. (Adding her father’s name is optional and makes the match more certain.)
+          </p>
         ) : null}
         <details className="rounded-xl border p-3" open={!!(draft.gotra || draft.mool)}>
           <summary className="cursor-pointer text-sm font-medium">Panji details — gotra and mool</summary>

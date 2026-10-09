@@ -167,3 +167,20 @@ Three parts, each independent so any one can be taken out.
   4. **Undo** (receiving owner): removes the people and relations it added, brings back replaced placeholders, and blanks the details it filled — only if nobody changed them since. A small record of the change is kept on the owner's member record (no new table; never sent to the browser).
   - `src/lib/combine.ts` (pure), `POST/GET /api/trees/[id]/combine`, `src/components/build/CombinePanel.tsx`. Tests: `_combine.test.ts`, `_combine_api.test.ts` (dev server, accounts on). New anonymous count: `tree_combined`. To remove the feature: delete `CombinePanel` and its line in `SimilarTrees.tsx` — the rest keeps working.
 - Not built, on purpose: **B-30 premium plans** (waiting for your decision). Hindi wording of the new screens still needs a native speaker's review; the combine and connections screens are English only for now.
+
+## v11.2 notes
+
+- **A woman connects two family trees.** A wife (your mother, a grandmother…) is now looked for as a daughter in her father's tree even when her father's name is entered in your tree; the father's name strengthens the match. The Families screen and her edit card explain the route. Her own family's chart is drawn by her family's tree; the link shows it.
+- **Bridge**: once a woman is linked, "Open her family's tree" (Families pane and her edit card) opens the other family's tree read-only, centred on her. Living relatives show by first name only. Who may cross, and how much they see, becomes an owner setting later (B-38).
+- **Google Places** for village / town suggestions (anywhere in the world, biased to Bihar). Set `GOOGLE_PLACES_API_KEY` in Vercel (Places API (New); restrict the key and set a quota). Without the key the free OpenStreetMap service is used, as before. "Powered by Google" is shown beside Google results.
+- Her father's name is optional for the connection; it only makes the match more certain.
+- No database change (same `supabase/schema.sql`).
+
+## v11.1 notes
+
+- **PDF: "Whole family chart"** (new, and the default in the builder). The old "Full family tree" drew only your own line (ancestors and descendants), so an uncle's family never appeared. The new option centres on the oldest ancestor on the father's side, so every uncle, aunt and cousin with spouses is drawn. "Full family tree" is now called **My own line**. The size line shows how many people are really drawn ("9 people drawn; 2 are not drawn…"). People who belong to other families' charts (a wife's parents) are listed on an extra last page. Code: `apexOf`, `outsideChart` in `src/lib/tree-filter.ts`.
+- **Poster paper sizes.** In "Large poster" you can choose one big page of any size (as before) or a standard **A2 / A1 / A0** sheet for a print shop; the screen shows how wide the names will print on each ("cards about 28 mm wide") and warns when they would be too small. The tree is rendered at about 170 dpi for the chosen sheet. `paperFit` in `src/lib/pdf.ts`.
+- **Excel list of everyone** (button under Download PDF, `src/lib/csv-export.ts`): every person with born/died, village, gotra, mool, father, mother, spouse and notes — a complete offline copy whichever chart you print.
+- **Village names are kept.** The map service used to suggest "Madhubani, Madhubani, Bihar" for a small village like Kothiya, and picking it replaced the village. Now only suggestions that look like what was typed are shown, and the first/last choice is always **Keep "Kothiya" as the village** (you then choose district and state). `resembles` in `src/components/build/widgets.tsx`; test `scripts/_place.test.ts`.
+- **Sample tree portraits**: Lakshmeshwar, Rameshwar and Kameshwar Singh (in `public/sample/portraits/`, listed in `PORTRAITS` with their credits). Please check each image's licence on Wikimedia Commons before a public launch; the Kameshwar picture is cropped from a book cover. To remove one, delete its line in `PORTRAITS`.
+- Tests: `_export.test.ts`, `_place.test.ts`.

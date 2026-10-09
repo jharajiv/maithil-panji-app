@@ -39,13 +39,14 @@ export const CARD_X = 190;
 export const CARD_Y = 168;
 
 /** Natural size of a tree at 100 % zoom, before anything is drawn (used to size big exports). */
-export async function measureTree(scoped: ScopedData): Promise<{ width: number; height: number; people: number }> {
+export async function measureTree(scoped: ScopedData): Promise<{ width: number; height: number; people: number; /** everyone the chart actually draws */ shown: string[] }> {
   const f3 = await import("family-chart");
   const t = f3.calculateTree(toChartData(scoped), {
     main_id: scoped.main_id, node_separation: CARD_X, level_separation: CARD_Y,
     single_parent_empty_card: false, show_siblings_of_main: scoped.roles === undefined,
   });
-  return { width: Math.ceil(t.dim.width), height: Math.ceil(t.dim.height), people: scoped.persons.length };
+  const shown = [...new Set((t.data as Array<{ data: { id: string } }>).map((d) => d.data.id))];
+  return { width: Math.ceil(t.dim.width), height: Math.ceil(t.dim.height), people: scoped.persons.length, shown };
 }
 
 const esc = (s: unknown) =>

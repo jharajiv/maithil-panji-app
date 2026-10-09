@@ -68,6 +68,22 @@ const fam = (ops: Op[]) => applyOps(emptyFamily(), ops).family;
   assert.equal((await j(`/api/trees/${a.id}/matches?k=${a.token}`)).body.matches.length, 0);
   assert.equal((await j(`/api/trees/${a.id}/preview?k=${a.token}&person=${wifeId}&tree=${b.id}&p=${dauId}`)).status, 200);
 
+  // the bridge: from A one may open B's tree read-only (living people by first name only); not without a key, not for a tree one is not linked to
+  {
+    const br = await j(`/api/trees/${a.id}/bridge?k=${a.token}&to=${b.id}`);
+    assert.equal(br.status, 200);
+    assert.equal(br.body.focus, dauId, "points at the linked woman");
+    assert.equal(br.body.mode, "private");
+    assert.ok(br.body.family.persons.length >= 2 && br.body.family.persons.every((p: { whatsapp?: string; notes?: string; links?: unknown }) => !p.whatsapp && !p.notes && !p.links));
+    assert.ok(!JSON.stringify(br.body.family).includes("Mishra"), "living relatives by first name only");
+    assert.equal((await j(`/api/trees/${a.id}/bridge?to=${b.id}`)).status, 404, "needs a key");
+    assert.equal((await j(`/api/trees/${a.id}/bridge?k=${helper}&to=${b.id}`)).status, 200, "a helper of the tree may cross too");
+    assert.equal((await j(`/api/trees/${a.id}/bridge?k=${a.token}&to=nope`)).status, 404);
+    assert.equal((await j(`/api/trees/${a.id}/bridge?k=${a.token}&to=${a.id}`)).status, 404, "not to itself");
+    assert.equal((await j(`/api/trees/${b.id}/bridge?k=${a.token}&to=${a.id}`)).status, 404, "a key of one tree opens nothing of another");
+    assert.equal((await j(`/api/trees/${b.id}/bridge?k=${b.token}&to=${a.id}`)).status, 200, "and back again");
+  }
+
   // a client cannot write or erase links through the normal save
   const forged = structuredClone(ga.body.family); forged.persons[0].links = [{ tree: "zzz", person: "p1", at: "2026-01-01" }];
   forged.persons.find((p: { id: string }) => p.id === wifeId).links = [];
@@ -82,6 +98,7 @@ const fam = (ops: Op[]) => applyOps(emptyFamily(), ops).family;
   assert.equal(ua.family.persons.find((p: { id: string }) => p.id === wifeId).links, undefined);
   assert.equal(ub.family.persons.find((p: { id: string }) => p.id === dauId).links, undefined);
   assert.equal((await j(`/api/trees/${a.id}/matches?k=${a.token}`)).body.matches.length, 1);
+  assert.equal((await j(`/api/trees/${a.id}/bridge?k=${a.token}&to=${b.id}`)).status, 404, "no link, no bridge");
   // switching sharing off hides the tree again
   assert.equal((await post(`/api/trees/${b.id}/settings`, { k: b.token, discoverable: false })).status, 200);
   assert.equal((await j(`/api/trees/${a.id}/matches?k=${a.token}`)).body.matches.length, 0);

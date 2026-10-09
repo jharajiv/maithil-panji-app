@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Check, GitMerge, Link2, Loader2, ShieldCheck, Unlink, Users } from "lucide-react";
+import { Check, GitMerge, Link2, Loader2, Network, ShieldCheck, Unlink, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { DFamily } from "@/lib/family";
@@ -59,7 +59,7 @@ function CandidateCard({ m, connect, canAct }: { m: Candidate; connect: Connect;
   );
 }
 
-function LinkedRow({ family, personId, connect, onSee }: { family: DFamily; personId: string; connect: Connect; onSee: (person: string, tree: string, p: string) => void }) {
+function LinkedRow({ family, personId, connect, onSee, bridgeHref }: { family: DFamily; personId: string; connect: Connect; onSee: (person: string, tree: string, p: string) => void; bridgeHref?: (tree: string) => string }) {
   const p = family.persons.find((x) => x.id === personId)!;
   const [busy, setBusy] = useState(false);
   return (
@@ -69,6 +69,7 @@ function LinkedRow({ family, personId, connect, onSee }: { family: DFamily; pers
           <p className="font-medium">{p.name_roman}</p>
           <p className="text-muted-foreground">also in “{l.title ?? "another tree"}”{l.by ? ` · linked by ${l.by}` : ""}</p>
           <div className="mt-2 flex flex-wrap gap-2">
+            {bridgeHref && <Button size="sm" asChild><a href={bridgeHref(l.tree)}><Network /> Open her family’s tree</a></Button>}
             <Button size="sm" variant="outline" onClick={() => onSee(p.id, l.tree, l.person)}>See her family there</Button>
             <Button size="sm" variant="ghost" disabled={busy} onClick={async () => { setBusy(true); try { await connect.unlink(p.id, l.tree); } finally { setBusy(false); } }}><Unlink /> Remove link</Button>
           </div>
@@ -91,9 +92,11 @@ export interface MatchesProps {
   activity: Activity[];
   onSee: (person: string, tree: string, p: string) => void;
   onOpenShare: () => void;
+  /** address of the read-only view of the family a linked woman connects to */
+  bridgeHref?: (tree: string) => string;
 }
 
-export function MatchesPane({ className, family, online, role, connect, similar, discoverable, onDiscoverable, activity, onSee, onOpenShare }: MatchesProps) {
+export function MatchesPane({ className, family, online, role, connect, similar, discoverable, onDiscoverable, activity, onSee, onOpenShare, bridgeHref }: MatchesProps) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const linked = family.persons.filter((p) => p.links?.length);
@@ -104,7 +107,7 @@ export function MatchesPane({ className, family, online, role, connect, similar,
     <aside className={cn("flex min-h-0 flex-col bg-card", className)} aria-label="Matching family trees">
       <div className="border-b px-4 py-2.5">
         <h2 className="font-display text-base font-semibold leading-tight">Matching family trees</h2>
-        <p className="text-xs text-muted-foreground">Every Maithil woman is in two trees — her father’s and her husband’s</p>
+        <p className="text-xs text-muted-foreground">A woman connects two trees — her father’s and her husband’s</p>
       </div>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
         {!online ? (
@@ -138,7 +141,7 @@ export function MatchesPane({ className, family, online, role, connect, similar,
               {connect.matches.length > 0 && <ul className="space-y-3">{connect.matches.map((m) => <CandidateCard key={`${m.person}|${m.tree}|${m.treePerson}`} m={m} connect={connect} canAct />)}</ul>}
               {connect.data && !connect.matches.length && (
                 <p className="rounded-xl border bg-background p-3 text-sm text-muted-foreground">
-                  {women === 0 ? "Add a married woman — a wife, or a daughter who is married — and we will look for her in other trees." : "No matching woman found in other trees yet. We look again whenever you add or change a married woman, or when another family joins."}
+                  {women === 0 ? "Add a married woman — your mother, a wife, or a daughter who is married — and we will look for her in other trees." : "No matching woman found in other trees yet. Your mother’s own family chart is drawn by her family: when they record her as a daughter, she appears here. We look again whenever you add or change a married woman, or when another family joins."}
                 </p>
               )}
               <button className="inline-flex items-center gap-1 text-xs text-muted-foreground underline" onClick={() => connect.reload()}>Check again</button>
@@ -147,7 +150,7 @@ export function MatchesPane({ className, family, online, role, connect, similar,
             {linked.length > 0 && (
               <section aria-label="Linked women" className="space-y-2">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Linked to other trees</h3>
-                <ul className="space-y-2">{linked.map((p) => <LinkedRow key={p.id} family={family} personId={p.id} connect={connect} onSee={onSee} />)}</ul>
+                <ul className="space-y-2">{linked.map((p) => <LinkedRow key={p.id} family={family} personId={p.id} connect={connect} onSee={onSee} bridgeHref={bridgeHref} />)}</ul>
               </section>
             )}
 

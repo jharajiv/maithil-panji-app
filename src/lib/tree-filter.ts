@@ -36,7 +36,24 @@ export interface ScopedData extends FamilyData {
 
 export function scopeData(data: FamilyData, scope: ExportScope): ScopedData {
   if (scope === "full") return { ...data, main_id: data.root_person_id };
+  if (scope === "all") return { ...data, main_id: apexOf(data) };
   return paternalLineage(data);
+}
+
+/**
+ * The oldest ancestor on the father's side (a mother when no father is recorded). The chart draws a person's ancestors and ALL their
+ * descendants with spouses, so centring on this person draws every uncle, aunt and cousin as well.
+ */
+export function apexOf(data: FamilyData): string {
+  const { byId, parents } = index(data);
+  let apex = data.root_person_id;
+  const seen = new Set<string>([apex]);
+  for (;;) {
+    const ps = (parents.get(apex) ?? []).filter((id) => byId.has(id));
+    const up = ps.find((id) => byId.get(id)?.gender === "male") ?? ps[0];
+    if (!up || seen.has(up)) return apex;
+    seen.add(up); apex = up;
+  }
 }
 
 /**
@@ -82,6 +99,22 @@ export function paternalLineage(data: FamilyData): ScopedData {
     // Centre on the apex so the whole patriline (all brothers' lines) is drawn.
     main_id: apex,
   };
+}
+
+/** people who are in the family data but not drawn in a chart (for example the parents of someone's wife), and how each is connected to someone who is drawn */
+export function outsideChart(data: FamilyData, shown: ReadonlySet<string>): { name: string; years: string; village: string; note: string }[] {
+  const { byId, parents, children, spouses } = index(data);
+  const nm = (id: string) => byId.get(id)?.name_roman ?? "";
+  const out: { name: string; years: string; village: string; note: string; key: string }[] = [];
+  for (const p of data.persons) {
+    if (shown.has(p.person_id)) continue;
+    const id = p.person_id, notes: string[] = [];
+    for (const c of children.get(id) ?? []) if (shown.has(c)) notes.push(`${p.gender === "female" ? "mother" : p.gender === "male" ? "father" : "parent"} of ${nm(c)}`);
+    for (const x of spouses.get(id) ?? []) if (shown.has(x)) notes.push(`${p.gender === "female" ? "wife" : p.gender === "male" ? "husband" : "spouse"} of ${nm(x)}`);
+    for (const x of parents.get(id) ?? []) if (shown.has(x)) notes.push(`${p.gender === "female" ? "daughter" : p.gender === "male" ? "son" : "child"} of ${nm(x)}`);
+    out.push({ name: p.name_roman, years: lifespan(p), village: p.current_village ?? "", note: notes.slice(0, 2).join("; "), key: notes[0]?.replace(/^.* of /, "") ?? "~" });
+  }
+  return out.sort((a, b) => a.key.localeCompare(b.key) || a.name.localeCompare(b.name)).map(({ key: _k, ...r }) => (void _k, r));
 }
 
 /* ---------- conversion to family-chart's data format ---------- */

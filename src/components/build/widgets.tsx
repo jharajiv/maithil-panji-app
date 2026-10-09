@@ -1,4 +1,5 @@
 "use client";
+import { INDIAN_STATES, norm, stateMatch, type PlaceHit } from "@/lib/places";
 import { MONTHS } from "@/lib/dates";
 /**
  * Form widgets used by the person editor and the save sheet:
@@ -11,7 +12,8 @@ import { getCountries, getCountryCallingCode, parsePhoneNumberFromString, valida
 import examples from "libphonenumber-js/examples.mobile.json";
 import { cn } from "@/lib/utils";
 import type { PanjiRef } from "@/lib/family";
-import { allGotras, allMools, classify, plainRoman, searchGotras, searchMools } from "@/lib/lookup";
+import { allGotras, allMools, classify, fold, plainRoman, searchGotras, searchMools } from "@/lib/lookup";
+import { lev } from "@/lib/connect";
 import { romanToDevanagari } from "@/lib/translit";
 
 export const inputCls =
@@ -333,14 +335,10 @@ export function SearchSelect({ kind, value, onChange, gotraId, placeholder }: {
 /* ───────────────────────── place: village, district, state (suggestions from OpenStreetMap / Photon; typing always works) ───────────────────────── */
 
 interface PhotonFeature { properties: { name?: string; district?: string; county?: string; state?: string; country?: string; countrycode?: string; osm_value?: string } }
-interface PlaceHit { a: string; b: string; c: string }
 
-export const INDIAN_STATES = ["Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
-  "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry"];
+export { INDIAN_STATES };
 export const BIHAR_DISTRICTS = ["Araria", "Arwal", "Aurangabad", "Banka", "Begusarai", "Bhagalpur", "Bhojpur", "Buxar", "Darbhanga", "East Champaran", "Gaya", "Gopalganj", "Jamui", "Jehanabad", "Kaimur", "Katihar", "Khagaria", "Kishanganj", "Lakhisarai", "Madhepura", "Madhubani", "Munger", "Muzaffarpur", "Nalanda", "Nawada", "Patna", "Purnia", "Rohtas", "Saharsa", "Samastipur", "Saran", "Sheikhpura", "Sheohar", "Sitamarhi", "Siwan", "Supaul", "Vaishali", "West Champaran"];
 
-const norm = (x: string) => x.toLowerCase().replace(/\s+(district|zila|division)$/, "").trim();
-const stateMatch = (x: string) => INDIAN_STATES.find((s) => norm(s) === norm(x));
 
 /** "Village, District, State" — never a street address. Outside India: "City, Country". */
 export function placeLabel(p: PhotonFeature["properties"], india: boolean) {
@@ -348,6 +346,14 @@ export function placeLabel(p: PhotonFeature["properties"], india: boolean) {
   const out: string[] = [];
   for (const x of parts) if (x && !out.some((y) => y.toLowerCase() === x.toLowerCase())) out.push(x);
   return out.join(", ");
+}
+
+/** does the map's place name really look like what was typed? (the map service also returns places that merely lie nearby or are better known, e.g. "Madhubani" for the village "Kothiya") */
+export function resembles(found: string, typed: string) {
+  const x = fold(found), y = fold(typed);
+  if (!x || !y) return false;
+  if (x === y || x.startsWith(y) || y.startsWith(x)) return true;
+  return y.length >= 4 && lev(x.slice(0, y.length + 1), y) <= Math.max(1, Math.floor(y.length / 4));
 }
 
 function parsePlace(value: string) {
@@ -362,6 +368,9 @@ function parsePlace(value: string) {
   return { india: true, a: parts[0]!, b: parts[1]!, c: parts.slice(2).join(", ") };          // older free text, keep it as typed
 }
 
+/** does the server have a Google Places key? (asked once; "off" is remembered so no further calls are made) */
+let googleState: "unknown" | "on" | "off" = "unknown";
+
 export function PlaceField({ value, onChange, helper, label }: { value: string; onChange: (v: string) => void; helper?: string; label?: string }) {
   const id = useId();
   const [f, setF] = useState(() => parsePlace(value));
@@ -369,6 +378,7 @@ export function PlaceField({ value, onChange, helper, label }: { value: string; 
   const [remote, setRemote] = useState<PlaceHit[]>([]);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [google, setGoogle] = useState(false);
   const { india, a, b, c } = f;
   const compose = (x: typeof f) => (x.a.trim() || x.b.trim() ? [x.a, x.b, x.c].map((p) => p.trim()).filter(Boolean).join(", ") : "");
   // another person's place arrived: show it; our own edits already match, so nothing moves
@@ -404,12 +414,27 @@ export function PlaceField({ value, onChange, helper, label }: { value: string; 
       };
       try {
         const extra = india ? [b, c].filter(Boolean).join(" ") : c;
+        // Google Places (through our server, which holds the key) when it is switched on; otherwise the free OpenStreetMap service below
+        if (googleState !== "off") {
+          try {
+            const g = await fetch(`/api/places?${new URLSearchParams({ q: extra ? `${text} ${extra}` : text, in: india ? "1" : "0" })}`, { signal: ctl.signal, cache: "no-store" });
+            const gj = (await g.json()) as { provider?: string; hits?: PlaceHit[] };
+            if (gj.provider === "off") googleState = "off";
+            else if (gj.provider === "google") {
+              googleState = "on";
+              const want = (h: PlaceHit) => (b && norm(h.b) === norm(b) ? 2 : 0) + (c && norm(h.c) === norm(c) ? 1 : 0);
+              setRemote([...(gj.hits ?? [])].sort((x, y) => want(y) - want(x)).slice(0, 6)); setGoogle(true);
+              return;
+            }
+          } catch (e) { if ((e as Error).name === "AbortError") return; }
+        }
+        setGoogle(false);
         let out = await ask(extra ? `${text} ${extra}` : text, true);
         if (!out.length) out = await ask(extra ? `${text} ${extra}` : `${text}${india ? " Bihar" : ""}`, false); // not tagged as a "place" in the map data: look more widely
         if (!out.length && extra) out = await ask(text, false);
         // prefer the district/state the reader already chose
         const want = (h: PlaceHit) => (b && norm(h.b) === norm(b) ? 2 : 0) + (c && norm(h.c) === norm(c) ? 1 : 0);
-        setRemote(out.sort((x, y) => want(y) - want(x)).slice(0, 6));
+        setRemote(out.filter((h) => resembles(h.a, text)).sort((x, y) => want(y) - want(x)).slice(0, 6));
       } catch (e) {
         if ((e as Error).name !== "AbortError") { setFailed(true); setRemote([]); }
       } finally { setBusy(false); }
@@ -427,14 +452,21 @@ export function PlaceField({ value, onChange, helper, label }: { value: string; 
           onFocus={() => setOpen(true)} onChange={(e) => { update({ a: e.target.value }); setOpen(true); }} />
         {busy && <Loader2 className="absolute right-3.5 top-3.5 size-5 animate-spin text-muted-foreground" />}
       </div>
-      {open && (remote.length > 0 || failed) && (
+      {open && (remote.length > 0 || failed || (!busy && a.trim().length >= 3)) && (
         <ul className="mt-1.5 max-h-56 overflow-y-auto rounded-xl border bg-card" role="listbox" aria-label="Suggested places">
           {remote.map((h) => (
             <li key={`${h.a}|${h.b}|${h.c}`}><button type="button" onClick={() => pick(h)} className="block w-full px-4 py-2.5 text-left text-sm hover:bg-secondary">
               <span className="font-medium">{h.a}</span><span className="text-muted-foreground">{[h.b, h.c].filter(Boolean).map((x) => `, ${x}`).join("")}</span>
             </button></li>
           ))}
+          {google && remote.length > 0 && <li className="px-4 pt-1 text-right text-[10px] text-muted-foreground">Powered by Google</li>}
           {failed && <li className="px-4 py-2.5 text-xs text-muted-foreground">Place suggestions aren’t reachable right now — please fill in the district and state below.</li>}
+          {/* a small village is often not on the map: the name as typed always stays, and only district and state are filled in below */}
+          {!busy && a.trim().length >= 3 && (
+            <li><button type="button" onClick={() => setOpen(false)} className="block w-full border-t px-4 py-2.5 text-left text-sm hover:bg-secondary">
+              <span className="font-medium">Keep “{a.trim()}”</span><span className="text-muted-foreground"> as the village{india ? " — then choose the district and state below" : ""}</span>
+            </button></li>
+          )}
         </ul>
       )}
       {india ? (

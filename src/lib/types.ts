@@ -1,7 +1,10 @@
 // v1 user-facing schema (mirrors the brief's Person / Relationship / Tree models).
 export type Gender = "male" | "female" | "other";
 export type TemplateId = "classic" | "madhubani" | "minimal";
-export type ExportScope = "full" | "paternal";
+/** full = my own line (parents, grandparents, children); paternal = Panji-style patriline; all = everyone descended from the oldest ancestor entered (uncles, cousins, every branch) */
+export type ExportScope = "full" | "paternal" | "all";
+/** poster paper: auto = one custom large page; a2/a1/a0 = a standard sheet for a print shop */
+export type PosterPaper = "auto" | "a2" | "a1" | "a0";
 export type PageFormat = "a3-landscape" | "a4-portrait";
 
 export interface Person {

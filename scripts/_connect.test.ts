@@ -51,6 +51,24 @@ assert.ok(!JSON.stringify(pv).includes("Mishra"), "no surname of living people")
 const pa = previewOf(A, named(A, "Sita Devi").id, "Rohan’s family")!;
 assert.ok(pa.connects.some((c) => c.relation === "husband") && pa.connects.some((c) => c.relation === "son" && c.name === "Aarav"));
 
+// The mother as connector: she is entered WITH her father's name (so her parents are drawn in this tree) and is still looked for in her father's tree.
+const A2 = build([
+  { op: "add_person", ref: "me", name_roman: "Rohan Jha", gender: "male", birth: "1988-02-10", status: "living", gotra: { roman: "Shandilya" }, mool: { roman: "Sarisab" } },
+  { op: "add_person", ref: "mom", name_roman: "Sita Devi", gender: "female", status: "living", relation: { type: "spouse_of", to: "me" } },
+  { op: "add_person", name_roman: "Mohan Mishra", gender: "male", status: "living", relation: { type: "father_of", to: "mom" } },
+  { op: "add_person", name_roman: "(name not known)", gender: "male", placeholder: true, relation: { type: "father_of", to: "me" } },
+] as Op[]);
+const w2 = womenToMatch(A2);
+assert.deepEqual(w2.map((w) => [w.name, w.kind, w.father]), [["Sita Devi", "wife", "Mohan Mishra"]], "a wife whose father is drawn is still matched, with his name");
+const m2 = scoreMatch(w2[0]!, wb[0]!)!;
+assert.ok(m2 && m2.strength === "strong" && m2.reasons.includes("father’s name matches"), `father’s name counts for her: ${JSON.stringify(m2)}`);
+// her father drawn only as a placeholder adds nothing
+assert.equal(womenToMatch(build([
+  { op: "add_person", ref: "me", name_roman: "Rohan Jha", gender: "male", status: "living" },
+  { op: "add_person", ref: "mom", name_roman: "Sita Devi", gender: "female", status: "living", relation: { type: "spouse_of", to: "me" } },
+  { op: "add_person", name_roman: "(name not known)", gender: "male", placeholder: true, relation: { type: "father_of", to: "mom" } },
+] as Op[]))[0]!.father, undefined);
+
 // links: a linked woman is no longer offered; removing the link offers her again
 const linked = withLink(A, named(A, "Sita Devi").id, { tree: "t2", person: "p2", at: "2026-10-01" });
 assert.equal(womenToMatch(linked).length, 0);
