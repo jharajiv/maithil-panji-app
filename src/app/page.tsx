@@ -71,7 +71,7 @@ export default function Home() {
       {/* Hero */}
       <section className="mx-auto grid max-w-6xl items-center gap-10 px-5 pb-16 pt-8 sm:px-8 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:pb-20 lg:pt-12">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-terracotta">Maithil family trees <span className="text-indigo/40">·</span> <span lang="hi" className="tracking-normal">वंशावली</span></p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-terracotta">Maithil Panji <span className="text-indigo/40">·</span> <span lang="hi" className="tracking-normal">वंशावली</span></p>
           <h1 className="font-display mt-4 text-4xl font-bold leading-[1.15] text-indigo sm:text-5xl">Preserve your Maithil ancestry.</h1>
           <p lang="hi" className="font-display mt-3 text-2xl text-indigo/85">अपनी वंशावली बनाइए और सहेजिए</p>
           <p className="mt-5 max-w-xl text-lg leading-relaxed text-foreground/85">

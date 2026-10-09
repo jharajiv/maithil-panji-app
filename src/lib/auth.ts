@@ -58,7 +58,7 @@ const codeHash = (email: string, code: string) => createHash("sha256").update(`$
 async function sendEmail(to: string, code: string): Promise<boolean> {
   const r = resend()!;
   const html = `<div style="font-family:Georgia,serif;max-width:420px;margin:auto;padding:24px;color:#1f2a5c">
-<p style="letter-spacing:.2em;font-size:12px;color:#b5482a;margin:0 0 12px">PAAG FOUNDATION</p>
+<p style="letter-spacing:.2em;font-size:12px;color:#b5482a;margin:0 0 12px">MAITHIL PANJI · PAAG FOUNDATION</p>
 <p style="font-size:16px;margin:0 0 8px">Your sign-in code is</p>
 <p style="font-size:34px;letter-spacing:.35em;font-weight:bold;margin:0 0 16px">${code}</p>
 <p style="font-size:14px;color:#555;margin:0">It works for ${CODE_MINUTES} minutes. If you did not ask for it, you can ignore this email.</p>
@@ -66,7 +66,7 @@ async function sendEmail(to: string, code: string): Promise<boolean> {
   const res = await fetch(process.env.RESEND_API_URL ?? "https://api.resend.com/emails", {
     method: "POST", cache: "no-store",
     headers: { Authorization: `Bearer ${r.key}`, "content-type": "application/json" },
-    body: JSON.stringify({ from: r.from, to: [to], subject: `Your PAAG Foundation sign-in code: ${code}`, html, text: `Your PAAG Foundation sign-in code is ${code}. It works for ${CODE_MINUTES} minutes.` }),
+    body: JSON.stringify({ from: r.from, to: [to], subject: `Your Maithil Panji sign-in code: ${code}`, html, text: `Your Maithil Panji sign-in code is ${code}. It works for ${CODE_MINUTES} minutes.` }),
   });
   if (!res.ok) console.error("email send failed", res.status, (await res.text()).slice(0, 200));
   return res.ok;

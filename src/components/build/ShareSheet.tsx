@@ -73,8 +73,8 @@ export function ShareSheet(p: Props) {
       const first = inviteName.split(" ")[0];
       const owner = (p.ownerName ?? "").split(" ")[0] || "A family member";
       const text = p.share?.account
-        ? `Namaste ${first}, ${owner} here. I am building our family tree (vamsha-vriksha) on PAAG Foundation and would be grateful for your help adding and correcting details about our family.\n\nPlease open this link to join — you sign in with your email address, no password needed. The link works only once, for you:\n${link}`
-        : `Namaste ${first}, I am building our family tree (vamsha-vriksha) on PAAG Foundation and would be grateful for your help adding and correcting details. Please open this private link — no password needed:\n${link}`;
+        ? `Namaste ${first}, ${owner} here. I am building our family tree (vamsha-vriksha) on Maithil Panji and would be grateful for your help adding and correcting details about our family.\n\nPlease open this link to join — you sign in with your email address, no password needed. The link works only once, for you:\n${link}`
+        : `Namaste ${first}, I am building our family tree (vamsha-vriksha) on Maithil Panji and would be grateful for your help adding and correcting details. Please open this private link — no password needed:\n${link}`;
       setReady({ name: first, link, wa: `https://wa.me/${st.e164.replace("+", "")}?text=${encodeURIComponent(text)}` });
     } catch (e) { setErr(e instanceof Error ? e.message : "Could not create the invitation."); } finally { setBusy(false); }
   };

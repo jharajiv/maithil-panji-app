@@ -36,7 +36,7 @@ export function SocialShare({ viewUrl, viewUrlFull, familyName, viewOff, onViewL
     </section>
   );
   if (!viewUrl) return null;
-  const text = `Namaste! Here is ${familyName} family tree, made on PAAG Foundation. Have a look — and build your own, it is free:`;
+  const text = `Namaste! Here is ${familyName} family tree, made on Maithil Panji. Have a look — and build your own, it is free:`;
   const canNative = typeof navigator !== "undefined" && typeof navigator.share === "function";
   const copy = async () => { track("share_clicked"); try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* ignore */ } };
   const native = async () => { track("share_clicked"); try { await navigator.share({ title: `${familyName} family tree`, text, url }); } catch { /* cancelled */ } };
