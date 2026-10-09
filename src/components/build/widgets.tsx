@@ -1,5 +1,5 @@
 "use client";
-import { INDIAN_STATES, norm, stateMatch, type PlaceHit } from "@/lib/places";
+import { BIHAR_DISTRICTS, INDIAN_STATES, norm, stateMatch, type PlaceHit } from "@/lib/places";
 import { MONTHS } from "@/lib/dates";
 /**
  * Form widgets used by the person editor and the save sheet:
@@ -337,7 +337,7 @@ export function SearchSelect({ kind, value, onChange, gotraId, placeholder }: {
 interface PhotonFeature { properties: { name?: string; district?: string; county?: string; state?: string; country?: string; countrycode?: string; osm_value?: string } }
 
 export { INDIAN_STATES };
-export const BIHAR_DISTRICTS = ["Araria", "Arwal", "Aurangabad", "Banka", "Begusarai", "Bhagalpur", "Bhojpur", "Buxar", "Darbhanga", "East Champaran", "Gaya", "Gopalganj", "Jamui", "Jehanabad", "Kaimur", "Katihar", "Khagaria", "Kishanganj", "Lakhisarai", "Madhepura", "Madhubani", "Munger", "Muzaffarpur", "Nalanda", "Nawada", "Patna", "Purnia", "Rohtas", "Saharsa", "Samastipur", "Saran", "Sheikhpura", "Sheohar", "Sitamarhi", "Siwan", "Supaul", "Vaishali", "West Champaran"];
+export { BIHAR_DISTRICTS };
 
 
 /** "Village, District, State" — never a street address. Outside India: "City, Country". */
@@ -460,7 +460,7 @@ export function PlaceField({ value, onChange, helper, label }: { value: string; 
           {remote.map((h) => (
             <li key={`${h.a}|${h.b}|${h.c}|${h.n ?? ""}`}><button type="button" onClick={() => pick(h)} className="block w-full px-4 py-2.5 text-left text-sm hover:bg-secondary">
               <span className="font-medium">{h.a}</span><span className="text-muted-foreground">{[h.b, h.c].filter(Boolean).map((x) => `, ${x}`).join("")}</span>
-              {h.n && <span className="block text-xs text-muted-foreground/80">{h.n} block</span>}
+              {h.n && <span className="block text-xs text-muted-foreground/80">{h.n} area</span>}
             </button></li>
           ))}
           {google && remote.length > 0 && <li className="px-4 pt-1 text-right text-[10px] text-muted-foreground">Powered by Google</li>}

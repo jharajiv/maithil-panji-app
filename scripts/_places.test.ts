@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import http from "node:http";
-import { hitFromPlace, hitsFrom, requestBody, searchBody, toHit } from "../src/lib/places";
+import { districtOf, hitFromPlace, hitsFrom, requestBody, searchBody, toHit } from "../src/lib/places";
 
 const pred = (main: string, sec: string, types: string[] = ["locality", "political"]) => ({ suggestions: [{ placePrediction: { placeId: main, types, structuredFormat: { mainText: { text: main }, secondaryText: { text: sec } } } }] });
 
@@ -25,15 +25,26 @@ const behta2 = { id: "p_behta2", displayName: { text: "Behta" }, types: ["locali
   { longText: "Darbhanga", types: ["administrative_area_level_2", "political"] }, { longText: "Bihar", types: ["administrative_area_level_1", "political"] }, { longText: "India", types: ["country", "political"] }] };
 
 // a full place (Place Details / Text Search) carries the district, state and block
+// Google's address levels are not reliable in Bihar: for a village in Madhubani it can give "Darbhanga" (the division) at level 2 and
+// "Madhubani" (the district) at level 3. The real list of districts decides.
+const comp = (t: string, n: string) => ({ longText: n, types: [t, "political"] });
 const behta = { id: "p_behta", displayName: { text: "Behta" }, types: ["locality", "political"], addressComponents: [
-  { longText: "Behta", types: ["locality", "political"] }, { longText: "Benipatti", types: ["administrative_area_level_3", "political"] },
-  { longText: "Madhubani", types: ["administrative_area_level_2", "political"] }, { longText: "Bihar", types: ["administrative_area_level_1", "political"] }, { longText: "India", types: ["country", "political"] }] };
+  comp("locality", "Behta"), comp("administrative_area_level_4", "Benipatti"), comp("administrative_area_level_3", "Madhubani"),
+  comp("administrative_area_level_2", "Darbhanga"), comp("administrative_area_level_1", "Bihar"), { longText: "India", types: ["country", "political"] }] };
+
 assert.deepEqual(hitFromPlace(behta, true), { a: "Behta", b: "Madhubani", c: "Bihar", n: "Benipatti", in: true });
 assert.deepEqual(hitFromPlace(behta, false), { a: "Behta", b: "Madhubani", c: "Bihar", n: "Benipatti", in: true }, "found while the abroad mode is on: still Indian");
 assert.equal(hitFromPlace({ ...behta, types: ["establishment", "store"] }, true), null, "a shop is not a place");
 const zurich = { displayName: { text: "Opfikon" }, types: ["locality"], addressComponents: [{ longText: "Zurich", types: ["administrative_area_level_1"] }, { longText: "Switzerland", types: ["country"] }] };
 assert.deepEqual(hitFromPlace(zurich, false), { a: "Opfikon", b: "Zurich", c: "Switzerland", in: false });
 assert.equal(hitFromPlace(zurich, true), null, "India mode keeps to India");
+assert.deepEqual(districtOf("Bihar", ["Darbhanga", "Madhubani", ""]), { district: "Madhubani" }, "division above district: the district wins");
+assert.deepEqual(districtOf("Bihar", ["Darbhanga Division", "Madhubani", "Benipatti"]), { district: "Madhubani", area: "Benipatti" }, "'Division' is never the district");
+assert.deepEqual(districtOf("Bihar", ["Darbhanga", "Biraul", ""]), { district: "Darbhanga", area: "Biraul" }, "a real Darbhanga village keeps Darbhanga");
+assert.deepEqual(districtOf("Bihar", ["Patna", "Patna Sadar", ""]), { district: "Patna", area: "Patna Sadar" });
+assert.deepEqual(districtOf("Bihar", ["Tirhut Division", "Sitamarhi", ""]), { district: "Sitamarhi" });
+assert.deepEqual(districtOf("Jharkhand", ["Ranchi District", "Kanke", ""]), { district: "Ranchi", area: "Kanke" }, "outside Bihar: first name that is not a division");
+assert.deepEqual(districtOf("Bihar", ["", "", ""]), { district: "" });
 assert.equal(searchBody("behta benipatti madhubani", true).regionCode, "IN");
 assert.equal((searchBody("Zurich", false) as { regionCode?: string }).regionCode, undefined);
 

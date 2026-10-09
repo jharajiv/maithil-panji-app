@@ -42,8 +42,49 @@ export interface AddrPart { longText?: string; shortText?: string; types?: strin
 export interface GooglePlace { id?: string; displayName?: { text?: string }; types?: string[]; addressComponents?: AddrPart[] }
 const part = (parts: AddrPart[] | undefined, t: string) => parts?.find((x) => x.types?.includes(t))?.longText?.trim() || undefined;
 const bare = (x?: string) => x?.replace(/\s+(district|zila|tehsil|block)$/i, "").trim() ?? "";
+const isDivision = (x: string) => /\b(division|range|region)\b/i.test(x);
 
-/** a full place (with its address parts) → a hit. India: village, district, state and the block; elsewhere: place, region, country. */
+/**
+ * Bihar's divisions and the districts in each. Google's address levels are not reliable here: for a village in Madhubani it can put
+ * "Darbhanga" (the division) one level above "Madhubani" (the district). Knowing the real hierarchy lets us tell them apart.
+ */
+export const BIHAR_DIVISIONS: Record<string, string[]> = {
+  Patna: ["Patna", "Nalanda", "Bhojpur", "Buxar", "Rohtas", "Kaimur"],
+  Magadh: ["Gaya", "Aurangabad", "Nawada", "Jehanabad", "Arwal"],
+  Saran: ["Saran", "Siwan", "Gopalganj"],
+  Tirhut: ["Muzaffarpur", "East Champaran", "West Champaran", "Sitamarhi", "Sheohar", "Vaishali"],
+  Darbhanga: ["Darbhanga", "Madhubani", "Samastipur"],
+  Kosi: ["Saharsa", "Madhepura", "Supaul"],
+  Purnia: ["Purnia", "Araria", "Kishanganj", "Katihar"],
+  Bhagalpur: ["Bhagalpur", "Banka"],
+  Munger: ["Munger", "Begusarai", "Khagaria", "Jamui", "Lakhisarai", "Sheikhpura"],
+};
+export const BIHAR_DISTRICTS = Object.values(BIHAR_DIVISIONS).flat().sort();
+const divisionOf = (district: string) => Object.entries(BIHAR_DIVISIONS).find(([, ds]) => ds.some((d) => norm(d) === norm(district)))?.[0];
+const knownDistrict = (x: string) => BIHAR_DISTRICTS.find((d) => norm(d) === norm(x));
+
+/**
+ * The district, and a smaller area (block / town) if there is one, out of the names Google gave at its address levels 2, 3 and 4.
+ * Divisions are never the district. In Bihar the real list of districts decides; elsewhere the first name that is not a division.
+ */
+export function districtOf(state: string, levels: string[]): { district: string; area?: string } {
+  const names = levels.map(bare).filter((x) => x && !isDivision(x));
+  if (!names.length) return { district: "" };
+  if (norm(state) === "bihar") {
+    const known = names.map(knownDistrict).filter((x): x is string => !!x);
+    // a "district" that is really the division of another listed district (Darbhanga above Madhubani) is dropped
+    const real = known.filter((k) => !known.some((j) => norm(j) !== norm(k) && norm(divisionOf(j) ?? "") === norm(k)));
+    const district = real[0] ?? known[0];
+    if (district) {
+      const div = divisionOf(district);
+      const area = names.find((x) => norm(x) !== norm(district) && norm(x) !== norm(div ?? "") && !knownDistrict(x));
+      return { district, ...(area ? { area } : {}) };
+    }
+  }
+  return { district: names[0]!, ...(names[1] ? { area: names[1] } : {}) };
+}
+
+/** a full place (with its address parts) → a hit. India: village, district, state and the area; elsewhere: place, region, country. */
 export function hitFromPlace(pl: GooglePlace, india: boolean): PlaceHit | null {
   const a = pl.displayName?.text?.trim();
   if (!a || !isPlace({ types: pl.types })) return null;
@@ -53,9 +94,9 @@ export function hitFromPlace(pl: GooglePlace, india: boolean): PlaceHit | null {
   if (india && country && !inIndia) return null;
   if (!inIndia) return { a, b: state && norm(state) !== norm(a) ? state : "", c: country ?? "", in: false };
   if (stateMatch(a)) return null;
-  const district = bare(part(pl.addressComponents, "administrative_area_level_2")), block = bare(part(pl.addressComponents, "administrative_area_level_3"));
   const st = state ? stateMatch(state) ?? state : "";
-  return { a, b: district, c: st, ...(block && norm(block) !== norm(district) && norm(block) !== norm(a) ? { n: block } : {}), in: true };
+  const { district, area } = districtOf(st, ["administrative_area_level_2", "administrative_area_level_3", "administrative_area_level_4", "sublocality_level_1"].map((t) => part(pl.addressComponents, t) ?? ""));
+  return { a, b: district, c: st, ...(area && norm(area) !== norm(a) ? { n: area } : {}), in: true };
 }
 
 /** the body we send to Google */
