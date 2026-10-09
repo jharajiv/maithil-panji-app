@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, Download, GitMerge, MessageCircle, MessageSquareWarning, Network, Pencil, RotateCcw, Share2, Users } from "lucide-react";
+import { PaagMark } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { ExportSheet } from "@/components/tree/ExportSheet";
@@ -26,7 +27,7 @@ import { useConnect } from "./useConnect";
 import { useSimilar } from "./useSimilar";
 import { useSuggestions } from "./useSuggestions";
 import { SuggestionsSheet } from "./SuggestionsSheet";
-import { ChatRail, PaneDivider, SoonRail, usePaneLayout } from "./PaneDivider";
+import { ChatRail, PaneDivider, FamiliesRail, usePaneLayout } from "./PaneDivider";
 import { PersonEditSheet } from "./PersonEditSheet";
 import { ShareSheet } from "./ShareSheet";
 import { SavePrompt } from "./SavePrompt";
@@ -303,12 +304,14 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
     <div className="flex h-dvh flex-col bg-background">
       <header className="z-30 flex items-center gap-2 border-b bg-card px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
         <Link href={inAccount ? "/app" : "/"} aria-label={inAccount ? "Back to my trees" : "Back to home"} className="rounded-full p-2 text-muted-foreground hover:bg-secondary"><ChevronLeft className="size-5" /></Link>
+        <PaagMark size={26} className="hidden shrink-0 sm:block" />
         <div className="min-w-0 flex-1">
           <h1 className="truncate font-display text-base font-semibold leading-tight">{data ? `${family.persons.find((p) => p.is_me)?.name_roman.split(" ")[0]}’s family` : "Build your family tree"}</h1>
           <p className="truncate text-xs text-muted-foreground">{people ? `${people} ${people === 1 ? "person" : "people"} · ${sh.share ? (sh.status === "saving" ? "saving…" : sh.status === "offline" ? "offline — will retry" : sh.status === "invalid" ? "link no longer valid" : isHelper ? "shared with you" : `saved online${sh.members.length > 1 ? ` · ${sh.members.length - 1} helper${sh.members.length > 2 ? "s" : ""}` : ""}`) : "saved on this device"}` : "Maithil Panji"}</p>
         </div>
         {sg.list.length > 0 && <Button size="sm" variant="outline" onClick={() => setSgOpen(true)} aria-label={`${sg.list.length} suggested corrections`} className="relative"><MessageSquareWarning /> <span className="hidden sm:inline">Corrections</span><span className="ml-0.5 rounded-full bg-terracotta px-1.5 text-xs font-semibold text-white">{sg.list.length}</span></Button>}
-        <Button size="sm" variant="outline" onClick={() => { setInviteFor(undefined); setShareOpen(true); }} aria-label="Share"><Share2 /> <span className="hidden sm:inline">Share</span></Button>
+        {people > 0 && <Button size="sm" variant="outline" onClick={() => { setInviteFor(undefined); setShareOpen(true); }} aria-label="Share"><Share2 /> <span className="hidden sm:inline">Share</span></Button>}
+        {people > 1 && <Button size="sm" variant="outline" onClick={openMatches} aria-label="Families: connect trees through married women" className="relative hidden md:inline-flex"><GitMerge /> Families{cx.matches.length > 0 && <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-terracotta" aria-label="Possible matches found" />}</Button>}
         <Button size="sm" onClick={() => setExportOpen(true)} disabled={!data} aria-label="Download PDF"><Download /> <span className="hidden min-[400px]:inline">PDF</span></Button>
         {!isHelper && !inAccount && <Button size="icon" variant="ghost" onClick={() => setResetOpen(true)} aria-label="Start over"><RotateCcw /></Button>}
       </header>
@@ -325,7 +328,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">{treePane}</div>
           <PaneDivider side="right" width={layout.soonWidth} collapsed={layout.soonCollapsed} container={mainRef} onChange={layout.setSoon} onToggle={() => { layout.toggleSoon(); setTimeout(() => tree.current?.fit(), 60); }} onReset={() => { layout.resetSoon(); setTimeout(() => tree.current?.fit(), 60); }} onSettled={() => tree.current?.fit()} />
           {layout.soonCollapsed
-            ? <SoonRail onOpen={layout.toggleSoon} />
+            ? <FamiliesRail onOpen={layout.toggleSoon} dot={cx.matches.length > 0} />
             : <div style={{ width: layout.soonWidth }} className="flex min-h-0 shrink-0 flex-col"><MatchesPane className="flex-1" {...matchesProps} /></div>}
         </main>
       ) : (

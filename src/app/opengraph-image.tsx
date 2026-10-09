@@ -1,3 +1,4 @@
+import { PaagLogo } from "@/components/brand/Logo";
 import { ImageResponse } from "next/og";
 
 export const alt = "Maithil Panji — build your Maithil family tree";
@@ -11,13 +12,13 @@ export default function OgImage() {
     (
       <div style={{ width: "100%", height: "100%", display: "flex", background: "#1f2a5c", color: "#fbf7ef", padding: 56, fontFamily: "sans-serif" }}>
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", flex: 1, paddingRight: 24 }}>
-          <div style={{ display: "flex", fontSize: 26, letterSpacing: 6, textTransform: "uppercase", color: "#f0c9a8" }}>Maithil Panji · PAAG Foundation</div>
+          <div style={{ display: "flex", alignItems: "center" }}><PaagLogo height={84} onDark foundation={false} /><div style={{ display: "flex", marginLeft: 26, fontSize: 26, letterSpacing: 6, textTransform: "uppercase", color: "#f0c9a8" }}>Maithil Panji</div></div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", fontSize: 76, fontWeight: 700, lineHeight: 1.08 }}>Preserve your Maithil ancestry.</div>
             <div style={{ display: "flex", marginTop: 20, fontSize: 36, color: "#e8dcc8" }}>Build a tree. Join the lineage.</div>
           </div>
-          <div style={{ display: "flex", fontSize: 30 }}>
-            <div style={{ display: "flex", background: "#a63a1d", color: "#fff", padding: "14px 26px", borderRadius: 14, fontWeight: 700 }}>Start building your family tree — free</div>
+          <div style={{ display: "flex", alignItems: "center", fontSize: 30 }}>
+            <div style={{ display: "flex", flexShrink: 0, background: "#a63a1d", color: "#fff", padding: "14px 26px", borderRadius: 14, fontWeight: 700 }}>Start building your family tree — free</div>
             <div style={{ display: "flex", alignItems: "center", marginLeft: 22, color: "#f0c9a8" }}>paag.org.in</div>
           </div>
         </div>

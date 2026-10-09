@@ -1,4 +1,5 @@
 "use client";
+import { PaagLogo } from "@/components/brand/Logo";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -54,6 +55,7 @@ export function JoinClient({ treeId, invite }: { treeId: string; invite: string 
   return (
     <div>
       <div className="bg-indigo px-5 py-6 text-center text-cream">
+        <PaagLogo height={36} onDark className="mx-auto mb-3" />
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cream/70">Maithil Panji</p>
         <h1 className="font-display mt-2 text-2xl font-bold">{info.owner ? `${info.owner} invited you` : "You are invited"}</h1>
         <p className="mt-1 text-cream/80">to help with {info.title}</p>

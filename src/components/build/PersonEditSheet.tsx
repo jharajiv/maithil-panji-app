@@ -172,6 +172,7 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
         ) : draft.gender === "female" && !person.is_me && spousesOf(family, person.id).length > 0 && !fatherOf(family, person.id) ? (
           <p className="rounded-xl border border-dashed px-4 py-3 text-sm text-muted-foreground">
             <GitMerge className="mr-1 inline size-4 text-primary" /> A wife is the bridge between two families. Her own family’s chart is drawn by <em>her</em> family — you do not need to add her parents here. Open “Families”: when her family has recorded her as a daughter, we will offer to link the two trees. (Adding her father’s name is optional and makes the match more certain.)
+            {onOpenMatches && <button type="button" onClick={() => { onClose(); onOpenMatches(); }} className="mt-2 flex items-center gap-1.5 font-medium text-primary underline underline-offset-2"><GitMerge className="size-4" /> Open Families</button>}
           </p>
         ) : null}
         <details className="rounded-xl border p-3" open={!!(draft.gotra || draft.mool)}>

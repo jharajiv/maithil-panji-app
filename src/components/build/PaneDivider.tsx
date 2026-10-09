@@ -12,12 +12,12 @@ const keys = { ArrowLeft: -24, ArrowRight: 24 } as const;
 export const SOON_DEFAULT = 300;
 const SOON_MIN = 220;
 
-/** how wide the chat column and the "coming soon" column are on a big screen, and whether each is folded away — remembered on this device */
+/** how wide the chat column and the Families column are on a big screen, and whether each is folded away — remembered on this device */
 export function usePaneLayout() {
   const [width, setWidth] = useState(CHAT_DEFAULT);
   const [collapsed, setCollapsed] = useState(false);
   const [soonWidth, setSoonWidth] = useState(SOON_DEFAULT);
-  const [soonCollapsed, setSoonCollapsed] = useState(false);
+  const [soonCollapsed, setSoonCollapsed] = useState(true); // the Families panel starts folded: the first screen is the chat and the tree
   const loaded = useRef(false);
   useEffect(() => {
     try {
@@ -25,9 +25,7 @@ export function usePaneLayout() {
       if (s && typeof s.width === "number" && s.width >= MIN && s.width <= 1200) setWidth(s.width);
       if (s?.collapsed) setCollapsed(true);
       if (s && typeof s.soonWidth === "number" && s.soonWidth >= SOON_MIN && s.soonWidth <= 800) setSoonWidth(s.soonWidth);
-      if (s?.soonCollapsed) setSoonCollapsed(true);
-      // first visit on a smaller laptop screen: start with the coming-soon panel folded so the tree has room
-      if (!s && window.innerWidth < 1240) setSoonCollapsed(true);
+      if (s && s.soonCollapsed === false) setSoonCollapsed(false); // opened it before: keep it open
     } catch { /* ignore */ }
     loaded.current = true;
   }, []);
@@ -48,7 +46,7 @@ export function usePaneLayout() {
  * or use the little arrow to fold the chat away (and again to bring it back).
  */
 export function PaneDivider({ side = "left", width, collapsed, container, onChange, onToggle, onReset, onSettled }: {
-  /** "left": the divider sits right of the chat. "right": it sits left of the "coming soon" column. */
+  /** "left": the divider sits right of the chat. "right": it sits left of the Families column. */
   side?: "left" | "right";
   width: number; collapsed: boolean; container: React.RefObject<HTMLElement | null>;
   onChange: (w: number, collapsed: boolean) => void; onToggle: () => void; onReset: () => void; onSettled?: () => void;
@@ -83,11 +81,11 @@ export function PaneDivider({ side = "left", width, collapsed, container, onChan
   };
 
   return (
-    <div role="separator" aria-orientation="vertical" tabIndex={0} aria-label={right ? "Resize the coming-soon panel. Drag, or use the left and right arrow keys. Enter folds it away." : "Resize the chat. Drag, or use the left and right arrow keys. Enter folds the chat away."}
+    <div role="separator" aria-orientation="vertical" tabIndex={0} aria-label={right ? "Resize the Families panel. Drag, or use the left and right arrow keys. Enter folds it away." : "Resize the chat. Drag, or use the left and right arrow keys. Enter folds the chat away."}
       aria-valuenow={collapsed ? 0 : Math.round(width)} aria-valuemin={0} aria-valuemax={Math.round(max())}
       onPointerDown={onDown} onPointerMove={onMove} onPointerUp={end} onPointerCancel={end} onDoubleClick={(e) => { if (!(e.target as HTMLElement).closest("button")) onReset(); }} onKeyDown={onKey}
       className={cn("group relative z-10 w-2 shrink-0 cursor-col-resize touch-none select-none bg-border/60 outline-none transition-colors hover:bg-primary/40 focus-visible:bg-primary/60", dragging && "bg-primary/60")}>
-      <button type="button" onClick={onToggle} aria-label={right ? (collapsed ? "Show the coming-soon panel" : "Hide the coming-soon panel to give the tree more room") : (collapsed ? "Show the chat" : "Hide the chat to give the tree more room")} title={right ? (collapsed ? "Show the coming-soon panel" : "Hide the coming-soon panel") : (collapsed ? "Show the chat" : "Hide the chat")}
+      <button type="button" onClick={onToggle} aria-label={right ? (collapsed ? "Show the Families panel" : "Hide the Families panel to give the tree more room") : (collapsed ? "Show the chat" : "Hide the chat to give the tree more room")} title={right ? (collapsed ? "Show the Families panel" : "Hide the Families panel") : (collapsed ? "Show the chat" : "Hide the chat")}
         className="absolute left-1/2 top-1/2 grid size-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border bg-card text-muted-foreground shadow hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
         {(right ? !collapsed : collapsed) ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
       </button>
@@ -106,12 +104,13 @@ export function ChatRail({ onOpen, unread }: { onOpen: () => void; unread?: bool
   );
 }
 
-/** what is left of the "coming soon" panel when it is folded away */
-export function SoonRail({ onOpen }: { onOpen: () => void }) {
+/** what is left of the Families panel when it is folded away */
+export function FamiliesRail({ onOpen, dot }: { onOpen: () => void; dot?: boolean }) {
   return (
-    <button type="button" onClick={onOpen} aria-label="Show the coming-soon panel" className="flex w-12 shrink-0 flex-col items-center gap-3 border-l bg-card pt-4 text-muted-foreground hover:bg-secondary hover:text-foreground">
+    <button type="button" onClick={onOpen} aria-label="Open the Families panel" className="relative flex w-12 shrink-0 flex-col items-center gap-3 border-l bg-card pt-4 text-muted-foreground hover:bg-secondary hover:text-foreground">
       <GitMerge className="size-5" />
-      <span className="text-xs font-medium [writing-mode:vertical-rl]">Coming soon</span>
+      <span className="text-xs font-medium [writing-mode:vertical-rl]">Families</span>
+      {dot && <span className="absolute left-2 top-3 size-2.5 rounded-full bg-terracotta" aria-label="Possible matches found" />}
     </button>
   );
 }

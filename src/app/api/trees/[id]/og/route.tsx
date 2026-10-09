@@ -1,3 +1,4 @@
+import { PaagLogo } from "@/components/brand/Logo";
 import { ImageResponse } from "next/og";
 import { getStore } from "@/lib/store";
 import { generations, viewMode, viewState } from "@/lib/view";
@@ -41,7 +42,7 @@ function card(title: string, facts: string, tradition: string) {
     (
       <div style={{ width: "100%", height: "100%", display: "flex", background: INDIGO, color: CREAM, padding: 56, fontFamily: "sans-serif" }}>
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", flex: 1, paddingRight: 24 }}>
-          <div style={{ display: "flex", fontSize: 26, letterSpacing: 6, textTransform: "uppercase", color: "#f0c9a8" }}>Maithil Panji · PAAG Foundation</div>
+          <div style={{ display: "flex", alignItems: "center" }}><PaagLogo height={84} onDark foundation={false} /><div style={{ display: "flex", marginLeft: 26, fontSize: 26, letterSpacing: 6, textTransform: "uppercase", color: "#f0c9a8" }}>Maithil Panji</div></div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", fontSize: title.length > 22 ? 64 : 82, fontWeight: 700, lineHeight: 1.08 }}>{title}</div>
             <div style={{ display: "flex", marginTop: 22, fontSize: 36, color: "#e8dcc8" }}>{facts}</div>

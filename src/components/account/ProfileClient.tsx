@@ -20,6 +20,14 @@ function splitNative(v: string): Pick<Profile, "native_village" | "native_distri
   return { native_village: p[0], native_district: undefined, native_state: undefined };
 }
 
+/** defined outside ProfileClient on purpose: a component created inside render is a NEW component on every keystroke, which remounts the inputs and jumps the page to the top */
+const Section = ({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) => (
+  <section className="space-y-4 rounded-2xl border bg-card p-5">
+    <div><h2 className="text-lg font-semibold">{title}</h2>{hint && <p className="text-sm text-muted-foreground">{hint}</p>}</div>
+    {children}
+  </section>
+);
+
 export function ProfileClient() {
   const router = useRouter();
   const auth = useAccount();
@@ -60,12 +68,6 @@ export function ProfileClient() {
   };
 
   if (!data) return <div className="grid h-dvh place-items-center text-muted-foreground">{err || "Loading…"}</div>;
-  const Section = ({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) => (
-    <section className="space-y-4 rounded-2xl border bg-card p-5">
-      <div><h2 className="text-lg font-semibold">{title}</h2>{hint && <p className="text-sm text-muted-foreground">{hint}</p>}</div>
-      {children}
-    </section>
-  );
   const text = (k: keyof Profile, label: string, props: { helper?: string; placeholder?: string; auto?: string } = {}) => (
     <div>
       <Label htmlFor={`pf-${k}`} helper={props.helper}>{label}</Label>

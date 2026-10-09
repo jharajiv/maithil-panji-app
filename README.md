@@ -168,12 +168,22 @@ Three parts, each independent so any one can be taken out.
   - `src/lib/combine.ts` (pure), `POST/GET /api/trees/[id]/combine`, `src/components/build/CombinePanel.tsx`. Tests: `_combine.test.ts`, `_combine_api.test.ts` (dev server, accounts on). New anonymous count: `tree_combined`. To remove the feature: delete `CombinePanel` and its line in `SimilarTrees.tsx` — the rest keeps working.
 - Not built, on purpose: **B-30 premium plans** (waiting for your decision). Hindi wording of the new screens still needs a native speaker's review; the combine and connections screens are English only for now.
 
+## v11.3 notes
+
+- **New PAAG logo**, in the Mithila (Madhubani) manner: the paag is the frame (a dome on a red band) and a tree of life grows inside it; every flower is a person, the dotted lines are the links. The word is written in **Mithilakshar** (पाग, Tirhuta script, outlines from Noto Sans Tirhuta, OFL) beside "PAAG FOUNDATION". Please have a Mithilakshar reader confirm the spelling. One drawing in `src/components/brand/Logo.tsx` (`PaagMark`, `PaagBadge`, `PaagLogo`; three levels of detail), outlines in `src/components/brand/mithilakshar.ts`. Files in `public/brand`: regenerate with `npx tsx scripts/build-brand.tsx` then `python3 scripts/build-brand-png.py`. The logo is now smaller and quieter everywhere (about 36 px high in headers).
+- **Home page rebuilt** to be calm and structured: top bar, a hero with a real tree picture, "How it works", "Styles", "Connecting families", then one closing call to action. The same section rhythm (small label, heading, one line) throughout. Hindi added (वंशावली; a Hindi line in the hero and the closing band). Larger body text and darker secondary text. The "Coming soon" section is gone; the next steps are one line of text.
+- **Template pictures** on the home page are now real, readable captures of the sample tree (`public/templates`, regenerated). The old ones were too small to read.
+- **Builder, first screen**: the Families panel starts folded, and Share / Families stay out of the header until there is someone in the tree.
+- No database change.
+
 ## v11.2 notes
 
 - **A woman connects two family trees.** A wife (your mother, a grandmother…) is now looked for as a daughter in her father's tree even when her father's name is entered in your tree; the father's name strengthens the match. The Families screen and her edit card explain the route. Her own family's chart is drawn by her family's tree; the link shows it.
 - **Bridge**: once a woman is linked, "Open her family's tree" (Families pane and her edit card) opens the other family's tree read-only, centred on her. Living relatives show by first name only. Who may cross, and how much they see, becomes an owner setting later (B-38).
 - **Google Places** for village / town suggestions (anywhere in the world, biased to Bihar). Set `GOOGLE_PLACES_API_KEY` in Vercel (Places API (New); restrict the key and set a quota). Without the key the free OpenStreetMap service is used, as before. "Powered by Google" is shown beside Google results.
 - Her father's name is optional for the connection; it only makes the match more certain.
+- **PAAG logo**: the Mithila paag (the cap worn as a mark of honour; PAAG sounds like *paag*) with a fan of ancestry rising from its band. One drawing in `src/components/brand/Logo.tsx` is used on the home page, footer, sign-in, dashboard, About/Privacy, builder, shared-link previews, favicon and the corner of every printed PDF. Logo files (SVG + PNG, light and dark) are in `public/brand`; regenerate them with `npx tsx scripts/build-brand.tsx` then `python3 scripts/build-brand-png.py`.
+- Fixes: the profile page no longer jumps to the top while typing; the folded right-hand panel is now labelled "Families" (it said "Coming soon"), with a Families button in the header and an "Open Families" button on a wife's card.
 - No database change (same `supabase/schema.sql`).
 
 ## v11.1 notes

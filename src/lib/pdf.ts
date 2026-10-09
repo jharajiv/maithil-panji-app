@@ -84,6 +84,8 @@ export async function exportTreePdf({ data, scope, template, format, mode = "fit
   const [br, bg, bb] = hex(PAGE_BG[template]);
   const ink = INK[template];
   const qr = await QR.toDataURL(viewUrl || window.location.origin, { errorCorrectionLevel: "M", margin: 1, width: 240, color: { dark: "#111111", light: "#ffffff" } });
+  // the PAAG mark in the corner of every page (skipped quietly if it cannot be loaded)
+  const mark = await fetch("/brand/paag-mark-192.png").then((r) => (r.ok ? r.blob() : Promise.reject(new Error("mark")))).then((b) => new Promise<string>((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result)); fr.onerror = () => no(fr.error); fr.readAsDataURL(b); })).catch(() => null);
   const measured = await measureTree(scoped);
   const shown = measured.shown;
   const people = shown.length; // the people the chart really draws
@@ -99,6 +101,7 @@ export async function exportTreePdf({ data, scope, template, format, mode = "fit
     doc.setFont(template === "madhubani" ? "times" : "helvetica", "bold");
     doc.setFontSize((w > 300 ? 22 : 17) * u * (small ? 0.7 : 1));
     doc.text(title, margin + 2 * u, margin + (small ? 7 : 11) * u);
+    if (mark) { const m = (small ? 9 : 14) * u; doc.addImage(mark, "PNG", w - margin - m, margin, m, m); }
     doc.setFont("helvetica", "normal");
     doc.setFontSize((w > 300 ? 10 : 8.5) * u * (small ? 0.8 : 1));
     doc.text(subtitle, margin + 2 * u, margin + (small ? 12 : 17) * u);

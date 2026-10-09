@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PaagLogo } from "@/components/brand/Logo";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { SiteFooter } from "@/components/landing/SiteFooter";
@@ -17,6 +18,7 @@ export default function Privacy() {
     <div className="min-h-dvh bg-background">
       <div className="mx-auto max-w-2xl px-5 pb-20 pt-6">
         <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ChevronLeft className="size-4" /> Maithil Panji home</Link>
+        <PaagLogo height={34} className="mt-5" />
         <h1 className="font-display mt-4 text-3xl font-bold text-indigo sm:text-4xl">Privacy</h1>
         <p className="mt-1 text-sm text-muted-foreground">Last updated {UPDATED}</p>
 

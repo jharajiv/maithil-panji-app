@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, MessageCircle, PencilLine, ShieldCheck, X } from "lucide-react";
+import { PaagMark } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { SuggestForm } from "./SuggestForm";
 import { LiveTree, type LiveTreeHandle } from "@/components/build/LiveTree";
@@ -52,6 +53,7 @@ export function ViewClient({ id, v, bridge }: { id: string; v: string; bridge?: 
   return (
     <div className="flex h-dvh flex-col bg-background">
       <header className="flex items-center gap-3 border-b bg-card px-4 py-2.5">
+        <PaagMark size={28} className="shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-terracotta">{bridge ? `Through ${state.by ?? "a linked woman"} · view only` : "Maithil Panji · view only"}</div>
           <h1 className="truncate font-display text-lg font-semibold leading-tight text-indigo">{state.title}</h1>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PaagLogo } from "@/components/brand/Logo";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { SiteFooter } from "@/components/landing/SiteFooter";
@@ -19,7 +20,8 @@ export default function About() {
     <div className="min-h-dvh bg-background">
       <div className="mx-auto max-w-2xl px-5 pb-16 pt-6">
         <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ChevronLeft className="size-4" /> {SITE_NAME} home</Link>
-        <p className="mt-6 text-xs font-semibold uppercase tracking-[0.2em] text-terracotta">{SITE_DOMAIN}</p>
+        <PaagLogo height={48} className="mt-6" />
+        <p className="mt-5 text-xs font-semibold uppercase tracking-[0.2em] text-terracotta">{SITE_DOMAIN}</p>
         <h1 className="font-display mt-2 text-3xl font-bold text-indigo sm:text-4xl">{ORG_NAME}</h1>
         <p className="mt-1 text-lg text-foreground/80">PAAG stands for <strong>{ORG_LONG}</strong>.</p>
 
