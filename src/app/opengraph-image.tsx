@@ -1,7 +1,7 @@
 import { PaagLogo } from "@/components/brand/Logo";
 import { ImageResponse } from "next/og";
 
-export const alt = "Maithil Panji — build your Maithil family tree";
+export const alt = "PAAG Foundation — build your Maithil family tree";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -12,7 +12,7 @@ export default function OgImage() {
     (
       <div style={{ width: "100%", height: "100%", display: "flex", background: "#1f2a5c", color: "#fbf7ef", padding: 56, fontFamily: "sans-serif" }}>
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", flex: 1, paddingRight: 24 }}>
-          <div style={{ display: "flex", alignItems: "center" }}><PaagLogo height={84} onDark foundation={false} /><div style={{ display: "flex", marginLeft: 26, fontSize: 26, letterSpacing: 6, textTransform: "uppercase", color: "#f0c9a8" }}>Maithil Panji</div></div>
+          <div style={{ display: "flex", alignItems: "center" }}><PaagLogo height={84} onDark foundation={false} /><div style={{ display: "flex", marginLeft: 26, fontSize: 26, letterSpacing: 6, textTransform: "uppercase", color: "#f0c9a8" }}>PAAG Foundation</div></div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", fontSize: 76, fontWeight: 700, lineHeight: 1.08 }}>Preserve your Maithil ancestry.</div>
             <div style={{ display: "flex", marginTop: 20, fontSize: 36, color: "#e8dcc8" }}>Build a tree. Join the lineage.</div>

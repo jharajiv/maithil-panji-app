@@ -82,7 +82,7 @@ function Person({ r }: { r: ConnectRequest }) {
   const [copied, setCopied] = useState(false);
   if (!w) return null;
   const rows: [string, string | undefined][] = [["Pravar", w.pravar], ["Native place", w.native_place], ["Lives in", w.current_city], ["Marital status", w.marital_status], ["Occupation", w.occupation], ["Address", w.address], ["Email", w.email], ["Mobile", w.phone]];
-  const hello = `Namaste ${w.name.split(" ")[0]}, I am writing from Maithil Panji about our family trees “${r.title}”.`;
+  const hello = `Namaste ${w.name.split(" ")[0]}, I am writing from PAAG Foundation about our family trees “${r.title}”.`;
   return (
     <div className="mt-2 rounded-xl border bg-card p-3 text-sm">
       <p className="font-medium">{w.name}</p>

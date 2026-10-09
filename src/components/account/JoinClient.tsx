@@ -49,14 +49,14 @@ export function JoinClient({ treeId, invite }: { treeId: string; invite: string 
     <main className="mx-auto grid min-h-dvh max-w-md place-content-center gap-4 px-5 text-center">
       <h1 className="font-display text-2xl font-bold text-indigo">This invitation is not valid any more</h1>
       <p className="text-muted-foreground">It may have been used already, replaced by a newer one, or cancelled. Please ask the person who invited you to send it again.</p>
-      <Button asChild variant="outline"><Link href="/">Go to Maithil Panji</Link></Button>
+      <Button asChild variant="outline"><Link href="/">Go to PAAG Foundation</Link></Button>
     </main>
   );
   return (
     <div>
       <div className="bg-indigo px-5 py-6 text-center text-cream">
         <PaagLogo height={36} onDark className="mx-auto mb-3" />
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cream/70">Maithil Panji</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cream/70">Family tree invitation</p>
         <h1 className="font-display mt-2 text-2xl font-bold">{info.owner ? `${info.owner} invited you` : "You are invited"}</h1>
         <p className="mt-1 text-cream/80">to help with {info.title}</p>
       </div>

@@ -356,16 +356,18 @@ export function resembles(found: string, typed: string) {
   return y.length >= 4 && lev(x.slice(0, y.length + 1), y) <= Math.max(1, Math.floor(y.length / 4));
 }
 
-function parsePlace(value: string) {
+export function parsePlace(value: string) {
   const parts = value.split(",").map((x) => x.trim()).filter(Boolean);
-  const lastState = parts.length > 1 ? stateMatch(parts[parts.length - 1]!) : undefined;
   if (parts.length === 0) return { india: true, a: "", b: "", c: "" };
+  const saidIndia = parts.length > 1 && /^india$/i.test(parts[parts.length - 1]!);
+  if (saidIndia) parts.pop();                                                                 // "Behta, India" is in India, "India" is not a district
+  const lastState = parts.length > 1 ? stateMatch(parts[parts.length - 1]!) : undefined;
+  if (parts.length === 1) return { india: true, a: parts[0]!, b: "", c: "" };
   if (parts.length >= 3 && lastState) return { india: true, a: parts[0]!, b: parts.slice(1, -1).join(", "), c: lastState };
   if (parts.length === 2 && lastState) return { india: true, a: parts[0]!, b: "", c: lastState };
-  if (parts.length >= 2 && !lastState && /^(india)$/i.test(parts[parts.length - 1]!)) return { india: true, a: parts[0]!, b: parts[1] ?? "", c: "" };
-  if (parts.length === 1) return { india: true, a: parts[0]!, b: "", c: "" };
+  if (saidIndia) return { india: true, a: parts[0]!, b: parts.slice(1).join(", "), c: "" };
   if (parts.length === 2) return { india: false, a: parts[0]!, b: "", c: parts[1]! };       // "Zurich, Switzerland"
-  return { india: true, a: parts[0]!, b: parts[1]!, c: parts.slice(2).join(", ") };          // older free text, keep it as typed
+  return { india: false, a: parts[0]!, b: parts.slice(1, -1).join(", "), c: parts[parts.length - 1]! }; // "Opfikon, Zurich, Switzerland"
 }
 
 /** does the server have a Google Places key? (asked once; "off" is remembered so no further calls are made) */
@@ -384,7 +386,7 @@ export function PlaceField({ value, onChange, helper, label }: { value: string; 
   // another person's place arrived: show it; our own edits already match, so nothing moves
   useEffect(() => { setF((cur) => (compose(cur) === (value ?? "").trim() ? cur : parsePlace(value ?? ""))); }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
   const update = (next: Partial<typeof f>) => { const x = { ...f, ...next }; setF(x); onChange(compose(x)); };
-  const pick = (h: PlaceHit) => { const x = { india, a: h.a, b: h.b, c: h.c }; setF(x); onChange(compose(x)); setOpen(false); };
+  const pick = (h: PlaceHit) => { const x = { india: h.in ?? india, a: h.a, b: h.b, c: h.c }; setF(x); onChange(compose(x)); setOpen(false); };
 
   // suggestions while typing the village: Photon looks things up by name, so we add the district/state when they are known
   useEffect(() => {
@@ -406,7 +408,8 @@ export function PlaceField({ value, onChange, helper, label }: { value: string; 
         for (const ft of json.features) {
           const p = ft.properties;
           if (india && p.countrycode !== "IN") continue;
-          const hit: PlaceHit = india ? { a: p.name ?? "", b: (p.district || p.county || "").replace(/\s+district$/i, ""), c: stateMatch(p.state ?? "") ?? p.state ?? "" } : { a: p.name ?? "", b: "", c: p.country ?? "" };
+          const here = india || p.countrycode === "IN"; // a place in India found while "Outside India" is on is still offered, as an Indian place
+          const hit: PlaceHit = here ? { a: p.name ?? "", b: (p.district || p.county || "").replace(/\s+district$/i, ""), c: stateMatch(p.state ?? "") ?? p.state ?? "", in: true } : { a: p.name ?? "", b: "", c: p.country ?? "", in: false };
           const key = `${hit.a}|${hit.b}|${hit.c}`.toLowerCase();
           if (hit.a && !seen.has(key)) { seen.add(key); out.push(hit); }
         }
@@ -457,6 +460,7 @@ export function PlaceField({ value, onChange, helper, label }: { value: string; 
           {remote.map((h) => (
             <li key={`${h.a}|${h.b}|${h.c}`}><button type="button" onClick={() => pick(h)} className="block w-full px-4 py-2.5 text-left text-sm hover:bg-secondary">
               <span className="font-medium">{h.a}</span><span className="text-muted-foreground">{[h.b, h.c].filter(Boolean).map((x) => `, ${x}`).join("")}</span>
+              {h.n && <span className="block text-xs text-muted-foreground/80">{h.n} block</span>}
             </button></li>
           ))}
           {google && remote.length > 0 && <li className="px-4 pt-1 text-right text-[10px] text-muted-foreground">Powered by Google</li>}
