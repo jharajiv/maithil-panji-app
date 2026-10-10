@@ -1,5 +1,5 @@
 "use client";
-import { PaagMark } from "@/components/brand/Logo";
+import { PaagLogo } from "@/components/brand/Logo";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -187,7 +187,7 @@ function GoogleMark() {
 function Shell({ children, compact, title }: { children: React.ReactNode; compact?: boolean; title?: string }) {
   return (
     <main className={compact ? "mx-auto max-w-md px-5 py-6" : "mx-auto flex min-h-dvh max-w-md flex-col justify-center px-5 py-10"}>
-      {!compact && <Link href="/" aria-label="PAAG Foundation — Maithil Panji home" className="mb-6 flex items-center gap-3"><PaagMark size={34} /><span className="text-xs font-semibold uppercase tracking-[0.2em] text-terracotta">Maithil Panji</span></Link>}
+      {!compact && <Link href="/" aria-label="PAAG Foundation home" className="mb-6 inline-block"><PaagLogo height={36} /></Link>}
       <h1 className="font-display text-3xl font-bold text-indigo">{title ?? (compact ? "Sign in to join" : "Sign in")}</h1>
       <div className="mt-5">{children}</div>
     </main>

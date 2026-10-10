@@ -43,7 +43,7 @@ export function ViewClient({ id, v, bridge }: { id: string; v: string; bridge?: 
         <div className="max-w-sm space-y-4">
           <h1 className="font-display text-2xl font-semibold text-indigo">{bridge ? "This family’s tree is not open to you" : "This link is not valid"}</h1>
           <p className="text-muted-foreground">{bridge ? "The link between the two trees may have been removed, or that family has switched off “let families find each other”." : "The family may have taken the tree offline, or the QR code was not copied completely. Please ask the person who shared it."}</p>
-          <Button asChild size="lg">{bridge ? <Link href={`/app/tree/${id}${bridge.k ? `?k=${encodeURIComponent(bridge.k)}` : ""}`}>Back to my tree</Link> : <Link href="/">Maithil Panji home</Link>}</Button>
+          <Button asChild size="lg">{bridge ? <Link href={`/app/tree/${id}${bridge.k ? `?k=${encodeURIComponent(bridge.k)}` : ""}`}>Back to my tree</Link> : <Link href="/">PAAG Foundation home</Link>}</Button>
         </div>
       </div>
     );
@@ -55,7 +55,7 @@ export function ViewClient({ id, v, bridge }: { id: string; v: string; bridge?: 
       <header className="flex items-center gap-3 border-b bg-card px-4 py-2.5">
         <PaagMark size={28} className="shrink-0" />
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-terracotta">{bridge ? `Through ${state.by ?? "a linked woman"} · view only` : "Maithil Panji · view only"}</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-terracotta">{bridge ? `Through ${state.by ?? "a linked woman"} · view only` : "PAAG Foundation · view only"}</div>
           <h1 className="truncate font-display text-lg font-semibold leading-tight text-indigo">{state.title}</h1>
         </div>
         <span className="hidden text-sm text-muted-foreground sm:inline">{count} people</span>

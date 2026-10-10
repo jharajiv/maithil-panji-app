@@ -4,9 +4,9 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { SiteFooter } from "@/components/landing/SiteFooter";
 
-export const metadata: Metadata = { title: "Privacy — Maithil Panji · PAAG Foundation", description: "What Maithil Panji (PAAG Foundation) keeps, who can see it, and how to have it removed." };
+export const metadata: Metadata = { title: "Privacy — PAAG Foundation", description: "What PAAG Foundation keeps, who can see it, and how to have it removed." };
 
-const UPDATED = "8 October 2026";
+const UPDATED = "10 October 2026";
 const contact = process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim();
 
 function H({ children }: { children: React.ReactNode }) { return <h2 className="font-display mt-9 text-xl font-semibold text-indigo">{children}</h2>; }
@@ -17,7 +17,7 @@ export default function Privacy() {
   return (
     <div className="min-h-dvh bg-background">
       <div className="mx-auto max-w-2xl px-5 pb-20 pt-6">
-        <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ChevronLeft className="size-4" /> Maithil Panji home</Link>
+        <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ChevronLeft className="size-4" /> PAAG Foundation home</Link>
         <PaagLogo height={34} className="mt-5" />
         <h1 className="font-display mt-4 text-3xl font-bold text-indigo sm:text-4xl">Privacy</h1>
         <p className="mt-1 text-sm text-muted-foreground">Last updated {UPDATED}</p>
@@ -29,16 +29,17 @@ export default function Privacy() {
             <li>जब तक आप “ऑनलाइन सेव करें” नहीं चुनते, आपकी वंशावली सिर्फ़ आपके फ़ोन या कंप्यूटर में रहती है।</li>
             <li>जीवित रिश्तेदारों की जानकारी या फ़ोटो उनकी सहमति से ही डालें।</li>
             <li>वंशावली को सोशल मीडिया या WhatsApp पर दिखाने के लिए “सिर्फ़ देखने वाला” लिंक बनता है। उसमें कोई बदलाव या डाउनलोड नहीं कर सकता। शुरू से जीवित लोगों का सिर्फ़ पहला नाम दिखता है; जन्म-तिथि, गाँव और फ़ोटो छिपे रहते हैं।</li>
+            <li>समाचार-पत्र (newsletter) तभी आता है जब आप खुद नाम लिखवाएँ और ईमेल में दिए लिंक से पक्का करें। हर ईमेल में “सदस्यता छोड़ें” का लिंक रहता है।</li>
             <li>आप जब चाहें अपनी ऑनलाइन वंशावली मिटा सकते हैं (Share → “Delete online copy”)।</li>
           </ul>
         </section>
 
         <H>Who we are</H>
-        <P>Maithil Panji is run by <Link href="/about" className="underline">PAAG Foundation</Link> (Panji Ancestry &amp; Graph), at paag.org.in. When this page says “we”, it means PAAG Foundation.</P>
+        <P>This site is run by <Link href="/about" className="underline">PAAG Foundation</Link> (Panji Ancestry &amp; Graph), at paag.org.in. When this page says “we”, it means PAAG Foundation.</P>
 
         <H>The short version</H>
         <L>
-          <li>Maithil Panji is a community project of PAAG Foundation (Panji Ancestry &amp; Graph, paag.org.in) to help Maithil families record their lineage in the Panji Prabandh tradition.</li>
+          <li>PAAG Foundation (Panji Ancestry &amp; Graph, paag.org.in) is a community project to help Maithil families record their lineage in the Panji Prabandh tradition.</li>
           <li>Your tree belongs to you. We do not sell your data, show advertising, or pass it to marketers.</li>
           <li>Until you choose to save it online, your tree stays on your own phone or computer.</li>
           <li>You can delete your online tree yourself at any time.</li>
@@ -50,6 +51,7 @@ export default function Privacy() {
           <li><strong>Your email address and name</strong> — to sign you in with a one-time code (no password). We use the email address only for sign-in codes and, if you ask, for a message about your tree.</li>
           <li><strong>Sign in with Google</strong> — if you choose “Continue with Google”, Google tells us your email address (confirmed) and your name, and nothing else. We do not receive your Google password, contacts or other data.</li>
           <li><strong>Your profile</strong> — if you add them in “My profile”: your mobile number, pravar, native village, city, address, marital status, occupation and a short note about yourself. Gotra and mool come from your tree. None of it is public or searchable.</li>
+          <li><strong>Newsletter</strong> — only if you subscribe: your email address, your language (English or Hindi), where you signed up on the site and when. We first send one email to check the address is yours; nothing more is sent until you press its link. Every newsletter has an unsubscribe link, and after you unsubscribe we keep only a note that you did, so you are not added again by mistake. We do not sell or share the list.</li>
           <li><strong>Phone numbers of relatives</strong> — only if you invite someone on WhatsApp. The number is used to open WhatsApp for you. It is never shown on shared view-only pages.</li>
           <li><strong>Your consent</strong> — we record that you agreed to the terms of sharing a family tree, and when.</li>
           <li><strong>Simple usage counts</strong> — we count how often the sample tree is opened, trees are started and saved, PDFs are downloaded, share buttons are used, corrections are suggested, women are linked, owners are put in touch, and people sign in with Google. Each count is only a name and a time: no name, no tree, no IP address, no cookie.</li>
@@ -88,7 +90,7 @@ export default function Privacy() {
         <L>
           <li>On this device: use “Start over” in the builder, or clear your browser’s site data.</li>
           <li>Online tree: open <em>Share</em> and choose <em>Delete online copy</em>. This removes the tree and every person in it from our database for you and everyone you invited, and all view-only links stop working.</li>
-          <li>Anything else, including your account: {contact ? <>write to <a className="underline" href={`mailto:${contact}`}>{contact}</a>.</> : "contact the person who invited you to Maithil Panji."}</li>
+          <li>Anything else, including your account: {contact ? <>write to <a className="underline" href={`mailto:${contact}`}>{contact}</a>.</> : "contact the person who invited you to PAAG Foundation."}</li>
         </L>
 
         <H>Cookies</H>

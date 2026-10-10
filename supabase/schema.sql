@@ -1,4 +1,4 @@
--- Maithil Panji — database. Run once in Supabase: SQL Editor → New query → paste → Run. Safe to run again (it only adds what is missing).
+-- PAAG Foundation — database. Run once in Supabase: SQL Editor → New query → paste → Run. Safe to run again (it only adds what is missing).
 -- Only the server (service-role key) reads or writes these tables; the browser never talks to Supabase directly.
 
 -- 1. WORKING COPY — one row per shared family tree
@@ -169,3 +169,18 @@ alter table public.suggestions enable row level security;
 alter table public.accounts add column if not exists profile jsonb;
 -- Similar-tree matching (same gotra + mool) reads the flat people table, so these two make it fast:
 create index if not exists persons_is_me_idx on public.persons (gotra, mool) where is_me;
+
+-- 9. NEWSLETTER — people who asked for occasional updates (double opt-in: "pending" until they open the link in the confirmation email).
+--    Only the email, language and dates are kept. Safe to run again.
+create table if not exists public.newsletter (
+  email           text primary key,
+  status          text not null default 'pending' check (status in ('pending', 'confirmed', 'unsubscribed')),
+  lang            text not null default 'en' check (lang in ('en', 'hi')),
+  source          text not null default 'site',     -- where the form was: footer | home | dashboard …
+  created_at      timestamptz not null default now(),
+  last_sent_at    timestamptz,                        -- last confirmation email (limits repeats)
+  confirmed_at    timestamptz,
+  unsubscribed_at timestamptz
+);
+create index if not exists newsletter_status_idx on public.newsletter (status, lang);
+alter table public.newsletter enable row level security;

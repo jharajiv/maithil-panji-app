@@ -9,6 +9,7 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { parsePhoneNumberFromString } from "libphonenumber-js/min";
 import { googleEnabled } from "./google";
+import { sendMail } from "./mail";
 import { getStore, hashToken, newAccountId, type AccountRow, type Member, type Store, type TreeRow } from "./store";
 
 export const SESSION_COOKIE = "pj_session";
@@ -56,20 +57,13 @@ export const maskPhone = (e164: string) => `${e164.slice(0, 3)} ••••• 
 const codeHash = (email: string, code: string) => createHash("sha256").update(`${process.env.AUTH_SECRET ?? ""}|${email}|${code}`).digest("hex");
 
 async function sendEmail(to: string, code: string): Promise<boolean> {
-  const r = resend()!;
   const html = `<div style="font-family:Georgia,serif;max-width:420px;margin:auto;padding:24px;color:#1f2a5c">
-<p style="letter-spacing:.2em;font-size:12px;color:#b5482a;margin:0 0 12px">MAITHIL PANJI · PAAG FOUNDATION</p>
+<p style="letter-spacing:.2em;font-size:12px;color:#b5482a;margin:0 0 12px">PAAG FOUNDATION</p>
 <p style="font-size:16px;margin:0 0 8px">Your sign-in code is</p>
 <p style="font-size:34px;letter-spacing:.35em;font-weight:bold;margin:0 0 16px">${code}</p>
 <p style="font-size:14px;color:#555;margin:0">It works for ${CODE_MINUTES} minutes. If you did not ask for it, you can ignore this email.</p>
 <p style="font-size:12px;color:#888;margin:16px 0 0">PAAG Foundation (Panji Ancestry &amp; Graph) · paag.org.in</p></div>`;
-  const res = await fetch(process.env.RESEND_API_URL ?? "https://api.resend.com/emails", {
-    method: "POST", cache: "no-store",
-    headers: { Authorization: `Bearer ${r.key}`, "content-type": "application/json" },
-    body: JSON.stringify({ from: r.from, to: [to], subject: `Your Maithil Panji sign-in code: ${code}`, html, text: `Your Maithil Panji sign-in code is ${code}. It works for ${CODE_MINUTES} minutes.` }),
-  });
-  if (!res.ok) console.error("email send failed", res.status, (await res.text()).slice(0, 200));
-  return res.ok;
+  return sendMail({ to, subject: `Your PAAG Foundation sign-in code: ${code}`, html, text: `Your PAAG Foundation sign-in code is ${code}. It works for ${CODE_MINUTES} minutes.` });
 }
 
 export async function sendLoginCode(store: Store, email: string): Promise<{ ok: boolean; error?: string; tester?: boolean }> {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowDown, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { inputCls } from "@/components/build/widgets";
+import { NewsletterAdmin, SetupStatus } from "./AdminExtras";
 import { useAccount } from "./useAccount";
 
 interface P { id: string; tree: string; title: string; name: string; gender?: string; born?: number; deceased: boolean; gotra?: string; mool?: string; place?: string; steps?: number; via?: string }
@@ -62,13 +63,16 @@ export function AdminClient() {
 
   return (
     <div className="min-h-dvh bg-background pb-16">
-      <header className="border-b bg-card"><div className="mx-auto flex max-w-4xl items-center gap-3 px-5 py-3"><Link href="/app" className="text-xs font-semibold uppercase tracking-[0.2em] text-terracotta">Maithil Panji</Link><span className="text-sm text-muted-foreground">Admin · connections</span></div></header>
+      <header className="border-b bg-card"><div className="mx-auto flex max-w-4xl items-center gap-3 px-5 py-3"><Link href="/app" className="text-xs font-semibold uppercase tracking-[0.2em] text-terracotta">PAAG Foundation</Link><span className="text-sm text-muted-foreground">Admin</span></div></header>
       <main className="mx-auto max-w-4xl space-y-6 px-5 py-6">
         {stats && (
           <section aria-label="Overview" className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             {([["Trees", stats.trees], ["People", stats.people], ["Links between trees", stats.links], ["Trees linked", stats.treesLinked], ["Separate groups", stats.groups]] as const).map(([k, v]) => <div key={k} className="rounded-xl border bg-card p-3"><div className="text-2xl font-bold text-indigo">{v}</div><div className="text-xs text-muted-foreground">{k}</div></div>)}
           </section>
         )}
+
+        <SetupStatus />
+        <NewsletterAdmin />
 
         <section aria-label="Find people" className="space-y-3 rounded-2xl border bg-card p-4">
           <h2 className="font-semibold">Find people by any attribute</h2>
