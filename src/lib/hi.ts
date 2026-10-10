@@ -45,7 +45,7 @@ export interface HiGoal { question: string; section: string; quick: string[] }
 export const QUICK_HI: Record<string, string> = {
   "No brothers": "कोई भाई नहीं", "No sisters": "कोई बहन नहीं", "Not married": "अविवाहित", "No sons": "कोई पुत्र नहीं", "No daughters": "कोई पुत्री नहीं",
   Skip: "छोड़ें", "I don’t know": "पता नहीं", "Skip the rest of this step": "इस चरण के बाकी प्रश्न छोड़ें",
-  "I don’t know my gotra": "मुझे अपना गोत्र नहीं पता", "I don’t know my mool": "मुझे अपना मूल नहीं पता",
+  "Why father’s gotra?": "पिता का ही गोत्र क्यों?", "I don’t know my gotra": "मुझे अपना गोत्र नहीं पता", "I don’t know my mool": "मुझे अपना मूल नहीं पता",
   "I don’t remember": "याद नहीं", "I don’t know any further": "इससे आगे पता नहीं",
   Male: "पुरुष", Female: "महिला", "Male (son / brother)": "पुरुष (बेटा / भाई)", "Female (daughter / sister)": "महिला (बेटी / बहन)", Yes: "हाँ", No: "नहीं",
 };
@@ -80,8 +80,8 @@ export function hiGoal(f: DFamily, goal: Goal): HiGoal | null {
   switch (goal.kind) {
     case "self_name": return out("आइए आपसे शुरू करते हैं। आपका पूरा नाम क्या है?");
     case "self_gender": return out(`धन्यवाद${sub ? `, ${first(sub)}` : ""}। क्या आप पुरुष हैं या महिला?`);
-    case "self_gotra": return out("आपका गोत्र क्या है? (जैसे शाण्डिल्य, कश्यप, वत्स)");
-    case "self_mool": return out("आपका मूल क्या है? आप अंग्रेज़ी या देवनागरी में लिख सकते हैं।");
+    case "self_gotra": return out(sub?.gender === "female" ? "आपका गोत्र क्या है? कृपया अपने पिता का गोत्र बताइए, विवाह के बाद भी। (जैसे शाण्डिल्य, कश्यप, वत्स)" : "आपका गोत्र क्या है? (जैसे शाण्डिल्य, कश्यप, वत्स)");
+    case "self_mool": return out(sub?.gender === "female" ? "आपका मूल क्या है? कृपया अपने पिता का मूल बताइए। आप अंग्रेज़ी या देवनागरी में लिख सकते हैं।" : "आपका मूल क्या है? आप अंग्रेज़ी या देवनागरी में लिख सकते हैं।");
     case "self_birth": return out("आपकी जन्म-तिथि क्या है? दिन, महीना और साल पता हो तो बताइए — या केवल साल। (वैकल्पिक)");
     case "self_place": return out("आप अभी कहाँ रहते हैं? कृपया गाँव या शहर, ज़िला और राज्य बताइए (विदेश में हों तो शहर और देश)।");
   }

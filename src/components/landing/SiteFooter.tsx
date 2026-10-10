@@ -16,6 +16,7 @@ export function SiteFooter({ dark }: { dark?: boolean }) {
       <nav aria-label="Footer" className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-1">
         <Link href="/about" className={link}>About PAAG</Link>
         <Link href="/sample" className={link}>Sample tree</Link>
+        <Link href="/faq" className={link}>Questions</Link>
         <Link href="/privacy" className={link}>Privacy</Link>
         {mail && <a href={`mailto:${mail}`} className={link}>Contact</a>}
       </nav>

@@ -92,9 +92,37 @@ supabase/         schema.sql
 ## Going live on your own domain, with a staging site
 1. **Domain.** Vercel → your project → Settings → Domains → *Add*, then create the DNS records Vercel shows at your domain registrar. Wait until Vercel shows a green tick.
 2. **Tell the app its address.** In Vercel → Settings → Environment Variables set `NEXT_PUBLIC_SITE_URL=https://paag.org.in` and `NEXT_PUBLIC_CONTACT_EMAIL` (for example `hello@paag.org.in`), then redeploy. The sitemap, search-engine tags, emails and preview pictures use these. Preview pictures for shared links and the privacy page use these.
-3. **Email that reaches everyone.** Resend → Domains → *Add domain* → add the DNS records it shows → *Verify*. Then set `EMAIL_FROM="Maithil Panji <login@paag.org.in>"` and redeploy. After that the tester list (`TEST_LOGIN_*`) is no longer needed.
+3. **Email that reaches everyone.** Resend → Domains → *Add domain* → add the DNS records it shows → *Verify*. Then set `EMAIL_FROM="PAAG Foundation <hello@paag.org.in>"` in Vercel (not in Resend) and redeploy. After that the tester list (`TEST_LOGIN_*`) is no longer needed.
 4. **Donations.** Set `NEXT_PUBLIC_DONATE_UPI_ID` / `NEXT_PUBLIC_DONATE_CARD_URL` and redeploy (see above).
-5. **Staging.** Create a Git branch called `staging`. Vercel builds every non-production branch as a *Preview*. Under Settings → Domains add `staging.your-domain.com` and assign it to the `staging` branch. Under Environment Variables, give the *Preview* environment its own values — above all a **separate Supabase project** (so test families never mix with real ones), a different `AUTH_SECRET`, and no donation variables. Working routine: commit to `staging` in GitHub Desktop → push → try it on the staging address → merge `staging` into `main` to release.
+5. **Staging.** See "Staging copy, step by step" below.
+
+## Staging copy, step by step (staging.paag.org.in)
+
+A staging copy is a second, private-looking copy of the site where every change is tried first. It has its own database, so test families never mix with real ones, and it never sends email to real people. Nothing is changed on paag.org.in until you merge.
+
+**What the code does when `NEXT_PUBLIC_APP_ENV=staging`** (`src/lib/env.ts`): an amber "STAGING" bar on every page; `robots.txt` blocks everything, the sitemap is empty, every page carries `noindex` and an `X-Robots-Tag` header; email is sent **only** to the addresses in `STAGING_MAIL_ALLOW` (full addresses or `@domain`; empty = no email at all); `/admin` → Setup status shows "This is the STAGING copy". Vercel's own preview deployments count as staging too. Test: `npx tsx scripts/_staging.test.ts`.
+
+**One-time setup**
+1. **GitHub:** open the repository `jharajiv/maithil-panji` → the branch drop-down (it says `main`) → type `staging` → *Create branch: staging from main*.
+2. **Supabase:** a second project (for example `paag-staging`). SQL Editor → paste the whole of `supabase/schema.sql` → Run. Project Settings → API: note the project URL and the `service_role` key (only ever for Vercel).
+3. **Vercel → Settings → Environment Variables — protect the live site first.** Vercel ticks Production, Preview and Development by default when a variable is created. For each variable that already exists, open it (⋯ → Edit) and make sure **only Production** is ticked, above all `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `AUTH_SECRET` and `NEXT_PUBLIC_SITE_URL`. Otherwise the staging copy would read and write the live database.
+4. **Add the staging variables.** For each one: *Add New* → name and value → under Environments tick only **Preview** and choose the branch `staging`:
+   - `NEXT_PUBLIC_APP_ENV` = `staging`
+   - `NEXT_PUBLIC_SITE_URL` = `https://staging.paag.org.in`
+   - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` = the staging project's
+   - `AUTH_SECRET` = a different long random text
+   - `STAGING_MAIL_ALLOW` = your own address, for example `rajiv.jha@myvyoma.io`
+   - the same values as live for `ADMIN_EMAILS`, `RESEND_API_KEY`, `EMAIL_FROM`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_PLACES_API_KEY`, `ANTHROPIC_API_KEY` (Preview + `staging` branch), plus `TEST_LOGIN_EMAILS` / `TEST_LOGIN_CODE` if you want testers to sign in without email
+   - leave the donation variables out
+5. **Address:** Vercel → Settings → Domains → *Add* → `staging.paag.org.in` → choose *Connect to a Git Branch* → `staging`. Add the DNS record Vercel shows (a CNAME for `staging`) where your domain's DNS is managed.
+6. **Google sign-in:** Google Cloud → Google Auth Platform → Clients → your web client → add the authorised redirect URI `https://staging.paag.org.in/api/auth/google/callback` → Save.
+7. **Who may open it:** Vercel → Settings → Deployment Protection. *Vercel Authentication* keeps staging closed to people without a Vercel login (fine if only you test). To let family testers in, switch it off for Preview — the banner, `noindex`, the separate database and the mail list keep it safe.
+
+**Every release, from now on**
+1. Put the new files on the `staging` branch (GitHub Desktop: Current Branch → `staging`; copy or sync the files; Commit; Push origin).
+2. Wait for the Vercel build (about two minutes), open `https://staging.paag.org.in`, check the amber bar, try the new feature, and look at `/admin` → Setup status.
+3. When happy: GitHub → Pull requests → New → base `main`, compare `staging` → Create → Merge. Vercel publishes paag.org.in by itself.
+4. If the database changed (a new section in `supabase/schema.sql`), run it in the staging project first, then in the live project just before merging.
 
 ## Deploy (Vercel)
 Import the repo (framework preset: Next.js). Add the environment variables from `.env.example` (`ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`), run `supabase/schema.sql` in Supabase (re-run it after every update — it only adds what is missing), and redeploy.
@@ -167,6 +195,15 @@ Three parts, each independent so any one can be taken out.
   4. **Undo** (receiving owner): removes the people and relations it added, brings back replaced placeholders, and blanks the details it filled — only if nobody changed them since. A small record of the change is kept on the owner's member record (no new table; never sent to the browser).
   - `src/lib/combine.ts` (pure), `POST/GET /api/trees/[id]/combine`, `src/components/build/CombinePanel.tsx`. Tests: `_combine.test.ts`, `_combine_api.test.ts` (dev server, accounts on). New anonymous count: `tree_combined`. To remove the feature: delete `CombinePanel` and its line in `SimilarTrees.tsx` — the rest keeps working.
 - Not built, on purpose: **B-30 premium plans** (waiting for your decision). Hindi wording of the new screens still needs a native speaker's review; the combine and connections screens are English only for now.
+
+## v11.5 notes
+
+- **Questions and answers (FAQ).** One list of answers, in English and Hindi, in `src/lib/faq.ts`: which gotra and mool a woman writes (**her father's, even when married**; the same for a wife, mother, sister or daughter), what a gotra and a mool are and how they differ, where to find them, what to do when one is not in the list, why women are recorded by name only, the mother's side, skipping, dates, language, corrections, sharing, PDF, losing the tree, cost, privacy, what a Panji is, and that the app does not decide marriages. The same text is used in three places: the new page **/faq** (`/faq?lang=hi` for Hindi; linked in the footer and in the chat hint), the chat, and the AI interviewer's instructions.
+- **The chat answers these.** A typed question that matches an entry (English, Hinglish or Hindi) gets the ready-made answer, and the chat then repeats the question it was on; nothing is saved (`src/lib/faq-turn.ts`). It works with and without the AI, and while a "Did you mean …?" is waiting. Names, gotras and places typed as answers are never taken for questions. The AI interviewer is also given the FAQ, so it can answer a differently-worded question from the same text; its scope now covers questions about gotra, mool and the app, and it never rules on marriage.
+- **Women are told what to write.** When the user is a woman the gotra question says "Please give your father's gotra, even if you are married", the mool question says "father's mool", and a button "Why father's gotra?" shows the reason. (Hindi too.)
+- **Staging copy**: banner, no search engines, email only to a list (see "Staging copy, step by step"). Admin → Setup status says when it is the staging copy.
+- Tests: `scripts/_faq.test.ts` (34 questions that must be answered, 22 typed answers that must not be, the chat turn in English and Hindi, the AI prompt), `scripts/_staging.test.ts`.
+- No database change. The Hindi wording of the FAQ needs a native reader's review; edit it in `src/lib/faq.ts`.
 
 ## v11.4 notes
 

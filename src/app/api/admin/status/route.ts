@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { currentAccount, isAdmin } from "@/lib/auth";
+import { envName, isStaging } from "@/lib/env";
 import { googleEnabled, originOf } from "@/lib/google";
 import { mailConfigured } from "@/lib/mail";
 import { newsletterEnabled } from "@/lib/newsletter";
@@ -32,5 +33,6 @@ export async function GET(req: Request) {
     { id: "donate", label: "Voluntary contribution (UPI / card link)", ok: set("NEXT_PUBLIC_DONATE_UPI_ID") || set("NEXT_PUBLIC_DONATE_CARD_URL"), detail: set("NEXT_PUBLIC_DONATE_UPI_ID") || set("NEXT_PUBLIC_DONATE_CARD_URL") ? "on" : "off: nothing is asked" },
     { id: "wa", label: "WhatsApp community button", ok: set("NEXT_PUBLIC_WA_COMMUNITY_URL"), detail: set("NEXT_PUBLIC_WA_COMMUNITY_URL") ? "on" : "off" },
   ];
-  return NextResponse.json({ checks }, { headers: { "cache-control": "no-store" } });
+  if (isStaging()) checks.unshift({ id: "env", label: "This is the STAGING copy", ok: true, detail: `Search engines are told to stay away. Email goes only to: ${process.env.STAGING_MAIL_ALLOW?.trim() || "nobody (STAGING_MAIL_ALLOW is empty)"}`, extra: undefined });
+  return NextResponse.json({ env: envName(), checks }, { headers: { "cache-control": "no-store" } });
 }

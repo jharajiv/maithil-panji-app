@@ -5,6 +5,7 @@ import { correctionTurn } from "./correction";
 import { isListGoal, nextGoal, replyGoal } from "./interview";
 import { listTurn, type ListInput } from "./list-turn";
 import { hiReply } from "./hi";
+import { faqTurn } from "./faq-turn";
 
 export type TurnResult = TurnOutput & { mode: "ai" | "basic" };
 
@@ -13,6 +14,9 @@ export type TurnResult = TurnOutput & { mode: "ai" | "basic" };
  * (name, gender, gotra, mool, the father chain) is the AI interview, or the plain interviewer when there is no `deps`.
  */
 export async function takeTurn(deps: AgentDeps | null, input: ListInput): Promise<TurnResult> {
+  // a known question (gotra of a married woman, what is a mool …) gets the ready-made answer, then the chat returns to its question
+  const faq = faqTurn(input);
+  if (faq) return { ...faq, mode: deps ? "ai" : "basic" };
   const out = await takeTurnEn(deps, input);
   if (input.lang !== "hi") return out;
   // Hindi: the app's own wording is replaced; anything the AI wrote itself is already Hindi

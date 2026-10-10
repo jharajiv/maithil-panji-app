@@ -3,6 +3,7 @@
  * The AI parses answers and phrases questions, but THIS decides what is asked next,
  * which is what keeps the chat on-task and the family complete.
  */
+import { WOMAN_GOTRA_QUICK } from "./faq";
 import {
   childrenOf, fatherOf, labels, me, motherOf, siblingsOf, spousesOf,
   type DFamily, type DPerson, type Flag, type Op,
@@ -73,14 +74,14 @@ export function nextGoal(f: DFamily, opts: PlanOptions = {}): Goal | null {
     instruction: `Ask whether the user (${m.id}) is male or female. Set gender via update_person.`,
   };
   if (!m.gotra && !m.flags.gotra) return {
-    id: "self_gotra", kind: "self_gotra", section: "Your Panji identity", subjects: [m.id], optional: true, quick: ["I don’t know my gotra"], skip: flagOps([m.id], "gotra", "unknown"),
-    question: "What is your gotra? (for example Shandilya, Kashyap, Vatsa)",
-    instruction: `Ask for the user's gotra (${m.id}). Use lookup_gotra on their answer; if the match is not exact, confirm ("Did you mean …?") before saving with update_person {gotra:{id,roman,dev}}. If they don't know, set_flag gotra=unknown.`,
+    id: "self_gotra", kind: "self_gotra", section: "Your Panji identity", subjects: [m.id], optional: true, quick: m.gender === "female" ? [WOMAN_GOTRA_QUICK, "I don’t know my gotra"] : ["I don’t know my gotra"], skip: flagOps([m.id], "gotra", "unknown"),
+    question: m.gender === "female" ? "What is your gotra? Please give your father’s gotra, even if you are married. (for example Shandilya, Kashyap, Vatsa)" : "What is your gotra? (for example Shandilya, Kashyap, Vatsa)",
+    instruction: `Ask for the user's gotra (${m.id}).${m.gender === "female" ? " She must give her FATHER'S gotra (not her husband's), even if married — say so in your question." : ""} Use lookup_gotra on their answer; if the match is not exact, confirm ("Did you mean …?") before saving with update_person {gotra:{id,roman,dev}}. If they don't know, set_flag gotra=unknown.`,
   };
   if (!m.mool && !m.flags.mool) return {
     id: "self_mool", kind: "self_mool", section: "Your Panji identity", subjects: [m.id], optional: true, quick: ["I don’t know my mool"], skip: flagOps([m.id], "mool", "unknown"),
-    question: "What is your mool? You can type it in English or Devanagari.",
-    instruction: `Ask for the user's mool (${m.id}) — the lineage named after an ancestral village, e.g. Sarisaba, Sodarapura, Khandabala. Use lookup_mool (pass their gotra id if known). If lookup_mool finds a close match that is not exact, ask "Did you mean X?" and wait for a yes before saving it. If the user insists on their own spelling, or nothing in the list is close, save exactly what they said as a new entry: update_person mool:{roman, custom:true} — the Panji team reviews new entries later, so tell them: "I have noted it as a new mool — thank you." Never invent or force a match. If they don't know, set_flag mool=unknown.`,
+    question: m.gender === "female" ? "What is your mool? Please give your father’s mool. You can type it in English or Devanagari." : "What is your mool? You can type it in English or Devanagari.",
+    instruction: `Ask for the user's mool (${m.id})${m.gender === "female" ? " — her FATHER'S mool, even if married" : ""} — the lineage named after an ancestral village, e.g. Sarisaba, Sodarapura, Khandabala. Use lookup_mool (pass their gotra id if known). If lookup_mool finds a close match that is not exact, ask "Did you mean X?" and wait for a yes before saving it. If the user insists on their own spelling, or nothing in the list is close, save exactly what they said as a new entry: update_person mool:{roman, custom:true} — the Panji team reviews new entries later, so tell them: "I have noted it as a new mool — thank you." Never invent or force a match. If they don't know, set_flag mool=unknown.`,
   };
   if (!m.birth && !m.flags.birth) return {
     id: "self_birth", kind: "self_birth", section: "About you", subjects: [m.id], optional: true, quick: ["Skip"], skip: flagOps([m.id], "birth", "skipped"),

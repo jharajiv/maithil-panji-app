@@ -145,7 +145,7 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
 
       {hint && messages.length <= 6 && (
         <div className="flex items-start gap-2 border-b bg-amber-50 px-4 py-2 text-sm text-amber-950">
-          <p className="min-w-0 flex-1"><strong>{HINT}</strong> <span lang="hi" className="text-amber-900/80">{HINT_HI}</span></p>
+          <p className="min-w-0 flex-1"><strong>{HINT}</strong> <span lang="hi" className="text-amber-900/80">{HINT_HI}</span> Questions about gotra or mool? Just type them here, or <a href="/faq" target="_blank" rel="noopener" className="font-medium underline">read the answers</a> (<a href="/faq?lang=hi" target="_blank" rel="noopener" lang="hi" className="underline">हिन्दी</a>).</p>
           <button type="button" aria-label="Hide this hint" onClick={() => { setHint(false); try { localStorage.setItem("maithil-panji.hint.v1", "1"); } catch { /* ignore */ } }} className="shrink-0 rounded-full p-1 text-amber-900/70 hover:bg-amber-100"><X className="size-4" /></button>
         </div>
       )}

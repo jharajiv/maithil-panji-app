@@ -1,10 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { StagingBanner } from "@/components/StagingBanner";
+import { isStaging } from "@/lib/env";
 import { ORG_LONG, ORG_NAME, siteUrl, TAGLINE } from "@/lib/site";
 
 const DESCRIPTION = `${TAGLINE} A free community project of ${ORG_NAME} (${ORG_LONG}), built around the Panji Prabandh tradition.`;
 
 export const metadata: Metadata = {
+  ...(isStaging() ? { robots: { index: false, follow: false } } : {}),
   metadataBase: new URL(siteUrl()),
   title: { default: `${ORG_NAME} — Maithil family trees`, template: `%s` },
   description: DESCRIPTION,
@@ -38,6 +41,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body className="antialiased">
+        <StagingBanner />
         {children}
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: orgJson }} />
       </body>
