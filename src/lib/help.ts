@@ -23,7 +23,7 @@ export function moolSearchUrl(gotra?: string): string {
 
 /** WhatsApp message to a relative who might know the answer; no phone number — the person picks who to send it to */
 export function askRelativeUrl(question: string, lang: Lang = "en"): string {
-  const text = lang === "hi" ? ASK_RELATIVE_HI(question) : `Namaste! I am building our family tree on PAAG Foundation. Could you help me with this one?\n\n${question}\n\nThank you!`;
+  const text = lang === "hi" ? ASK_RELATIVE_HI(question) : `Namaste! I am building our family tree on Maithil Panji. Could you help me with this one?\n\n${question}\n\nThank you!`;
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 

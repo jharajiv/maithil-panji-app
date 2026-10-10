@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, Loader2, LogOut, Network, Plus, Trees } from "lucide-react";
-import { PaagLogo } from "@/components/brand/Logo";
+import { PaagMark } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { familyFor } from "@/lib/new-tree";
 import { useAccount } from "./useAccount";
@@ -88,7 +88,7 @@ export function Dashboard() {
     <div className="min-h-dvh bg-background">
       <header className="border-b bg-card">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-5 py-3">
-          <Link href="/" aria-label="PAAG Foundation home" className="flex items-center"><PaagLogo height={32} /></Link>
+          <Link href="/" aria-label="PAAG Foundation — Maithil Panji home" className="flex items-center gap-2.5"><PaagMark size={30} /><span className="text-xs font-semibold uppercase tracking-[0.2em] text-terracotta">Maithil Panji</span></Link>
           <span className="flex-1" />
           <Link href="/app/profile" className="truncate text-sm font-medium text-indigo underline-offset-4 hover:underline">{auth.account.name}</Link>
           <Button size="sm" variant="outline" onClick={async () => { await auth.logout(); router.replace("/"); }}><LogOut /> Sign out</Button>

@@ -3,11 +3,11 @@ import { PaagLogo } from "@/components/brand/Logo";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { SiteFooter } from "@/components/landing/SiteFooter";
-import { contactEmail, ORG_LONG, ORG_NAME, SITE_DOMAIN } from "@/lib/site";
+import { contactEmail, ORG_LONG, ORG_NAME, SITE_DOMAIN, SITE_NAME } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: `About ${ORG_NAME}`,
-  description: `${ORG_NAME} (${ORG_LONG}) is a community initiative helping Maithil families record their lineage in the Panji Prabandh tradition.`,
+  title: `About ${ORG_NAME} — ${SITE_NAME}`,
+  description: `${ORG_NAME} (${ORG_LONG}) is the community initiative behind ${SITE_NAME}: helping Maithil families record their lineage in the Panji Prabandh tradition.`,
   alternates: { canonical: "/about" },
 };
 
@@ -19,7 +19,7 @@ export default function About() {
   return (
     <div className="min-h-dvh bg-background">
       <div className="mx-auto max-w-2xl px-5 pb-16 pt-6">
-        <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ChevronLeft className="size-4" /> {ORG_NAME} home</Link>
+        <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ChevronLeft className="size-4" /> {SITE_NAME} home</Link>
         <PaagLogo height={48} className="mt-6" />
         <p className="mt-5 text-xs font-semibold uppercase tracking-[0.2em] text-terracotta">{SITE_DOMAIN}</p>
         <h1 className="font-display mt-2 text-3xl font-bold text-indigo sm:text-4xl">{ORG_NAME}</h1>
@@ -28,8 +28,8 @@ export default function About() {
         <H>What we are doing</H>
         <P>For generations, Maithil families have kept their lineage in the <em>Panji Prabandh</em>, the genealogical records kept by the Panjikars of Mithila. These records are precious, and they are held in few hands, on paper, and at risk of being lost. {ORG_NAME} is a community initiative to help families keep their own lineage safe, and, step by step, to bring the Panji records into a form that can be preserved and searched.</P>
 
-        <H>The family tree: the first step</H>
-        <P>Our free family tree lets any family build its tree by answering simple questions on a phone, in English or Hindi. Gotra, mool and pravara are part of the record, not footnotes. The tree can be printed, shared as a view-only page, and built together with relatives.</P>
+        <H>{SITE_NAME}: the first step</H>
+        <P>{SITE_NAME} lets any family build its tree by answering simple questions on a phone, in English or Hindi. Gotra, mool and pravara are part of the record, not footnotes. The tree can be printed, shared as a view-only page, and built together with relatives.</P>
 
         <H>Ancestry and the graph</H>
         <P>A family tree is a small piece of a larger web. A daughter belongs to her father’s tree and to her husband’s; two cousins may each have recorded the same grandfather. When families choose to connect their trees, a graph forms, and with it the answer to a question many of us ask: <em>how are we related?</em> That is the “Graph” in PAAG.</P>

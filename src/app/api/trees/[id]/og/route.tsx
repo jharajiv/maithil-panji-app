@@ -19,9 +19,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const v = new URL(req.url).searchParams.get("v");
   const store = getStore();
   const fallback = (title: string, line: string) => card(title, line, "");
-  if (!store || limited("tree-og", clientIp(req), 120)) return fallback("PAAG Foundation", "Build your family tree");
+  if (!store || limited("tree-og", clientIp(req), 120)) return fallback("Maithil Panji", "Build your family tree");
   const row = await store.getTree(id);
-  if (!row || !viewMode(id, v, viewState(row))) return fallback("PAAG Foundation", "Build your family tree");
+  if (!row || !viewMode(id, v, viewState(row))) return fallback("Maithil Panji", "Build your family tree");
   const f = row.family;
   const me = f.persons.find((p) => p.is_me);
   const gotra = me?.gotra?.roman ?? f.persons.find((p) => p.gotra?.roman)?.gotra?.roman;
@@ -42,7 +42,7 @@ function card(title: string, facts: string, tradition: string) {
     (
       <div style={{ width: "100%", height: "100%", display: "flex", background: INDIGO, color: CREAM, padding: 56, fontFamily: "sans-serif" }}>
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", flex: 1, paddingRight: 24 }}>
-          <div style={{ display: "flex", alignItems: "center" }}><PaagLogo height={84} onDark foundation={false} /><div style={{ display: "flex", marginLeft: 26, fontSize: 26, letterSpacing: 6, textTransform: "uppercase", color: "#f0c9a8" }}>PAAG Foundation</div></div>
+          <div style={{ display: "flex", alignItems: "center" }}><PaagLogo height={84} onDark foundation={false} /><div style={{ display: "flex", marginLeft: 26, fontSize: 26, letterSpacing: 6, textTransform: "uppercase", color: "#f0c9a8" }}>Maithil Panji</div></div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", fontSize: title.length > 22 ? 64 : 82, fontWeight: 700, lineHeight: 1.08 }}>{title}</div>
             <div style={{ display: "flex", marginTop: 22, fontSize: 36, color: "#e8dcc8" }}>{facts}</div>

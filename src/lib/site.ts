@@ -1,6 +1,5 @@
 /** Names and addresses used across the site, in one place. */
-/** the one name used everywhere: headers, page titles, messages, emails and printed charts */
-export const SITE_NAME = "PAAG Foundation";
+export const SITE_NAME = "Maithil Panji";
 export const ORG_NAME = "PAAG Foundation";
 /** PAAG = Panji Ancestry & Graph */
 export const ORG_LONG = "Panji Ancestry & Graph";
