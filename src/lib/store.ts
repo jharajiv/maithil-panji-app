@@ -71,6 +71,8 @@ export interface Store {
   deleteLoginCode(email: string): Promise<void>;
   createAccount(row: AccountRow): Promise<void>;
   /** change the name, mobile or profile of an account (a field set to null is removed) */
+  /** accounts that switched birthday reminders on (profile.reminders.birthdays) */
+  listReminderAccounts(limit?: number): Promise<AccountRow[]>;
   updateAccount(id: string, patch: { name?: string; phone?: string | null; profile?: Profile }): Promise<AccountRow | null>;
   /** removes the account and its sessions; trees it owns are NOT touched here */
   deleteAccount(id: string): Promise<void>;
@@ -137,6 +139,13 @@ function supabase(url: string, key: string): Store {
     },
     async getAccount(id) { return ((await call(`accounts?id=eq.${encodeURIComponent(id)}&select=*`)) as AccountRow[])[0] ?? null; },
     async getAccountByEmail(email) { return ((await call(`accounts?email=eq.${encodeURIComponent(email)}&select=*`)) as AccountRow[])[0] ?? null; },
+    async listReminderAccounts(limit = 2000) {
+      try { return (await call(`accounts?select=*&profile->reminders->>birthdays=eq.true&order=created_at.asc&limit=${limit}`)) as AccountRow[]; }
+      catch { // if the database does not accept the JSON filter, read the accounts that have a profile and choose here
+        const rows = (await call(`accounts?select=*&profile=not.is.null&order=created_at.asc&limit=20000`)) as AccountRow[];
+        return rows.filter((a) => a.profile?.reminders?.birthdays === true).slice(0, limit);
+      }
+    },
     async putLoginCode(row) { await call("login_codes?on_conflict=email", { method: "POST", body: JSON.stringify(row), prefer: "resolution=merge-duplicates,return=minimal" }); },
     async getLoginCode(email) { return ((await call(`login_codes?email=eq.${encodeURIComponent(email)}&select=*`)) as LoginCode[])[0] ?? null; },
     async setLoginAttempts(email, attempts) { await call(`login_codes?email=eq.${encodeURIComponent(email)}`, { method: "PATCH", body: JSON.stringify({ attempts }), prefer: "return=minimal" }); },
@@ -237,6 +246,7 @@ function file(): Store {
     }),
     getAccount: (id) => lock(async () => (await read()).accounts?.find((a) => a.id === id) ?? null),
     getAccountByEmail: (email) => lock(async () => (await read()).accounts?.find((a) => a.email === email) ?? null),
+    listReminderAccounts: (limit = 2000) => lock(async () => ((await read()).accounts ?? []).filter((a) => a.profile?.reminders?.birthdays === true).slice(0, limit)),
     putLoginCode: (row) => lock(async () => { const db = await read(); db.codes = [...(db.codes ?? []).filter((c) => c.email !== row.email), row]; await write(db); }),
     getLoginCode: (email) => lock(async () => (await read()).codes?.find((c) => c.email === email) ?? null),
     setLoginAttempts: (email, attempts) => lock(async () => { const db = await read(); for (const c of db.codes ?? []) if (c.email === email) c.attempts = attempts; await write(db); }),

@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { isStaging } from "@/lib/env";
 import { siteUrl } from "@/lib/site";
 
-const ALLOW = ["/", "/about", "/faq", "/hi", "/gotra", "/mool", "/sample", "/privacy", "/llms.txt", "/llms-full.txt"];
+const ALLOW = ["/", "/about", "/faq", "/hi", "/gotra", "/mool", "/sample", "/privacy", "/safety", "/llms.txt", "/llms-full.txt"];
 const DISALLOW = ["/api/", "/app", "/admin", "/build", "/join/", "/view/", "/login", "/tree", "/intake"];
 
 /** AI assistants that fetch a page to answer a person's question (they may quote and link to us) */

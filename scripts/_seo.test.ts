@@ -22,7 +22,7 @@ assert.equal(orphan.length, 0, `mools naming a gotra with no page: ${orphan.map(
 // sitemap: public pages only, each once, and both FAQ languages point at each other
 const sm = sitemap(); const urls = sm.map((s) => s.url);
 assert.equal(new Set(urls).size, urls.length, "no duplicate addresses");
-assert.equal(urls.length, 8 + gs.length + ms.length);
+assert.equal(urls.length, 9 + gs.length + ms.length);
 for (const u of urls) assert.ok(!/\/(app|admin|build|view|join|login|api|tree|intake)(\/|$)/.test(u), u);
 assert.ok(urls.includes("https://paag.org.in/hi/faq"));
 assert.ok(urls.includes(`https://paag.org.in/gotra/${gs.find((g) => g.name.startsWith("Shand"))!.slug}`));

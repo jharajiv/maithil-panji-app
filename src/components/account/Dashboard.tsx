@@ -3,7 +3,7 @@ import { clearRef, storedRef } from "@/lib/invite";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, Loader2, LogOut, Network, Plus, Trees } from "lucide-react";
+import { ArrowRight, CalendarHeart, Loader2, LogOut, Network, Plus, Trees } from "lucide-react";
 import { PaagLogo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { familyFor } from "@/lib/new-tree";
@@ -34,6 +34,7 @@ export function Dashboard() {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const [complete, setComplete] = useState<number | null>(null);
+  const [remOn, setRemOn] = useState<boolean | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/me/trees", { cache: "no-store" });
@@ -46,7 +47,7 @@ export function Dashboard() {
     if (!auth.enabled) { router.replace("/build"); return; }
     if (!auth.account) { router.replace("/login?next=/app"); return; }
     load().catch(() => setErr("Could not load your trees. Please refresh."));
-    fetch("/api/me/profile", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((j) => j && setComplete(j.complete)).catch(() => {});
+    fetch("/api/me/profile", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j) { setComplete(j.complete); setRemOn(j.profile?.reminders?.birthdays === true); } }).catch(() => {});
     setDraft(localDraft());
   }, [auth.loading, auth.enabled, auth.account, load, router]);
 
@@ -104,6 +105,13 @@ export function Dashboard() {
           <span className="min-w-0 flex-1"><span className="block font-semibold">My connections</span><span className="block text-sm text-muted-foreground">See how your family is connected to other families, and through whom.</span></span>
           <ArrowRight className="size-4 text-muted-foreground" />
         </Link>
+        {remOn === false && (
+          <Link href="/app/profile#reminders" className="flex items-center gap-3 rounded-2xl border bg-card p-4 hover:bg-secondary/50">
+            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-secondary text-terracotta"><CalendarHeart className="size-5" /></span>
+            <span className="min-w-0 flex-1"><span className="block font-semibold">Birthday reminders <span lang="hi" className="font-medium text-muted-foreground">· जन्मदिन की याद</span></span><span className="block text-sm text-muted-foreground">Get an email before a relative’s birthday, so you never miss one.</span></span>
+            <ArrowRight className="size-4 text-muted-foreground" />
+          </Link>
+        )}
         {err && <p role="alert" className="rounded-xl bg-terracotta/10 p-3 text-sm text-terracotta">{err}</p>}
         {complete !== null && complete < 100 && (
           <Link href="/app/profile" className="flex items-center gap-3 rounded-2xl border bg-secondary/50 p-4 hover:bg-secondary">

@@ -20,6 +20,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     at("/sample", 0.6, "monthly"),
     at("/gotra", 0.7, "monthly"),
     at("/mool", 0.7, "monthly"),
+    at("/safety", 0.6, "monthly"),
     at("/privacy", 0.3, "yearly"),
     ...gotraPages().map((g) => at(`/gotra/${g.slug}`, 0.5, "yearly")),
     ...moolPages().map((m) => at(`/mool/${m.slug}`, 0.4, "yearly")),

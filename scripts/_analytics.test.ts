@@ -13,7 +13,7 @@ assert.deepEqual(analyticsAddress("/app", "?import=1"), { path: "/app", query: "
 assert.deepEqual(analyticsAddress("/", "?ref=abcdef0123&utm_source=invite&utm_medium=whatsapp&utm_campaign=invite&x=1"), { path: "/", query: "?utm_source=invite&utm_medium=whatsapp&utm_campaign=invite" });
 assert.deepEqual(analyticsAddress("/faq", ""), { path: "/faq", query: "" });
 // the banner is for public pages only, never the chat screen or private pages
-for (const ok of ["/", "/about", "/faq", "/hi/faq", "/gotra", "/gotra/shandilya", "/mool/sarisab", "/sample", "/privacy"]) assert.ok(BANNER_PATHS.test(ok), ok);
+for (const ok of ["/", "/about", "/faq", "/hi/faq", "/gotra", "/gotra/shandilya", "/mool/sarisab", "/sample", "/privacy", "/safety"]) assert.ok(BANNER_PATHS.test(ok), ok);
 for (const no of ["/build", "/app", "/view/x", "/join/x", "/login", "/admin", "/newsletter"]) assert.ok(!BANNER_PATHS.test(no), no);
 // analytics is off unless an id is set
 delete process.env.NEXT_PUBLIC_GA_ID; assert.equal(gaId(), undefined);

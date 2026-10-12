@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { inputCls, Label, PhoneField, phoneState, PlaceField, type PhoneValue } from "@/components/build/widgets";
 import { MARITAL, nativePlace, type Profile } from "@/lib/profile";
 import { useAccount } from "./useAccount";
+import { RemindersCard } from "./RemindersCard";
 
 const MARITAL_LABEL: Record<(typeof MARITAL)[number], string> = { single: "Unmarried", married: "Married", widowed: "Widowed", divorced: "Divorced", other: "Other" };
 type Loaded = { account: { name: string; email: string; phone: string }; profile: Profile; complete: number; stock: { gotra?: string; mool?: string } };
@@ -95,6 +96,8 @@ export function ProfileClient() {
           <div><PhoneField value={phone} onChange={(v) => { setPhone(v); setSaved(false); }} /></div>
           <div><Label htmlFor="pf-email" helper="This is the address you sign in with.">Email</Label><input id="pf-email" className={`${inputCls} bg-secondary/60`} value={data.account.email} readOnly /></div>
         </Section>
+
+        <RemindersCard />
 
         <Section title="Your family line" hint="Gotra and mool come from your family tree.">
           <dl className="grid grid-cols-2 gap-3 text-sm">

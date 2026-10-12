@@ -27,6 +27,7 @@ export async function GET(req: Request) {
     { id: "mail", label: "Email sending (Resend)", ok: mailConfigured(), detail: mailConfigured() ? `sender domain: ${fromDomain || "?"}` : "RESEND_API_KEY and EMAIL_FROM are not both set" },
     { id: "google", label: "Sign in with Google", ok: googleEnabled(), detail: googleEnabled() ? "on" : "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are not set", extra: `Authorised redirect URI to register with Google: ${originOf(req)}/api/auth/google/callback` },
     { id: "newsletter", label: "Newsletter", ok: newsletterEnabled(), detail: newsletterEnabled() ? "on" : "needs the database, email sending and the signing secret" },
+    { id: "remind", label: "Birthday reminders (daily job)", ok: set("CRON_SECRET") && mailConfigured() && store?.kind === "supabase", detail: set("CRON_SECRET") ? (mailConfigured() ? "on: runs every morning, about 8 am India time" : "needs email sending") : "CRON_SECRET is not set (a long random text; the daily job does not run without it)" },
     { id: "admin", label: "Admin emails", ok: set("ADMIN_EMAILS"), detail: set("ADMIN_EMAILS") ? "set" : "ADMIN_EMAILS is not set" },
     { id: "places", label: "Village suggestions (Google Places)", ok: set("GOOGLE_PLACES_API_KEY"), detail: set("GOOGLE_PLACES_API_KEY") ? "on" : "off: the free OpenStreetMap service is used" },
     { id: "ai", label: "AI interviewer", ok: set("ANTHROPIC_API_KEY"), detail: set("ANTHROPIC_API_KEY") ? "on" : "off: Simple mode is used" },

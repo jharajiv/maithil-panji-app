@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { withSocial } from "@/lib/seo";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, GitMerge, Globe2, ListChecks, Lock, Network, Printer, Sprout, Users } from "lucide-react";
+import { ArrowRight, GitMerge, Globe2, Landmark, ListChecks, Lock, Network, Printer, ShieldCheck, Sprout, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PatternBand } from "@/components/landing/Motif";
 import { AuthLink, StartLink } from "@/components/account/AuthLink";
@@ -43,8 +43,14 @@ const STEPS = [
 const ASSURE = [
   { icon: Globe2, text: "Free. Start now, no sign-up" },
   { icon: Users, text: "English, Hindi and Hinglish" },
-  { icon: Lock, text: "Private. Never sold or shared" },
+  { icon: Lock, text: "Private. Kept in India. Never sold" },
 ];
+
+const SAFE = [
+  { icon: Landmark, title: "Kept in India", text: "Your saved tree is stored in a data centre in Mumbai." },
+  { icon: Lock, title: "Never sold", text: "No advertising, no marketers. Your family’s information is not a product." },
+  { icon: ShieldCheck, title: "You decide who sees it", text: "Private by default. Living relatives show by first name only on shared pages. Delete it any time." },
+] as const;
 
 const NOW = [
   { icon: GitMerge, title: "Find the same family, entered twice", text: "If you agree, we compare your tree with others that share your gotra and mool, and show how alike they are. You can preview a match and ask the other owner to get in touch." },
@@ -167,6 +173,21 @@ export default function Home() {
             Next, {ORG_NAME} is working with Panjikars to bring the traditional Panji records into a searchable form, and to add Maithili to the chat once native speakers have reviewed the wording.
           </p>
         </div>
+      </section>
+
+      {/* Trust */}
+      <section className="mx-auto max-w-6xl px-5 py-16 sm:px-8" aria-labelledby="safe">
+        <Head id="safe" label="Your data" title="Your family’s information is safe here" text="A Maithil-run place for Maithil family records. Plain answers on where it is kept and who can see it." />
+        <ul className="mt-10 grid gap-5 md:grid-cols-3">
+          {SAFE.map((c) => (
+            <li key={c.title} className="rounded-xl border bg-card p-6">
+              <c.icon className="size-6 text-terracotta" aria-hidden />
+              <h3 className="mt-4 text-lg font-semibold text-indigo">{c.title}</h3>
+              <p className="mt-2 text-base leading-relaxed text-muted-foreground">{c.text}</p>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-6"><Link href="/safety" className="text-base font-semibold text-indigo underline underline-offset-4 hover:text-indigo/80">How we keep your family data safe <span lang="hi" className="font-medium">· हम डेटा कैसे सुरक्षित रखते हैं</span></Link></p>
       </section>
 
       {/* Closing */}

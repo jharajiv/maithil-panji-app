@@ -52,7 +52,11 @@ export async function PUT(req: Request) {
     if (!body.phone.trim()) patch.phone = null;
     else { const p = normalizePhone(body.phone); if (!p) return NextResponse.json({ error: "That mobile number does not look right." }, { status: 400 }); patch.phone = p; }
   }
-  if (body.profile !== undefined) patch.profile = cleanProfile(body.profile);
+  if (body.profile !== undefined) {
+    // reminder settings and their records belong to the server (changed only through /api/me/reminders): a profile save never touches them
+    const keep = a.profile ?? {};
+    patch.profile = { ...cleanProfile(body.profile), ...(keep.reminders ? { reminders: keep.reminders } : {}), ...(keep._remind_on ? { _remind_on: keep._remind_on } : {}), ...(keep._sent ? { _sent: keep._sent } : {}) };
+  }
   const next = await store.updateAccount(a.id, patch);
   if (!next) return NextResponse.json({ error: "Could not save." }, { status: 500 });
   return NextResponse.json({ ok: true, ...shape(next), stock: await stockOf(a.id) });

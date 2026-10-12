@@ -33,6 +33,8 @@ export default function Privacy() {
             <li>वंशावली को सोशल मीडिया या WhatsApp पर दिखाने के लिए “सिर्फ़ देखने वाला” लिंक बनता है। उसमें कोई बदलाव या डाउनलोड नहीं कर सकता। शुरू से जीवित लोगों का सिर्फ़ पहला नाम दिखता है; जन्म-तिथि, गाँव और फ़ोटो छिपे रहते हैं।</li>
             <li>समाचार-पत्र (newsletter) तभी आता है जब आप खुद नाम लिखवाएँ और ईमेल में दिए लिंक से पक्का करें। हर ईमेल में “सदस्यता छोड़ें” का लिंक रहता है।</li>
             <li>सार्वजनिक पन्नों पर एक छोटा सवाल आ सकता है कि क्या हम Google Analytics से विज़िट गिन सकते हैं। “ठीक है” दबाने पर ही गिनती होती है; आपका नाम, ईमेल या वंशावली Google को कभी नहीं जाती। बाद में यहीं नीचे अपना चुनाव बदल सकते हैं।</li>
+            <li>आपकी वंशावली और खाते की जानकारी भारत (मुंबई) के डेटा सेंटर में रखी जाती है। सिर्फ़ चैट सहायक आपके उत्तर समझने के लिए एक AI सेवा (विदेश में) को भेजता है।</li>
+            <li>आप चाहें तो परिवार के जन्मदिन की याद ईमेल से पा सकते हैं। यह तभी शुरू होता है जब आप खुद चालू करें, और ईमेल सिर्फ़ आपको जाता है।</li>
             <li>आप जब चाहें अपनी ऑनलाइन वंशावली मिटा सकते हैं (Share → “Delete online copy”)।</li>
           </ul>
         </section>
@@ -58,9 +60,19 @@ export default function Privacy() {
           <li><strong>Invitations</strong> — if you invite relatives with the “Invite family to try PAAG” link, the link carries a short code made from your tree’s number (it cannot be turned back into your tree). When someone arrives through it and saves a tree, that tree remembers the code, so the PAAG team can count how many families came through invitations and from whom. A device also keeps a random number in its browser to count a day’s chat answers, so one phone cannot use up the free AI assistant; it is not linked to your name.</li>
           <li><strong>Phone numbers of relatives</strong> — only if you invite someone on WhatsApp. The number is used to open WhatsApp for you. It is never shown on shared view-only pages.</li>
           <li><strong>Your consent</strong> — we record that you agreed to the terms of sharing a family tree, and when.</li>
+          <li><strong>Birthday reminders</strong> — only if you switch them on: that choice (on or off, and how early), the date you switched them on, and a short list of which reminders were already sent. Birth dates come from your own tree.</li>
           <li><strong>Simple usage counts</strong> — we count how often the sample tree is opened, trees are started and saved, PDFs are downloaded, share buttons are used, corrections are suggested, women are linked, owners are put in touch, and people sign in with Google. Each count is only a name and a time: no name, no tree, no IP address, no cookie.</li>
           <li><strong>Roughly where you are</strong> — the country your connection comes from, used only to suggest a sensible contribution amount. It is not stored.</li>
         </L>
+
+        <H>Where your data is kept</H>
+        <P>Saved trees, accounts and profiles are stored in a database in a data centre in Mumbai, India, and the website’s servers run in Mumbai too. The one exception is the chat assistant, described next: it sends your answers to an AI service outside India. There is a plain-language summary on the <Link href="/safety" className="underline">Data safety page</Link>.</P>
+
+        <H>Birthday reminders</H>
+        <P>Off until you switch them on in My profile. If you do, once a day we look at the living people in the family trees you belong to who have a full birth date, and email <em>you</em> (at your sign-in address) a few days before and on the day. The email contains a name and a date, and nothing else about the person. Nobody else is written to. We record that you switched reminders on, and which reminders were sent, so you are not sent the same one twice. Every email has a link that switches reminders off at once, and you can also switch them off in My profile.</P>
+
+        <H>What you share is your choice</H>
+        <P>When you give someone a view-only link, a PDF or a screenshot, they can keep it or pass it on. PAAG Foundation cannot control what people do with what you share, so please share only with people you trust. What you do with your own family’s information is up to you.</P>
 
         <H>The assistant and your answers</H>
         <P>The chat reads your answers using an AI service. To do that, your answers and the names and details already in your tree are sent to the AI provider. Photos and phone numbers are never sent. Under the provider’s current business terms, information sent this way is not used to train its models. If the AI service is unavailable, a simpler built-in reader takes over.</P>
@@ -68,7 +80,7 @@ export default function Privacy() {
         <H>Other services that see some of your data</H>
         <L>
           <li><strong>Database and hosting</strong> — saved trees are stored with our database provider and the site runs on a hosting provider.</li>
-          <li><strong>Email delivery</strong> — your email address and the one-time code pass through our email provider.</li>
+          <li><strong>Email delivery</strong> — your email address and the one-time code, and the birthday reminders and newsletter you ask for, pass through our email provider.</li>
           <li><strong>Village search</strong> — when you type a village name, the letters you type are sent from your browser to a public place-name search service to suggest matches.</li>
         </L>
 

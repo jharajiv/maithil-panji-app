@@ -35,6 +35,7 @@ const srv = http.createServer(async (req, res) => {
   }
   if (u.pathname === "/rest/v1/accounts") {
     if (req.method === "POST") { if (accounts.has(body.id) || [...accounts.values()].some((a) => a.email === body.email)) return send(409, {}); accounts.set(body.id, body); return send(201); }
+    if (req.method === "GET" && u.searchParams.has("profile->reminders->>birthdays")) return send(200, [...accounts.values()].filter((a) => String(a.profile?.reminders?.birthdays) === eq("profile->reminders->>birthdays")));
     if (req.method === "GET") return send(200, [...accounts.values()].filter((a) => (eq("id") ? a.id === eq("id") : a.email === eq("email"))));
     if (req.method === "PATCH") { const a = accounts.get(eq("id")); if (!a) return send(200, []); const n = { ...a, ...body }; accounts.set(a.id, n); return send(200, [n]); }
     if (req.method === "DELETE") { accounts.delete(eq("id")); return send(204); }

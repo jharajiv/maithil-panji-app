@@ -26,7 +26,7 @@ export function setConsent(v: Consent): void {
 }
 
 /** pages where the banner may appear: the public ones. Never inside the chat / build screen, where room is precious. */
-export const BANNER_PATHS = /^\/(?:$|about|faq|hi(?:\/|$)|gotra|mool|sample|privacy)/;
+export const BANNER_PATHS = /^\/(?:$|about|faq|hi(?:\/|$)|gotra|mool|sample|privacy|safety)/;
 
 /** addresses that contain a tree id or a private key, and what Google is shown instead */
 const PRIVATE: [RegExp, string][] = [

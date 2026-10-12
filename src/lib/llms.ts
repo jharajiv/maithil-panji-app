@@ -20,6 +20,7 @@ export function llmsTxt(): string {
 - [Questions and answers (English)](${b}/faq): gotra, mool, the Panji way, using the app, privacy
 - [प्रश्न और उत्तर (हिन्दी)](${b}/hi/faq): the same answers in Hindi
 - [Sample family tree](${b}/sample): what a finished tree looks like (a sample only, not an official record)
+- [Data safety](${b}/safety): where family data is kept (a data centre in India), who can see it, who helps run the site
 - [Privacy](${b}/privacy): what is kept, who can see it, how to delete it
 
 ## Reference lists

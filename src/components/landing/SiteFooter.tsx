@@ -20,6 +20,7 @@ export function SiteFooter({ dark }: { dark?: boolean }) {
         <Link href="/hi/faq" lang="hi" className={link}>प्रश्न (हिन्दी)</Link>
         <Link href="/gotra" className={link}>Gotras</Link>
         <Link href="/mool" className={link}>Mools</Link>
+        <Link href="/safety" className={link}>Data safety</Link>
         <Link href="/privacy" className={link}>Privacy</Link>
         {mail && <a href={`mailto:${mail}`} className={link}>Contact</a>}
       </nav>

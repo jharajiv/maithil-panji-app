@@ -10,6 +10,13 @@ import { getStore, newAccountId, newTreeId, treeMeta } from "../src/lib/store";
   const u = await s.updateAccount(acc.id, { name: "Y", profile: { pravar: "P", current_city: "Delhi" } });
   assert.equal(u?.name, "Y"); assert.equal((await s.getAccount(acc.id))?.profile?.pravar, "P");
   assert.equal(await s.updateAccount("missing", { name: "Z" }), null);
+  // birthday reminders: only accounts that switched them on are listed
+  assert.ok(!(await s.listReminderAccounts()).some((a) => a.id === acc.id));
+  await s.updateAccount(acc.id, { profile: { pravar: "P", reminders: { birthdays: true, lead: "day" }, _sent: ["k"] } });
+  const on = (await s.listReminderAccounts()).find((a) => a.id === acc.id);
+  assert.equal(on?.profile?.reminders?.lead, "day"); assert.deepEqual(on?.profile?._sent, ["k"]);
+  await s.updateAccount(acc.id, { profile: { pravar: "P", reminders: { birthdays: false, lead: "day" } } });
+  assert.ok(!(await s.listReminderAccounts()).some((a) => a.id === acc.id));
 
   const fam = applyOps(emptyFamily(), [{ op: "add_person", name_roman: "Rohan Jha", gender: "male", gotra: { roman: "Shandilya" }, mool: { roman: "Sarisab" } }]).family;
   const id = newTreeId();

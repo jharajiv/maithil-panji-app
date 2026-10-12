@@ -23,9 +23,14 @@ export interface Profile {
   about?: string;
   /** allow the owner of a tree you connect with to see your mobile, email and street address */
   share_contact?: boolean;
+  /** email reminders about family birthdays (switched on by the person; see lib/reminders.ts) */
+  reminders?: { birthdays: boolean; lead: "week" | "day" };
+  /** SERVER ONLY, never taken from a browser: when reminders were switched on (the person's consent), and which reminders were already sent */
+  _remind_on?: string;
+  _sent?: string[];
 }
 
-const LIMITS: Record<Exclude<keyof Profile, "marital_status" | "share_contact">, number> = {
+const LIMITS: Record<Exclude<keyof Profile, "marital_status" | "share_contact" | "reminders" | "_remind_on" | "_sent">, number> = {
   pravar: 120, native_village: 80, native_district: 80, native_state: 60, current_city: 80, current_address: 200, occupation: 80, about: 400,
 };
 
@@ -41,6 +46,8 @@ export function cleanProfile(input: unknown): Profile {
   }
   if (typeof src.marital_status === "string" && (MARITAL as readonly string[]).includes(src.marital_status)) out.marital_status = src.marital_status as Marital;
   if (src.share_contact === true) out.share_contact = true;
+  const rm = src.reminders as { birthdays?: unknown; lead?: unknown } | undefined;
+  if (rm && typeof rm === "object") out.reminders = { birthdays: rm.birthdays === true, lead: rm.lead === "day" ? "day" : "week" };
   return out;
 }
 

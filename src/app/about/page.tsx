@@ -37,7 +37,7 @@ export default function About() {
 
         <H>How we work</H>
         <ul className="mt-2 list-disc space-y-1.5 pl-5 leading-relaxed text-foreground/85">
-          <li><strong>Your family’s data is yours.</strong> We do not sell it, advertise with it, or share it with marketers.</li>
+          <li><strong>Your family’s data is yours.</strong> We do not sell it, advertise with it, or share it with marketers. It is kept in India; see the <Link href="/safety" className="underline">Data safety page</Link>.</li>
           <li><strong>Consent first.</strong> Living relatives appear by first name only on shared pages. Connecting with other families is off until you switch it on, and nothing is merged or linked unless the owners agree.</li>
           <li><strong>Free for families.</strong> The service is meant to stay free to use. Voluntary contributions help keep it that way.</li>
           <li><strong>Records with respect.</strong> Where records come from public sources, we credit them. A sample tree is only a sample, never an official record.</li>
