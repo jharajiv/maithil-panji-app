@@ -17,8 +17,10 @@ import { getStore } from "./store";
  *  newsletter_confirmed   someone confirmed a newsletter subscription
  *  invite_shared   someone used the "invite family" button
  *  tree_from_invite   a tree was saved by someone who came through an invitation link
+ *  save_card_shown    the "save your tree" reminder was shown (once per visit)
+ *  save_card_clicked  someone tapped "Save my tree" (on the reminder or in the header)
  */
-export const EVENT_NAMES = ["sample_opened", "tree_started", "tree_saved", "pdf_downloaded", "share_clicked", "view_opened", "correction_suggested", "woman_linked", "tree_connect_requested", "tree_connect_accepted", "google_signin", "tree_combined", "newsletter_confirmed", "invite_shared", "tree_from_invite"] as const;
+export const EVENT_NAMES = ["sample_opened", "tree_started", "tree_saved", "pdf_downloaded", "share_clicked", "view_opened", "correction_suggested", "woman_linked", "tree_connect_requested", "tree_connect_accepted", "google_signin", "tree_combined", "newsletter_confirmed", "invite_shared", "tree_from_invite", "save_card_shown", "save_card_clicked"] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 export const isEvent = (n: unknown): n is EventName => typeof n === "string" && (EVENT_NAMES as readonly string[]).includes(n);
 

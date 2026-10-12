@@ -22,7 +22,25 @@ export interface DupPair {
 export interface NewRef { kind: "gotra" | "mool"; roman: string; dev?: string; trees: number }
 /** how many trees came through someone's invitation link (the site is open: this only counts, nothing is blocked) */
 export interface Invites { total: number; byInvite: number; inviters: number; top: { name: string; count: number }[] }
-export interface Queue { duplicates: DupPair[]; newRefs: NewRef[]; scanned: number; optedIn: number; invites: Invites }
+/** anonymous usage counts for the last 30 days, in the order people move through the site */
+export interface Usage { days: number; rows: { name: string; label: string; count: number }[]; /** the counts could not be read */ failed?: boolean }
+export const USAGE_ROWS: [string, string][] = [
+  ["tree_started", "Started a tree (answered the first question)"],
+  ["save_card_shown", "Saw the “save your tree” reminder"],
+  ["save_card_clicked", "Tapped “Save my tree”"],
+  ["tree_saved", "Trees saved online"],
+  ["pdf_downloaded", "PDFs downloaded"],
+  ["share_clicked", "Share buttons used"],
+  ["invite_shared", "Invitation links shared"],
+  ["sample_opened", "Opened the sample tree"],
+];
+export async function buildUsage(store: Store, days = 30): Promise<Usage> {
+  let c: Record<string, number> = {}; let failed = false;
+  try { c = await store.countEvents(new Date(Date.now() - days * 86_400_000).toISOString()); } catch { failed = true; /* usage counts are optional */ }
+  return { days, failed, rows: USAGE_ROWS.map(([name, label]) => ({ name, label, count: c[name] ?? 0 })) };
+}
+
+export interface Queue { duplicates: DupPair[]; newRefs: NewRef[]; scanned: number; optedIn: number; invites: Invites; usage?: Usage }
 
 const MAX_GROUP = 120;
 const MAX_PAIRS = 30;
@@ -102,5 +120,5 @@ export async function buildQueue(store: Store, rows?: TreeRow[]): Promise<Queue>
   }
   const newRefs = [...seen.values()].map(({ set, ...r }) => { void set; return r; }).sort((a, b) => b.trees - a.trees || a.roman.localeCompare(b.roman)).slice(0, 60);
 
-  return { duplicates, newRefs, scanned: trees.length, optedIn: open.length, invites: await buildInvites(trees) };
+  return { duplicates, newRefs, scanned: trees.length, optedIn: open.length, invites: await buildInvites(trees), usage: await buildUsage(store) };
 }

@@ -36,7 +36,7 @@ import { SuggestionsSheet } from "./SuggestionsSheet";
 import { ChatRail, PaneDivider, FamiliesRail, usePaneLayout } from "./PaneDivider";
 import { PersonEditSheet } from "./PersonEditSheet";
 import { ShareSheet } from "./ShareSheet";
-import { SavePrompt } from "./SavePrompt";
+import { pickSaveCard, saveCardText } from "@/lib/save-prompt";
 import { useShare } from "./useShare";
 import { useAccount } from "@/components/account/useAccount";
 
@@ -126,6 +126,12 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const [shareOpen, setShareOpen] = useState(false);
   const [inviteFor, setInviteFor] = useState<string | undefined>();
   const [resetOpen, setResetOpen] = useState(false);
+  /* "save your tree" reminders: the stage already dismissed, and whether this tree was already on the phone when the page opened */
+  const SAVE_KEY = "maithil-panji.savecard.v2", WELCOME_KEY = "maithil-panji.savecard.welcome";
+  const [saveDismissed, setSaveDismissed] = useState(0);
+  const [welcomed, setWelcomed] = useState(true);
+  const [returning, setReturning] = useState(false);
+  const shownSave = useRef(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [replyCtx, setReplyCtx] = useState<ReplyCtx | null>(null);
   const [undo, setUndo] = useState<Snap[]>([]);
@@ -162,11 +168,14 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
       const s = JSON.parse(localStorage.getItem(KEY) ?? "null") as Session | null;
       if (s?.family?.persons && s.messages?.length) {
         setFamily(s.family); setMessages(s.messages); setGoalId(s.goalId); setSection(s.section); setRepeats(s.repeats ?? 0); setPending(s.pending); setTemplate(s.template ?? "madhubani");
+        try { setSaveDismissed(Number(localStorage.getItem(SAVE_KEY) ?? 0)); setWelcomed(!!sessionStorage.getItem(WELCOME_KEY)); } catch { /* ignore */ }
+        setReturning(s.family.persons.filter((p) => !p.placeholder).length >= 3);
         setReady(true); return;
       }
     } catch { /* ignore */ }
     const f = firstMessage();
     setMessages(f.messages); setGoalId(f.goalId); setSection(f.section);
+    try { setSaveDismissed(Number(localStorage.getItem(SAVE_KEY) ?? 0)); } catch { /* ignore */ }
     setReady(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -321,6 +330,22 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   if (!ready || (inAccount && !sh.adopted)) return <div className="grid h-dvh place-items-center bg-background text-muted-foreground">Loading…</div>;
 
   const openShare = () => { setInviteFor(undefined); setShareOpen(true); };
+  /* the reminder to save the tree online (only for a tree that still lives just on this phone) */
+  const canSave = !inAccount && !isHelper && !auth.loading && auth.enabled && !sh.share && people > 0;
+  const saveHref = auth.account ? "/app?import=1" : `/login?next=${encodeURIComponent("/app?import=1")}`;
+  const complete = people > 0 && !nextGoal(family) && !!family.persons.find((p) => p.is_me);
+  const pickedSave = canSave && !exportOpen && !shareOpen ? pickSaveCard({ people, complete, dismissed: saveDismissed, returning, welcomed }) : null;
+  const closeSave = () => {
+    if (!pickedSave) return;
+    try { localStorage.setItem(SAVE_KEY, String(pickedSave.stage)); sessionStorage.setItem(WELCOME_KEY, "1"); } catch { /* ignore */ }
+    setSaveDismissed(pickedSave.stage); setWelcomed(true);
+  };
+  const saveCard = pickedSave ? {
+    text: saveCardText(lang, pickedSave.kind, people, !!auth.account), href: saveHref,
+    onSave: () => { track("save_card_clicked"); closeSave(); },
+    onLater: closeSave,
+    onShown: () => { if (!shownSave.current) { shownSave.current = true; track("save_card_shown", "session"); } },
+  } : null;
   const questionHelp: QuestionHelp | undefined = (() => {
     const kind = goalId?.split(":")[0];
     const m = family.persons.find((p) => p.is_me);
@@ -351,9 +376,14 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const leftPane = (cls: string, phone = false) => isHelper
     ? <HelperPane className={cls} name={sh.share?.memberName} onOpenShare={openShare} ownTreeHref={inAccount ? "/app" : undefined} />
     : <ChatPane className={cls} messages={messages} busy={busy} onSend={send} section={section} mode={mode}
-      reply={replyCtx} onReply={(m) => { const g = m.role === "assistant" ? m.goalId : m.answeredGoal; if (g) replyTo(g, m.text, m.role === "user" ? "You" : "Panji Sahayak", m.id); else setNotice("That older message can’t be replied to. Tap the person in the tree to change their details."); }} onMode={(md) => setReplyCtx((c) => (c ? { ...c, mode: md } : c))} onClearReply={() => setReplyCtx(null)} canUndo={undo.length > 0} onUndo={undoLast} help={questionHelp} lang={lang} onLang={changeLang} onSeeInTree={seeInTree} phone={phone} />;
+      reply={replyCtx} onReply={(m) => { const g = m.role === "assistant" ? m.goalId : m.answeredGoal; if (g) replyTo(g, m.text, m.role === "user" ? "You" : "Panji Sahayak", m.id); else setNotice("That older message can’t be replied to. Tap the person in the tree to change their details."); }} onMode={(md) => setReplyCtx((c) => (c ? { ...c, mode: md } : c))} onClearReply={() => setReplyCtx(null)} canUndo={undo.length > 0} onUndo={undoLast} help={questionHelp} lang={lang} onLang={changeLang} onSeeInTree={seeInTree} phone={phone} saveCard={saveCard} />;
   const treePane = <LiveTree ref={tree} family={family} template={template} onTemplate={setTemplate} onSelect={setSelected} onContext={(id, x, y, touch) => setMenu({ id, x, y, touch })} className="flex min-h-0 flex-1 flex-col"
     extra={data ? <Button size="sm" variant="outline" onClick={() => setFreeOpen(true)} aria-label="Edit freely with boxes and connectors"><Pencil /> <span className="hidden min-[420px]:inline">Edit freely</span></Button> : undefined} />;
+
+  const count = lang === "hi" ? `${people} लोग` : `${people} ${people === 1 ? "person" : "people"}`;
+  const subline = !people ? "PAAG Foundation" : sh.share || !canSave
+    ? `${count} · ${sh.share ? (sh.status === "saving" ? "saving…" : sh.status === "offline" ? "offline — will retry" : sh.status === "invalid" ? "link no longer valid" : isHelper ? "shared with you" : `saved online${sh.members.length > 1 ? ` · ${sh.members.length - 1} helper${sh.members.length > 2 ? "s" : ""}` : ""}`) : "saved on this device"}`
+    : <>{count} · <Link href={saveHref} onClick={() => track("save_card_clicked")} className="font-medium text-primary underline underline-offset-2">{lang === "hi" ? "ऑनलाइन सहेजिए →" : "Save online →"}</Link></>;
 
   return (
     <div className="flex h-dvh flex-col bg-background">
@@ -362,7 +392,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
         <PaagMark size={26} className="hidden shrink-0 sm:block" />
         <div className="min-w-0 flex-1">
           <h1 className="truncate font-display text-base font-semibold leading-tight">{data ? `${family.persons.find((p) => p.is_me)?.name_roman.split(" ")[0]}’s family` : "Build your family tree"}</h1>
-          <p className="truncate text-xs text-muted-foreground">{people ? `${people} ${people === 1 ? "person" : "people"} · ${sh.share ? (sh.status === "saving" ? "saving…" : sh.status === "offline" ? "offline — will retry" : sh.status === "invalid" ? "link no longer valid" : isHelper ? "shared with you" : `saved online${sh.members.length > 1 ? ` · ${sh.members.length - 1} helper${sh.members.length > 2 ? "s" : ""}` : ""}`) : "saved on this device"}` : "PAAG Foundation"}</p>
+          <p className="truncate text-xs text-muted-foreground">{subline}</p>
         </div>
         {desktop ? (
           <>
@@ -386,7 +416,6 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
         )}
       </header>
 
-      {!inAccount && ready && !auth.loading && auth.enabled && !sh.share && !exportOpen && !shareOpen && <SavePrompt people={family.persons.length} signedIn={!!auth.account} />}
       {notice && <div role="status" className="border-b bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">{notice}</div>}
 
       {desktop ? (

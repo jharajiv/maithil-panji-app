@@ -1,6 +1,6 @@
 // Minimal PostgREST look-alike (tables: trees, custom_refs) to exercise the Supabase adapter without a real project.
 import http from "node:http";
-const trees = new Map(); const refs = new Map(); const persons = new Map(); let rels = []; const consents = []; const accounts = new Map(); const sessions = new Map(); const codes = new Map();
+const events = []; const trees = new Map(); const refs = new Map(); const persons = new Map(); let rels = []; const consents = []; const accounts = new Map(); const sessions = new Map(); const codes = new Map();
 const srv = http.createServer(async (req, res) => {
   const u = new URL(req.url, "http://x");
   const chunks = []; for await (const c of req) chunks.push(c);
@@ -54,6 +54,11 @@ const srv = http.createServer(async (req, res) => {
   if (u.pathname === "/rest/v1/custom_refs") {
     if (req.method === "POST") { for (const r of body) { const k = r.kind + ":" + r.key; if (!refs.has(k)) refs.set(k, r); } return send(201); }
     if (req.method === "GET") return send(200, [...refs.values()]);
+  }
+  if (u.pathname === "/rest/v1/events") {
+    if (req.method === "POST") { events.push({ id: events.length + 1, name: body.name, at: new Date().toISOString() }); return send(201); }
+    const since = (u.searchParams.get("at") ?? "").replace(/^gte\./, ""); const off = +(u.searchParams.get("offset") ?? 0); const lim = Math.min(+(u.searchParams.get("limit") ?? 1000), 1000);
+    return send(200, events.filter((e) => !since || e.at >= since).slice(off, off + lim).map((e) => ({ name: e.name })));
   }
   send(404, { message: "nope" });
 });

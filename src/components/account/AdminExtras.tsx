@@ -128,6 +128,14 @@ export function ActionQueue() {
           <p className="text-xs text-muted-foreground">People typed these because they were not in the Panji list. Check them with a panjikar or an elder before adding them to the list.</p>
         </div>
       )}
+      {q.usage && (
+        <div className="space-y-1.5 border-t pt-3">
+          <h3 className="text-sm font-medium">Usage <span className="font-normal text-muted-foreground">· last {q.usage.days} days</span></h3>
+          {q.usage.failed ? <p role="alert" className="text-sm text-terracotta">The counts could not be read just now. Try again in a minute.</p> : null}
+          <table className={`w-full text-sm ${q.usage.failed ? "hidden" : ""}`}><tbody>{q.usage.rows.map((r) => <tr key={r.name} className="border-b last:border-0"><td className="py-1 pr-3">{r.label}</td><td className="py-1 text-right font-medium tabular-nums">{r.count}</td></tr>)}</tbody></table>
+          <p className="text-xs text-muted-foreground">These count visits and taps, not different people — one person can be counted more than once. No names or trees are kept.</p>
+        </div>
+      )}
       {q.invites && (
         <div className="space-y-1.5 border-t pt-3">
           <h3 className="text-sm font-medium">Invitations <span className="font-normal text-muted-foreground">· the site is open; this only counts</span></h3>

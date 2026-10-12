@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Camera, CornerUpLeft, ExternalLink, Loader2, MessageCircle, Mic, MicOff, Send, Share2, Undo2, X } from "lucide-react";
+import { Camera, CloudUpload, CornerUpLeft, ExternalLink, Loader2, MessageCircle, Mic, MicOff, Send, Share2, Undo2, X } from "lucide-react";
 import { DATE_PLACEHOLDER, DATE_PLACEHOLDER_HI, GOTRA_SOURCES, HINT, HINT_HI } from "@/lib/help";
 import type { SugSet } from "@/lib/chips";
 import type { Bundle, HAnswer } from "@/lib/household";
 import { HouseholdCard } from "./HouseholdCard";
 import { cn } from "@/lib/utils";
+import type { SaveText } from "@/lib/save-prompt";
 import { hiRel, hiSection, quickLabel, tr, type Lang } from "@/lib/hi";
 
 export interface ChatMessage {
@@ -144,7 +145,10 @@ function Suggest({ s, lang, onPick }: { s: NonNullable<QuestionHelp["suggest"]>;
   );
 }
 
-export function ChatPane({ messages, busy, onSend, section, mode, className, reply, onReply, onMode, onClearReply, canUndo, onUndo, help, lang = "en", onLang, onSeeInTree, phone }: {
+/** a gentle "save your tree" reminder that sits in the conversation (see save-prompt.ts) */
+export interface SaveCard { text: SaveText; href: string; onSave: () => void; onLater: () => void; onShown: () => void }
+
+export function ChatPane({ messages, busy, onSend, section, mode, className, reply, onReply, onMode, onClearReply, canUndo, onUndo, help, lang = "en", onLang, onSeeInTree, phone, saveCard }: {
   lang?: Lang; onLang?: (l: Lang) => void;
   messages: ChatMessage[]; busy: boolean; onSend: (text: string, display?: string) => void; section?: string; mode?: "ai" | "basic"; className?: string;
   reply?: ReplyCtx | null; onReply?: (m: ChatMessage) => void; onMode?: (m: "add" | "replace") => void; onClearReply?: () => void;
@@ -153,6 +157,7 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
   onSeeInTree?: (id: string) => void;
   /** phone: no header or banners of its own (the page header holds the language switch), notes appear inside the chat, one-line answer box */
   phone?: boolean;
+  saveCard?: SaveCard | null;
 }) {
   const [text, setText] = useState("");
   const [listening, setListening] = useState(false);
@@ -212,6 +217,8 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
   };
 
   const hp: QuestionHelp = help ?? {};
+  const showSave = !!saveCard && !busy && !reply && !card && last?.role === "assistant";
+  useEffect(() => { if (showSave) saveCard?.onShown(); }, [showSave]); // eslint-disable-line react-hooks/exhaustive-deps
   const chip = "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary";
   const free = !busy && !reply;
   const showHint = phone && hint && messages.length <= 6;
@@ -220,6 +227,21 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
   /** everything that helps with the current question sits under it, inside the conversation */
   const helpers = (
     <div className="space-y-2.5" data-testid="chat-helpers">
+      {showSave && saveCard && (
+        <div role="region" aria-label={saveCard.text.title} className="rounded-2xl border border-primary/30 bg-primary/5 p-3">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><CloudUpload className="size-5" /></span>
+            <div className="min-w-0">
+              <p className="font-display text-base font-semibold leading-tight" lang={lang === "hi" ? "hi" : undefined}>{saveCard.text.title}</p>
+              <p className="mt-1 text-sm text-muted-foreground" lang={lang === "hi" ? "hi" : undefined}>{saveCard.text.body}</p>
+            </div>
+          </div>
+          <div className="mt-2.5 flex items-center gap-2">
+            <a href={saveCard.href} onClick={saveCard.onSave} className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-primary px-4 text-[15px] font-medium text-primary-foreground">{saveCard.text.cta}</a>
+            <button type="button" onClick={saveCard.onLater} className="h-11 rounded-xl px-4 text-[15px] font-medium text-muted-foreground">{saveCard.text.later}</button>
+          </div>
+        </div>
+      )}
       {card && <HouseholdCard key={card.bundle.goalId} bundle={card.bundle} lang={lang} onSubmit={card.onSubmit} onType={() => setTypedFor(card.bundle.goalId)} />}
       {!card && free && help?.suggest && <Suggest s={help.suggest} lang={lang} onPick={(send, label) => submit(send, label)} />}
       {!card && free && help?.what && (
@@ -251,9 +273,9 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
           ))}
         </div>
       )}
-      {!card && free && last?.role === "assistant" && (help?.askUrl || (help?.onLater && quick.length === 0) || help?.invite || canUndo) && (
+      {!card && free && last?.role === "assistant" && (help?.askUrl || (help?.onLater && quick.length === 0) || (help?.invite && !showSave) || canUndo) && (
         <div className="flex flex-wrap gap-2">
-          {hp.invite && <button type="button" onClick={hp.invite.onOpen} className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary"><Share2 className="size-4" /> {hp.invite.done ? tr(lang, "Share with your family") : tr(lang, "Invite a relative to help")}</button>}
+          {hp.invite && !showSave && <button type="button" onClick={hp.invite.onOpen} className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary"><Share2 className="size-4" /> {hp.invite.done ? tr(lang, "Share with your family") : tr(lang, "Invite a relative to help")}</button>}
           {hp.askUrl && <a href={hp.askUrl} target="_blank" rel="noopener noreferrer" className={chip}><MessageCircle className="size-4" /> {tr(lang, "Ask a relative on WhatsApp")}</a>}
           {hp.onLater && quick.length === 0 && <button type="button" onClick={hp.onLater} className={chip}>{tr(lang, "Answer later")}</button>}
           {canUndo && <button type="button" onClick={onUndo} className={chip}><Undo2 className="size-4" /> {tr(lang, "Undo my last answer")}</button>}

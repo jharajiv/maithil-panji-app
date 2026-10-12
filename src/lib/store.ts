@@ -98,6 +98,8 @@ export interface Store {
   resolveSuggestion(treeId: string, id: string, status: "applied" | "dismissed"): Promise<boolean>;
   /** one anonymous usage count (a name and a time — nothing about the person) */
   addEvent(name: string): Promise<void>;
+  /** how often each usage count happened since a time (for the admin page) */
+  countEvents(sinceIso: string): Promise<Record<string, number>>;
   /* newsletter */
   getSubscriber(email: string): Promise<Subscriber | null>;
   /** create or replace the subscriber with this email */
@@ -183,6 +185,15 @@ function supabase(url: string, key: string): Store {
       return !!rows?.length;
     },
     async addEvent(name) { await call("events", { method: "POST", body: JSON.stringify({ name }), prefer: "return=minimal" }); },
+    async countEvents(sinceIso) {
+      const out: Record<string, number> = {};
+      for (let off = 0; off < 30000; off += 1000) { // the database returns at most 1000 rows at a time
+        const rows = (await call(`events?select=name&at=gte.${encodeURIComponent(sinceIso)}&order=id.asc&limit=1000&offset=${off}`)) as { name: string }[];
+        for (const r of rows) out[r.name] = (out[r.name] ?? 0) + 1;
+        if (rows.length < 1000) break;
+      }
+      return out;
+    },
     async getSubscriber(email) { return ((await call(`newsletter?email=eq.${encodeURIComponent(email)}&select=*&limit=1`)) as Subscriber[])[0] ?? null; },
     async putSubscriber(row) { await call("newsletter?on_conflict=email", { method: "POST", body: JSON.stringify(row), prefer: "resolution=merge-duplicates,return=minimal" }); },
     async listSubscribers() { return (await call("newsletter?select=*&order=created_at.desc&limit=20000")) as Subscriber[]; },
@@ -263,6 +274,7 @@ function file(): Store {
     listSuggestions: (treeId) => lock(async () => ((await read()).suggestions ?? []).filter((x) => x.tree_id === treeId && x.status === "new").sort((a, b) => b.created_at.localeCompare(a.created_at))),
     resolveSuggestion: (treeId, id, status) => lock(async () => { const db = await read(); const s = db.suggestions?.find((x) => x.tree_id === treeId && x.id === id); if (!s) return false; s.status = status; await write(db); return true; }),
     addEvent: (name) => lock(async () => { const db = await read(); db.events = [...(db.events ?? []).slice(-4999), { name, at: new Date().toISOString() }]; await write(db); }),
+    countEvents: (sinceIso) => lock(async () => { const out: Record<string, number> = {}; for (const e of (await read()).events ?? []) if (e.at >= sinceIso) out[e.name] = (out[e.name] ?? 0) + 1; return out; }),
     getSubscriber: (email) => lock(async () => (await read()).subscribers?.find((x) => x.email === email) ?? null),
     putSubscriber: (row) => lock(async () => { const db = await read(); db.subscribers = [...(db.subscribers ?? []).filter((x) => x.email !== row.email), row]; await write(db); }),
     listSubscribers: () => lock(async () => [...((await read()).subscribers ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at))),

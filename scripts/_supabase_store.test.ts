@@ -18,5 +18,11 @@ import { getStore, newAccountId, newTreeId, treeMeta } from "../src/lib/store";
   assert.deepEqual(await s.findTreesBySameStock({ roman: "shandilya" }, { roman: "Sarisab" }), [id]);
   assert.deepEqual(await s.findTreesBySameStock({ roman: "Shandilya" }, { roman: "Pandaul" }), []);
   assert.ok((await s.listAllTrees()).some((t) => t.id === id));
+  // usage counts: more than one page (the database hands out at most 1000 rows at a time)
+  for (let i = 0; i < 1005; i++) await s.addEvent("tree_started");
+  await s.addEvent("tree_saved");
+  const counts = await s.countEvents(new Date(Date.now() - 86_400_000).toISOString());
+  assert.equal(counts.tree_started, 1005); assert.equal(counts.tree_saved, 1);
+  assert.deepEqual(await s.countEvents(new Date(Date.now() + 86_400_000).toISOString()), {});
   console.log("supabase adapter OK");
 })().catch((e) => { console.error(e); process.exit(1); });
