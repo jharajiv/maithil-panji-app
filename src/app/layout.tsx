@@ -23,6 +23,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  /* on Android the keyboard shrinks the page (the answer box stays visible) instead of covering it */
+  interactiveWidget: "resizes-content",
   themeColor: "#1f2a5c",
 };
 

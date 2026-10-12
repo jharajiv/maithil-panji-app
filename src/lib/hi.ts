@@ -189,6 +189,11 @@ const UI_HI: Record<string, string> = {
   "Pick a date": "तारीख़ चुनिए", "Day": "दिन", "Month": "महीना", "Year": "साल", "Use this date": "यह तारीख़ लीजिए", "Only the year": "केवल साल",
   "Add a photo": "फ़ोटो जोड़िए", "Add a photo of yourself, or of anyone in the tree": "अपनी या वंशावली में किसी की फ़ोटो जोड़िए",
   "Drawing your tree…": "आपकी वंशावली बन रही है…",
+  "More": "और", "Chat": "बातचीत", "My tree": "मेरी वंशावली", "Welcome": "स्वागत", "Suggested corrections": "सुझाए गए सुधार", "Share and invite family": "परिवार को भेजिए और जोड़िए", "Download PDF": "PDF डाउनलोड कीजिए", "Start over": "फिर से शुरू कीजिए", "Families": "परिवार",
+  "Invite a relative to help": "किसी रिश्तेदार को मदद के लिए बुलाइए", "Share with your family": "अपने परिवार को भेजिए",
+  "Someone in your family may know more.": "परिवार में किसी को शायद और पता हो।", "Your tree is ready to share.": "आपकी वंशावली भेजने के लिए तैयार है।",
+  "Tip: you can also type a whole sentence, or speak.": "सुझाव: पूरा वाक्य भी लिख सकते हैं, या बोल सकते हैं।", "Hide": "छिपाइए",
+  "Forgot something? Swipe any message to the right to add or correct your answer.": "कुछ छूट गया? किसी भी संदेश को दाएँ सरकाइए और उत्तर जोड़िए या सुधारिए।",
 };
 export const tr = (lang: Lang, en: string) => (lang === "hi" ? UI_HI[en] ?? en : en);
 

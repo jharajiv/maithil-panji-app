@@ -59,7 +59,7 @@ export function HouseholdCard({ bundle, lang, onSubmit, onType }: { bundle: Bund
 
   const btn = (on: boolean) => cn("h-11 min-w-[5.5rem] flex-1 rounded-xl border text-base font-medium", on ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card");
   return (
-    <div className="mb-2 max-h-[44dvh] overflow-y-auto overscroll-contain rounded-2xl border border-primary/30 bg-primary/5 p-3" role="group" aria-label={t.title}>
+    <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3" role="group" aria-label={t.title}>
       {step === 1 ? (
         <>
           <p className="mb-2 text-sm font-medium text-primary">{t.title}</p>

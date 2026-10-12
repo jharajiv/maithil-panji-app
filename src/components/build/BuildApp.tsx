@@ -17,9 +17,10 @@ import type { TemplateId } from "@/lib/types";
 import { ChatPane, type ChatMessage, type QuestionHelp, type ReplyCtx } from "./ChatPane";
 import { track } from "@/lib/track";
 import { deviceId } from "@/lib/device";
-import { hiGoal, hiReply, type Lang } from "@/lib/hi";
+import { hiGoal, hiReply, tr, type Lang } from "@/lib/hi";
 import { applyHousehold, householdBundle, type HAnswer } from "@/lib/household";
 import { TreeStrip } from "./TreeStrip";
+import { HeaderMenu } from "./HeaderMenu";
 import { FAQ } from "@/lib/faq";
 import { gotraSuggestions, moolSuggestions } from "@/lib/chips";
 import { askRelativeUrl, gotraHelpMessage, moolSearchUrl, stillToFill } from "@/lib/help";
@@ -319,12 +320,14 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   );
   if (!ready || (inAccount && !sh.adopted)) return <div className="grid h-dvh place-items-center bg-background text-muted-foreground">Loading…</div>;
 
+  const openShare = () => { setInviteFor(undefined); setShareOpen(true); };
   const questionHelp: QuestionHelp | undefined = (() => {
     const kind = goalId?.split(":")[0];
     const m = family.persons.find((p) => p.is_me);
     const g = family.persons.length ? nextGoal(family) : null;
-    if (family.persons.length && !g && m) return { still: stillTo, onPhoto: () => { setRelFor(undefined); setSelected(m.id); } };
-    if (!kind || !g || g.id !== goalId) return { still: stillTo };
+    const invite = (done: boolean) => (family.persons.length > 0 && (done || stillTo.length >= 2) ? { done, onOpen: openShare } : undefined);
+    if (family.persons.length && !g && m) return { still: stillTo, invite: invite(true), onPhoto: () => { setRelFor(undefined); setSelected(m.id); } };
+    if (!kind || !g || g.id !== goalId) return { still: stillTo, invite: invite(false) };
     const hi = lang === "hi";
     const faq = (id: string) => { const f = FAQ.find((x) => x.id === id); return f ? { q: hi ? f.q.hi : f.q.en, a: hi ? f.a.hi : f.a.en } : undefined; };
     const suggest = kind === "self_gotra" ? { title: hi ? "प्रचलित गोत्र — एक चुनिए, या अपना लिखिए" : "Common gotras — tap one, or type yours", set: gotraSuggestions(), moreLabel: hi ? "सभी गोत्र" : "All gotras" }
@@ -341,30 +344,46 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
       askUrl: kind === "self_name" || kind === "self_gender" ? undefined : askRelativeUrl(lang === "hi" ? hiGoal(family, g)?.question ?? g.question : g.question, lang),
       onLater: g.optional && kind.startsWith("self_") && g.quick[0] ? () => send(g.quick[0]!) : undefined,
       still: stillTo,
+      invite: invite(false),
     };
   })();
-  const matchesProps = { family, online: !!sh.share, role: sh.share?.role, connect: cx, similar: sm, discoverable: sh.discoverable, onDiscoverable: sh.setDiscoverable, activity: sh.activity, onSee: seeLinked, bridgeHref: sh.share ? (tree: string) => `/app/bridge/${sh.share!.treeId}/${tree}${sh.keyQs ? `?${sh.keyQs}` : ""}` : undefined, onOpenShare: () => { setInviteFor(undefined); setShareOpen(true); } };
-  const leftPane = (cls: string, dense = false) => isHelper
-    ? <HelperPane className={cls} name={sh.share?.memberName} onOpenShare={() => { setInviteFor(undefined); setShareOpen(true); }} ownTreeHref={inAccount ? "/app" : undefined} />
+  const matchesProps = { family, online: !!sh.share, role: sh.share?.role, connect: cx, similar: sm, discoverable: sh.discoverable, onDiscoverable: sh.setDiscoverable, activity: sh.activity, onSee: seeLinked, bridgeHref: sh.share ? (tree: string) => `/app/bridge/${sh.share!.treeId}/${tree}${sh.keyQs ? `?${sh.keyQs}` : ""}` : undefined, onOpenShare: openShare };
+  const leftPane = (cls: string, phone = false) => isHelper
+    ? <HelperPane className={cls} name={sh.share?.memberName} onOpenShare={openShare} ownTreeHref={inAccount ? "/app" : undefined} />
     : <ChatPane className={cls} messages={messages} busy={busy} onSend={send} section={section} mode={mode}
-      reply={replyCtx} onReply={(m) => { const g = m.role === "assistant" ? m.goalId : m.answeredGoal; if (g) replyTo(g, m.text, m.role === "user" ? "You" : "Panji Sahayak", m.id); else setNotice("That older message can’t be replied to. Tap the person in the tree to change their details."); }} onMode={(md) => setReplyCtx((c) => (c ? { ...c, mode: md } : c))} onClearReply={() => setReplyCtx(null)} canUndo={undo.length > 0} onUndo={undoLast} help={questionHelp} lang={lang} onLang={changeLang} onSeeInTree={seeInTree} dense={dense} />;
+      reply={replyCtx} onReply={(m) => { const g = m.role === "assistant" ? m.goalId : m.answeredGoal; if (g) replyTo(g, m.text, m.role === "user" ? "You" : "Panji Sahayak", m.id); else setNotice("That older message can’t be replied to. Tap the person in the tree to change their details."); }} onMode={(md) => setReplyCtx((c) => (c ? { ...c, mode: md } : c))} onClearReply={() => setReplyCtx(null)} canUndo={undo.length > 0} onUndo={undoLast} help={questionHelp} lang={lang} onLang={changeLang} onSeeInTree={seeInTree} phone={phone} />;
   const treePane = <LiveTree ref={tree} family={family} template={template} onTemplate={setTemplate} onSelect={setSelected} onContext={(id, x, y, touch) => setMenu({ id, x, y, touch })} className="flex min-h-0 flex-1 flex-col"
     extra={data ? <Button size="sm" variant="outline" onClick={() => setFreeOpen(true)} aria-label="Edit freely with boxes and connectors"><Pencil /> <span className="hidden min-[420px]:inline">Edit freely</span></Button> : undefined} />;
 
   return (
     <div className="flex h-dvh flex-col bg-background">
-      <header className="z-30 flex items-center gap-2 border-b bg-card px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+      <header className="z-30 flex items-center gap-2 border-b bg-card px-2 pb-1.5 pt-[max(0.375rem,env(safe-area-inset-top))] sm:px-3 sm:pb-2 sm:pt-[max(0.5rem,env(safe-area-inset-top))]">
         <Link href={inAccount ? "/app" : "/"} aria-label={inAccount ? "Back to my trees" : "Back to home"} className="rounded-full p-2 text-muted-foreground hover:bg-secondary"><ChevronLeft className="size-5" /></Link>
         <PaagMark size={26} className="hidden shrink-0 sm:block" />
         <div className="min-w-0 flex-1">
           <h1 className="truncate font-display text-base font-semibold leading-tight">{data ? `${family.persons.find((p) => p.is_me)?.name_roman.split(" ")[0]}’s family` : "Build your family tree"}</h1>
           <p className="truncate text-xs text-muted-foreground">{people ? `${people} ${people === 1 ? "person" : "people"} · ${sh.share ? (sh.status === "saving" ? "saving…" : sh.status === "offline" ? "offline — will retry" : sh.status === "invalid" ? "link no longer valid" : isHelper ? "shared with you" : `saved online${sh.members.length > 1 ? ` · ${sh.members.length - 1} helper${sh.members.length > 2 ? "s" : ""}` : ""}`) : "saved on this device"}` : "PAAG Foundation"}</p>
         </div>
-        {sg.list.length > 0 && <Button size="sm" variant="outline" onClick={() => setSgOpen(true)} aria-label={`${sg.list.length} suggested corrections`} className="relative"><MessageSquareWarning /> <span className="hidden sm:inline">Corrections</span><span className="ml-0.5 rounded-full bg-terracotta px-1.5 text-xs font-semibold text-white">{sg.list.length}</span></Button>}
-        {people > 0 && <Button size="sm" variant="outline" onClick={() => { setInviteFor(undefined); setShareOpen(true); }} aria-label="Share"><Share2 /> <span className="hidden sm:inline">Share</span></Button>}
-        {people > 1 && <Button size="sm" variant="outline" onClick={openMatches} aria-label="Families: connect trees through married women" className="relative hidden md:inline-flex"><GitMerge /> Families{cx.matches.length > 0 && <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-terracotta" aria-label="Possible matches found" />}</Button>}
-        <Button size="sm" onClick={() => setExportOpen(true)} disabled={!data} aria-label="Download PDF"><Download /> <span className="hidden min-[400px]:inline">PDF</span></Button>
-        {!isHelper && !inAccount && <Button size="icon" variant="ghost" onClick={() => setResetOpen(true)} aria-label="Start over"><RotateCcw /></Button>}
+        {desktop ? (
+          <>
+          {sg.list.length > 0 && <Button size="sm" variant="outline" onClick={() => setSgOpen(true)} aria-label={`${sg.list.length} suggested corrections`} className="relative"><MessageSquareWarning /> <span className="hidden sm:inline">Corrections</span><span className="ml-0.5 rounded-full bg-terracotta px-1.5 text-xs font-semibold text-white">{sg.list.length}</span></Button>}
+          {people > 0 && <Button size="sm" variant="outline" onClick={() => { setInviteFor(undefined); setShareOpen(true); }} aria-label="Share"><Share2 /> <span className="hidden sm:inline">Share</span></Button>}
+          {people > 1 && <Button size="sm" variant="outline" onClick={openMatches} aria-label="Families: connect trees through married women" className="relative hidden md:inline-flex"><GitMerge /> Families{cx.matches.length > 0 && <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-terracotta" aria-label="Possible matches found" />}</Button>}
+          <Button size="sm" onClick={() => setExportOpen(true)} disabled={!data} aria-label="Download PDF"><Download /> <span className="hidden min-[400px]:inline">PDF</span></Button>
+          {!isHelper && !inAccount && <Button size="icon" variant="ghost" onClick={() => setResetOpen(true)} aria-label="Start over"><RotateCcw /></Button>}
+          </>
+        ) : (
+          <>
+            {!isHelper && (
+              <div role="radiogroup" aria-label="Language of the questions" className="flex h-9 shrink-0 overflow-hidden rounded-full border text-sm font-medium">
+                {([["en", "EN", "English"], ["hi", "हि", "हिन्दी"]] as const).map(([v, short, long]) => (
+                  <button key={v} type="button" role="radio" aria-checked={lang === v} aria-label={long} onClick={() => changeLang(v)} className={cn("min-w-10 px-2.5", lang === v ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground")}>{short}</button>
+                ))}
+              </div>
+            )}
+            <HeaderMenu lang={lang} corrections={sg.list.length} onCorrections={() => setSgOpen(true)} onShare={people > 0 ? openShare : undefined} onPdf={data ? () => setExportOpen(true) : undefined} onReset={!isHelper && !inAccount ? () => setResetOpen(true) : undefined} />
+          </>
+        )}
       </header>
 
       {!inAccount && ready && !auth.loading && auth.enabled && !sh.share && !exportOpen && !shareOpen && <SavePrompt people={family.persons.length} signedIn={!!auth.account} />}
@@ -386,16 +405,18 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
         <>
           <main className="flex min-h-0 flex-1 flex-col">
             {tab === "chat" && !isHelper && people > 0 && <TreeStrip family={family} template={template} lang={lang} people={people} fresh={unseen} onOpenTree={() => goTab("tree")} onSeen={() => setUnseen(0)} />}
-            {tab === "chat" && leftPane("flex-1", !isHelper && people > 0)}
+            {tab === "chat" && leftPane("flex-1", true)}
             {tab === "tree" && treePane}
             {tab === "matches" && <MatchesPane className="flex-1" {...matchesProps} />}
           </main>
-          <nav className="grid grid-cols-3 border-t bg-card pb-[max(0.25rem,env(safe-area-inset-bottom))]" aria-label="Sections">
+          <nav className="grid grid-cols-3 border-t bg-card pb-[env(safe-area-inset-bottom)]" aria-label="Sections">
             {([["chat", isHelper ? "Welcome" : "Chat", isHelper ? Users : MessageCircle], ["tree", "My tree", Network], ["matches", "Families", GitMerge]] as const).map(([k, l, Icon]) => (
-              <button key={k} onClick={() => goTab(k)} aria-current={tab === k} className={cn("relative flex flex-col items-center gap-0.5 py-2 text-xs font-medium", tab === k ? "text-primary" : "text-muted-foreground")}>
-                <Icon className="size-5" />{l}
-                {k === "matches" && cx.matches.length > 0 && <span className="absolute right-[calc(50%-1.6rem)] top-1.5 size-2.5 rounded-full bg-terracotta" aria-label="Possible matches found" />}
-                {k === "tree" && unseen > 0 && <span className="absolute right-[calc(50%-1.6rem)] top-1.5 size-2.5 rounded-full bg-terracotta" aria-label="New people added" />}
+              <button key={k} onClick={() => goTab(k)} aria-current={tab === k} className={cn("flex h-11 items-center justify-center gap-1.5 text-[13px] font-medium", tab === k ? "bg-primary/5 text-primary" : "text-muted-foreground")}>
+                <span className="relative"><Icon className="size-[18px]" />
+                  {k === "matches" && cx.matches.length > 0 && <span className="absolute -right-1 -top-0.5 size-2.5 rounded-full bg-terracotta" aria-label="Possible matches found" />}
+                  {k === "tree" && unseen > 0 && <span className="absolute -right-1 -top-0.5 size-2.5 rounded-full bg-terracotta" aria-label="New people added" />}
+                </span>
+                {tr(lang, l)}
               </button>
             ))}
           </nav>
