@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { withSocial } from "@/lib/seo";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, GitMerge, Globe2, ListChecks, Lock, Network, Printer, Sprout, Users } from "lucide-react";
@@ -8,6 +10,23 @@ import { StickyStart } from "@/components/landing/StickyStart";
 import { SiteFooter } from "@/components/landing/SiteFooter";
 import { ORG_NAME } from "@/lib/site";
 import { PaagLogo } from "@/components/brand/Logo";
+import { ldJson } from "@/lib/jsonld";
+import { siteUrl } from "@/lib/site";
+
+export const metadata: Metadata = withSocial({
+  title: `${ORG_NAME} — free Maithil family tree (वंशावली) builder`,
+  description: "Build your Maithil family tree (वंशावली) for free. Answer simple questions in English, Hindi or Hinglish, record gotra and mool the Panji way, print a PDF and invite relatives on WhatsApp.",
+  alternates: { canonical: "/" },
+}, "/");
+
+/** what the site is, for search engines and AI assistants */
+const appJson = () => ldJson({
+  "@context": "https://schema.org", "@type": "WebApplication",
+  name: `${ORG_NAME} — Maithil family tree builder`, url: siteUrl(), applicationCategory: "LifestyleApplication", operatingSystem: "Any (web browser, phone or computer)",
+  inLanguage: ["en", "hi"], isAccessibleForFree: true, offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
+  description: "A free web app where Maithil families record their lineage (vanshavali) in the Panji tradition, with gotra and mool, as a printable family tree.",
+  publisher: { "@id": `${siteUrl()}/#org` },
+});
 
 const TEMPLATES = [
   { id: "classic", name: "Classic", blurb: "Warm and formal. Made for printing and framing.", img: "/templates/classic.png" },
@@ -56,6 +75,7 @@ function Head({ label, title, text, id }: { label: string; title: string; text?:
 export default function Home() {
   return (
     <div className="min-h-dvh bg-background pb-24 text-foreground sm:pb-0">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: appJson() }} />
       <PatternBand className="block" />
 
       {/* top bar */}

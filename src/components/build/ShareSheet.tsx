@@ -165,8 +165,8 @@ export function ShareSheet(p: Props) {
               <h3 className="flex items-center gap-2 font-medium"><MessageCircle className="size-5 text-terracotta" /> Invite family to try PAAG</h3>
               <p className="text-sm text-muted-foreground">The site is open for your relatives and friends to try. Send them this link — each family builds its own tree, and later you can connect them.</p>
               <a onClick={() => track("invite_shared")} target="_blank" rel="noopener noreferrer" className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-3 text-sm font-medium text-white hover:bg-[#25D366]/90"
-                href={`https://wa.me/?text=${encodeURIComponent(`Namaste! I am recording our family’s lineage on PAAG Foundation — a free site for Maithil families. Please try it and build your own tree: ${inviteUrl(typeof location === "undefined" ? "" : location.origin, code)}`)}`}><MessageCircle className="size-5" /> Invite on WhatsApp</a>
-              <Button variant="outline" className="w-full" onClick={() => { track("invite_shared"); copy(inviteUrl(location.origin, code), "ref"); }}>{copied === "ref" ? <Check /> : <Copy />} Copy invitation link</Button>
+                href={`https://wa.me/?text=${encodeURIComponent(`Namaste! I am recording our family’s lineage on PAAG Foundation — a free site for Maithil families. Please try it and build your own tree: ${inviteUrl(typeof location === "undefined" ? "" : location.origin, code, "whatsapp")}`)}`}><MessageCircle className="size-5" /> Invite on WhatsApp</a>
+              <Button variant="outline" className="w-full" onClick={() => { track("invite_shared"); copy(inviteUrl(location.origin, code, "copy"), "ref"); }}>{copied === "ref" ? <Check /> : <Copy />} Copy invitation link</Button>
             </section>
           )}
 

@@ -12,7 +12,8 @@ export async function refCodeOf(treeId: string): Promise<string> {
   return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("").slice(0, 10);
 }
 
-export const inviteUrl = (origin: string, code: string) => `${origin}/?ref=${code}`;
+/** medium: which button the link came from (whatsapp, copy), so Analytics can tell invitations apart */
+export const inviteUrl = (origin: string, code: string, medium = "share") => `${origin}/?ref=${code}&utm_source=invite&utm_medium=${medium}&utm_campaign=invite`;
 
 /** remember the code in the link that brought this visitor (the newest link wins) */
 export function captureRef(search: string): void {

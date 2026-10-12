@@ -9,7 +9,7 @@ export interface Sug { label: string; labelHi: string; /** what is sent to the i
 export interface SugSet { top: Sug[]; rest: Sug[] }
 
 /** the way people usually spell them in English letters (the Panji list itself uses scholarly spelling) */
-const FRIENDLY: Record<string, string> = {
+export const FRIENDLY: Record<string, string> = {
   g01: "Shandilya", g02: "Vatsa", g03: "Kashyap", g04: "Savarna", g05: "Parashar", g06: "Bharadwaj", g07: "Katyayan", g08: "Alambukaksha", g09: "Garga", g10: "Kaushik",
   g11: "Krishnatreya", g12: "Maudgalya", g13: "Gautam", g14: "Vashishtha", g15: "Kaundilya", g16: "Jatukarna", g17: "Tandi", g18: "Vishnuvriddhi", g19: "Upamanyu", g20: "Kapila",
 };

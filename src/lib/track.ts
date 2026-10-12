@@ -11,5 +11,7 @@ export function track(name: EventName, once?: "session" | "browser") {
       store.setItem(k, "1");
     }
   } catch { /* storage blocked: count it anyway */ }
+  /* the same count also goes to Google Analytics (when it is set up), so conversions can be seen by where the visitor came from */
+  try { (window as unknown as { gtag?: (...a: unknown[]) => void }).gtag?.("event", name); } catch { /* ignore */ }
   try { fetch("/api/ev", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }), keepalive: true }).catch(() => {}); } catch { /* ignore */ }
 }

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { withSocial } from "@/lib/seo";
 import { PaagLogo } from "@/components/brand/Logo";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { SiteFooter } from "@/components/landing/SiteFooter";
+import { ConsentChoice } from "@/components/ConsentChoice";
 
-export const metadata: Metadata = { title: "Privacy — PAAG Foundation", description: "What PAAG Foundation keeps, who can see it, and how to have it removed." };
+export const metadata: Metadata = withSocial({ title: "Privacy — PAAG Foundation", description: "What PAAG Foundation keeps, who can see it, and how to have it removed.", alternates: { canonical: "/privacy" } }, "/privacy");
 
 const UPDATED = "12 October 2026";
 const contact = process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim();
@@ -30,6 +32,7 @@ export default function Privacy() {
             <li>जीवित रिश्तेदारों की जानकारी या फ़ोटो उनकी सहमति से ही डालें।</li>
             <li>वंशावली को सोशल मीडिया या WhatsApp पर दिखाने के लिए “सिर्फ़ देखने वाला” लिंक बनता है। उसमें कोई बदलाव या डाउनलोड नहीं कर सकता। शुरू से जीवित लोगों का सिर्फ़ पहला नाम दिखता है; जन्म-तिथि, गाँव और फ़ोटो छिपे रहते हैं।</li>
             <li>समाचार-पत्र (newsletter) तभी आता है जब आप खुद नाम लिखवाएँ और ईमेल में दिए लिंक से पक्का करें। हर ईमेल में “सदस्यता छोड़ें” का लिंक रहता है।</li>
+            <li>सार्वजनिक पन्नों पर एक छोटा सवाल आ सकता है कि क्या हम Google Analytics से विज़िट गिन सकते हैं। “ठीक है” दबाने पर ही गिनती होती है; आपका नाम, ईमेल या वंशावली Google को कभी नहीं जाती। बाद में यहीं नीचे अपना चुनाव बदल सकते हैं।</li>
             <li>आप जब चाहें अपनी ऑनलाइन वंशावली मिटा सकते हैं (Share → “Delete online copy”)।</li>
           </ul>
         </section>
@@ -95,7 +98,11 @@ export default function Privacy() {
         </L>
 
         <H>Cookies</H>
-        <P>When you sign in we set one cookie that keeps you signed in. We do not use advertising or tracking cookies. The builder also keeps your draft tree and chosen style in your browser’s local storage on your device.</P>
+        <P>When you sign in we set one cookie that keeps you signed in. We do not use advertising cookies. The builder also keeps your draft tree and chosen style in your browser’s local storage on your device.</P>
+
+        <H>Counting visits (Google Analytics)</H>
+        <P>If, and only if, you tap “Allow” on the small banner shown on our public pages (home, About, Questions, gotra and mool pages, sample tree and this page), we use Google Analytics to count visits: which public pages are opened, roughly from which kind of link, and how many people tap Start. This uses cookies set by Google. We switch off advertising features and Google’s ad personalisation, and we never send Google your name, your email address or anything from your family tree. Pages that carry a private key in their address (shared view-only trees, invitations, your account) are reported to Google under a plain address with the key removed, and the chat and tree-building screens do not show the banner. If you tap “No thanks”, or ignore the banner, nothing is counted by Google. You can change your mind here at any time:</P>
+        <ConsentChoice />
 
         <H>Changes</H>
         <P>If this page changes in a way that matters, we will say so here.</P>

@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
+import { withSocial } from "@/lib/seo";
 import { PaagLogo } from "@/components/brand/Logo";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { SiteFooter } from "@/components/landing/SiteFooter";
 import { contactEmail, ORG_LONG, ORG_NAME, SITE_DOMAIN } from "@/lib/site";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withSocial({
   title: `About ${ORG_NAME}`,
   description: `${ORG_NAME} (${ORG_LONG}) is a community initiative helping Maithil families record their lineage in the Panji Prabandh tradition.`,
   alternates: { canonical: "/about" },
-};
+}, "/about");
 
 function H({ children }: { children: React.ReactNode }) { return <h2 className="font-display mt-9 text-xl font-semibold text-indigo">{children}</h2>; }
 function P({ children }: { children: React.ReactNode }) { return <p className="mt-2 leading-relaxed text-foreground/85">{children}</p>; }

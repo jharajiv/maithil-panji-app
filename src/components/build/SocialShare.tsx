@@ -4,6 +4,7 @@ import { Check, Copy, Eye, Loader2, MessageCircle, Share2, ShieldCheck } from "l
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { track } from "@/lib/track";
+import { withUtm } from "@/lib/utm";
 
 /**
  * "Show this tree to others": a view-only link for WhatsApp, Facebook, X or anywhere else. People who open it can look, tap a person
@@ -38,8 +39,8 @@ export function SocialShare({ viewUrl, viewUrlFull, familyName, viewOff, onViewL
   if (!viewUrl) return null;
   const text = `Namaste! Here is ${familyName} family tree, made on PAAG Foundation. Have a look — and build your own, it is free:`;
   const canNative = typeof navigator !== "undefined" && typeof navigator.share === "function";
-  const copy = async () => { track("share_clicked"); try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* ignore */ } };
-  const native = async () => { track("share_clicked"); try { await navigator.share({ title: `${familyName} family tree`, text, url }); } catch { /* cancelled */ } };
+  const copy = async () => { track("share_clicked"); try { await navigator.clipboard.writeText(withUtm(url, "copy")); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* ignore */ } };
+  const native = async () => { track("share_clicked"); try { await navigator.share({ title: `${familyName} family tree`, text, url: withUtm(url, "native") }); } catch { /* cancelled */ } };
   const btn = "flex h-11 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-medium hover:bg-secondary";
   const opt = (on: boolean) => cn("flex w-full gap-3 rounded-xl border p-3 text-left text-sm", on ? "border-primary bg-primary/5" : "hover:bg-secondary/60");
   return (
@@ -61,9 +62,9 @@ export function SocialShare({ viewUrl, viewUrlFull, familyName, viewOff, onViewL
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <a onClick={() => track("share_clicked")} className={cn(btn, "col-span-2 border-transparent bg-[#25D366] text-white hover:bg-[#25D366]/90")} target="_blank" rel="noopener noreferrer" href={`https://wa.me/?text=${encodeURIComponent(`${text}\n${url}`)}`}><MessageCircle className="size-5" /> Share on WhatsApp</a>
-        <a onClick={() => track("share_clicked")} className={btn} target="_blank" rel="noopener noreferrer" href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`}>Facebook</a>
-        <a onClick={() => track("share_clicked")} className={btn} target="_blank" rel="noopener noreferrer" href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`}>X (Twitter)</a>
+        <a onClick={() => track("share_clicked")} className={cn(btn, "col-span-2 border-transparent bg-[#25D366] text-white hover:bg-[#25D366]/90")} target="_blank" rel="noopener noreferrer" href={`https://wa.me/?text=${encodeURIComponent(`${text}\n${withUtm(url, "whatsapp")}`)}`}><MessageCircle className="size-5" /> Share on WhatsApp</a>
+        <a onClick={() => track("share_clicked")} className={btn} target="_blank" rel="noopener noreferrer" href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(withUtm(url, "facebook"))}`}>Facebook</a>
+        <a onClick={() => track("share_clicked")} className={btn} target="_blank" rel="noopener noreferrer" href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(withUtm(url, "x"))}`}>X (Twitter)</a>
         <Button variant="outline" className="h-11" onClick={copy}>{copied ? <Check /> : <Copy />} {copied ? "Copied" : "Copy link"}</Button>
         {canNative && <Button variant="outline" className="h-11" onClick={native}><Share2 /> More…</Button>}
       </div>
