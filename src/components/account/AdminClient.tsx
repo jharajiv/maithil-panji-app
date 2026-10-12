@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowDown, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { inputCls } from "@/components/build/widgets";
-import { NewsletterAdmin, SetupStatus } from "./AdminExtras";
+import { ActionQueue, SetupStatus, SubscribersAdmin } from "./AdminExtras";
 import { useAccount } from "./useAccount";
 
 interface P { id: string; tree: string; title: string; name: string; gender?: string; born?: number; deceased: boolean; gotra?: string; mool?: string; place?: string; steps?: number; via?: string }
@@ -44,7 +44,16 @@ export function AdminClient() {
   const explore = async (p: P) => { setBusy("near"); const r = await get({ op: "around", node: p.id, depth: "3" }); setNear(r.ok ? (await r.json()).people : []); setBusy(""); };
 
   if (ok === null) return <div className="grid h-dvh place-items-center text-muted-foreground">Loading…</div>;
-  if (!ok) return <div className="grid h-dvh place-items-center px-6 text-center"><div><p className="text-lg">This page is not available.</p><Link href="/" className="mt-3 inline-block underline">Go to the home page</Link></div></div>;
+  if (!ok) return (
+    <div className="grid h-dvh place-items-center px-6 text-center">
+      <div className="max-w-sm">
+        {auth.account
+          ? <><p className="text-lg">This page is only for the PAAG team.</p><p className="mt-1 text-sm text-muted-foreground">You are signed in as {auth.account.email}. That address is not on the admin list.</p></>
+          : <><p className="text-lg">Please sign in first.</p><p className="mt-1 text-sm text-muted-foreground">This page is only for the PAAG team. Sign in with the email address on the admin list, then you will come back here.</p><Link href="/login?next=/admin" className="mt-4 inline-block rounded-lg bg-primary px-5 py-2.5 font-medium text-primary-foreground">Sign in</Link></>}
+        <div><Link href="/" className="mt-4 inline-block text-sm underline">Go to the home page</Link></div>
+      </div>
+    </div>
+  );
 
   const Pick = ({ p }: { p: P }) => (
     <li className="rounded-xl border bg-card p-3 text-sm">
@@ -71,8 +80,9 @@ export function AdminClient() {
           </section>
         )}
 
+        <ActionQueue />
+        <SubscribersAdmin />
         <SetupStatus />
-        <NewsletterAdmin />
 
         <section aria-label="Find people" className="space-y-3 rounded-2xl border bg-card p-4">
           <h2 className="font-semibold">Find people by any attribute</h2>

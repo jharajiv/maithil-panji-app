@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentAccount, isAdmin } from "@/lib/auth";
-import { mailConfigured, sendBatch } from "@/lib/mail";
-import { newsletterEnabled, newsletterMail } from "@/lib/newsletter";
-import { clientIp, limited } from "@/lib/ratelimit";
+import { mailConfigured } from "@/lib/mail";
+import { newsletterEnabled } from "@/lib/newsletter";
 import { getStore, type Subscriber } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +10,10 @@ const NO = { "cache-control": "no-store" };
 
 const csvCell = (x: string | undefined) => { const v = (x ?? "").replace(/\r?\n/g, " "); return /^[=+\-@]/.test(v) || /[",]/.test(v) ? `"${(/^[=+\-@]/.test(v) ? "'" : "") + v.replace(/"/g, '""')}"` : v; };
 
-/** Admin only. GET → the numbers; GET ?format=csv → the list as a spreadsheet file */
+/**
+ * Admin only. GET → the numbers; GET ?format=csv → the list as a spreadsheet file.
+ * Newsletters themselves are written and sent from a proper mailing platform (for example Resend Broadcasts): import the CSV there.
+ */
 export async function GET(req: Request) {
   const a = await currentAccount(req);
   if (!isAdmin(a)) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -29,28 +31,4 @@ export async function GET(req: Request) {
     confirmed: n((s) => s.status === "confirmed"), pending: n((s) => s.status === "pending"), unsubscribed: n((s) => s.status === "unsubscribed"),
     confirmedEn: n((s) => s.status === "confirmed" && s.lang === "en"), confirmedHi: n((s) => s.status === "confirmed" && s.lang === "hi"),
   }, { headers: NO });
-}
-
-/**
- * Admin only. POST { subject, body, audience: "all"|"en"|"hi", test?: true }
- *  test: sends one copy to the signed-in admin only.  Otherwise: one copy to every confirmed subscriber of that language.
- */
-export async function POST(req: Request) {
-  const a = await currentAccount(req);
-  if (!a || !isAdmin(a)) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  const store = getStore();
-  if (!store || !newsletterEnabled()) return NextResponse.json({ error: "The newsletter is not switched on yet." }, { status: 503, headers: NO });
-  if (limited("newsletter-send", clientIp(req), 6, 60 * 60_000)) return NextResponse.json({ error: "Too many sends. Please wait." }, { status: 429, headers: NO });
-  const b = (await req.json().catch(() => null)) as { subject?: unknown; body?: unknown; audience?: unknown; test?: unknown } | null;
-  const subject = typeof b?.subject === "string" ? b.subject.trim().slice(0, 150) : "", text = typeof b?.body === "string" ? b.body.trim().slice(0, 20000) : "";
-  if (!subject || !text) return NextResponse.json({ error: "Write a subject and a message." }, { status: 400, headers: NO });
-  if (b?.test === true) {
-    const r = await sendBatch([newsletterMail({ email: a.email, lang: "en" }, `[Test] ${subject}`, text)]);
-    return NextResponse.json({ ...r, total: 1, test: true }, { headers: NO });
-  }
-  const aud = b?.audience === "en" || b?.audience === "hi" ? b.audience : "all";
-  const to = (await store.listSubscribers()).filter((s) => s.status === "confirmed" && (aud === "all" || s.lang === aud));
-  if (!to.length) return NextResponse.json({ error: "Nobody has confirmed yet for that audience.", sent: 0, failed: 0, total: 0 }, { status: 400, headers: NO });
-  const r = await sendBatch(to.map((s) => newsletterMail(s, subject, text)));
-  return NextResponse.json({ ...r, total: to.length }, { headers: NO });
 }

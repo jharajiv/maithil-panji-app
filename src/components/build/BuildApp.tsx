@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { ExportSheet } from "@/components/tree/ExportSheet";
 import { cn } from "@/lib/utils";
-import { applyOps, changeRelation, emptyFamily, toFamilyData, type DFamily, type Gender, type Pending, type PersonFields, type RelationSpec, type RelationWord } from "@/lib/family";
+import { applyOps, changeRelation, emptyFamily, labels, toFamilyData, type DFamily, type Gender, type Pending, type PersonFields, type RelationSpec, type RelationWord } from "@/lib/family";
 import { mergeFamilies } from "@/lib/merge";
 import { registerExtras, type ExtraRef } from "@/lib/lookup";
 import { romanToDevanagari } from "@/lib/translit";
@@ -16,7 +16,12 @@ import { CORRECTABLE, isListKind, nextGoal, replyGoal } from "@/lib/interview";
 import type { TemplateId } from "@/lib/types";
 import { ChatPane, type ChatMessage, type QuestionHelp, type ReplyCtx } from "./ChatPane";
 import { track } from "@/lib/track";
-import { hiGoal, type Lang } from "@/lib/hi";
+import { deviceId } from "@/lib/device";
+import { hiGoal, hiReply, type Lang } from "@/lib/hi";
+import { applyHousehold, householdBundle, type HAnswer } from "@/lib/household";
+import { TreeStrip } from "./TreeStrip";
+import { FAQ } from "@/lib/faq";
+import { gotraSuggestions, moolSuggestions } from "@/lib/chips";
 import { askRelativeUrl, gotraHelpMessage, moolSearchUrl, stillToFill } from "@/lib/help";
 import { TreeMenu, type TreeMenuState } from "./TreeMenu";
 import { LiveTree, type LiveTreeHandle } from "./LiveTree";
@@ -65,6 +70,16 @@ const firstMessage = (lang: Lang = readLang()): { messages: ChatMessage[]; goalI
   const g = nextGoal(emptyFamily());
   return { messages: [{ id: uid(), role: "assistant", text: `${lang === "hi" ? GREETING_HI : GREETING}\n\n${g ? askIn(emptyFamily(), g, lang) : ""}`, quick: [], goalId: g?.id }], goalId: g?.id, section: g?.section };
 };
+
+/** the people an answer put in the tree (for the "Added X — your father · See in tree" line) */
+/** "father" → "your father"; "father's brother" → "your father's brother" */
+const roleText = (r?: string) => (!r || r === "relative" ? "relative" : r === "you" || /^your\b/.test(r) ? r : `your ${r}`);
+function addedPeople(before: DFamily, after: DFamily): ChatMessage["added"] {
+  const had = new Set(before.persons.map((p) => p.id));
+  const lab = labels(after);
+  const out = after.persons.filter((p) => !had.has(p.id) && !p.placeholder).map((p) => ({ id: p.id, name: p.name_roman, role: roleText(lab[p.id]) }));
+  return out.length ? out.slice(0, 20) : undefined;
+}
 
 /** photos and phone numbers never go to the chat server */
 const stripPrivate = (f: DFamily): DFamily => ({ ...f, persons: f.persons.map((p) => ({ ...p, photo: undefined, whatsapp: undefined })) });
@@ -190,7 +205,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
     const sent = stripPrivate(famRef.current);
     try {
       const res = await fetch("/api/chat", {
-        method: "POST", headers: { "content-type": "application/json" },
+        method: "POST", headers: { "content-type": "application/json", "x-device-id": deviceId() },
         body: JSON.stringify({ family: sent, history, text, prevGoalId: goalId, repeats, pending, answerGoal: ctx?.goalId, mode: ctx?.mode, lang }),
       });
       const j = await res.json();
@@ -203,7 +218,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
       // told us they do not know their gotra: the next message says where to find it
       const nm = next.persons.find((p) => p.is_me);
       const gotraHelp = goalId === "self_gotra" && nm && !nm.gotra && nm.flags.gotra ? `${gotraHelpMessage(lang)}\n\n` : "";
-      setMessages((m) => [...m, { id: uid(), role: "assistant", text: `${gotraHelp}${j.reply}`, quick: j.quick, goalId: j.goal?.id as string | undefined }]);
+      setMessages((m) => [...m, { id: uid(), role: "assistant", text: `${gotraHelp}${j.reply}`, quick: j.quick, goalId: j.goal?.id as string | undefined, added: addedPeople(sent, next) }]);
       setGoalId(j.goal?.id); setSection(j.goal?.section); setRepeats(j.repeats ?? 0); setPending(j.pending);
       if (j.ops > 0) setUndo((u) => [...u.slice(-14), snap]);
       if (ctx && j.ops > 0) setReplyCtx(null); // an answer that was not understood keeps the reply open
@@ -215,6 +230,31 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
       setBusy(false);
     }
   }, [messages, goalId, section, repeats, pending, desktop, tab, replyCtx, lang]);
+
+  /** show one person in the tree: on a phone that is the My tree tab */
+  const seeInTree = (id: string) => {
+    if (!desktop) { setTab("tree"); setUnseen(0); }
+    setTimeout(() => tree.current?.centreOn(id), desktop ? 0 : 700);
+  };
+  const HI_LINE: Record<string, string> = { Wife: "पत्नी", Sons: "पुत्र", Daughters: "पुत्रियाँ", Brothers: "भाई", Sisters: "बहनें", none: "कोई नहीं", "yes (names not given)": "हाँ (नाम नहीं बताए)" };
+  /** the household card: record every group on it, then ask the next question — no AI involved */
+  const submitHousehold = (answers: HAnswer[]) => {
+    const cur = famRef.current;
+    const bundle = householdBundle(cur, cur.persons.length ? nextGoal(cur) : null);
+    if (!bundle || busy) return;
+    const snap: Snap = { family: cur, messages, goalId, section, repeats, pending };
+    const r = applyHousehold(cur, bundle, answers);
+    const reply = lang === "hi" ? hiReply(r.reply, r.family, [r.next]) : r.reply;
+    const said = lang === "hi" ? r.lines.map((l) => l.replace(/^(\w+): (.*)$/, (_m, k: string, v: string) => `${HI_LINE[k] ?? k}: ${HI_LINE[v] ?? v}`)) : r.lines;
+    afterTurn.current = JSON.stringify(r.family);
+    setFamily(r.family);
+    setMessages((m) => [...m,
+      { id: uid(), role: "user", text: said.join("\n"), answeredGoal: bundle.goalId },
+      { id: uid(), role: "assistant", text: reply, quick: r.next?.quick ?? [], goalId: r.next?.id, added: r.added.length ? r.added.slice(0, 20) : undefined }]);
+    setGoalId(r.next?.id); setSection(r.next?.section); setRepeats(0); setPending(undefined); setReplyCtx(null);
+    if (r.added.length) setUndo((u) => [...u.slice(-14), snap]);
+    if (r.added.length && !desktop && tab === "chat") setUnseen((n) => n + r.added.length);
+  };
 
   /** switch the language of the questions; the question now open is asked again in the new language */
   const changeLang = (l: Lang) => {
@@ -283,20 +323,31 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
     const kind = goalId?.split(":")[0];
     const m = family.persons.find((p) => p.is_me);
     const g = family.persons.length ? nextGoal(family) : null;
+    if (family.persons.length && !g && m) return { still: stillTo, onPhoto: () => { setRelFor(undefined); setSelected(m.id); } };
     if (!kind || !g || g.id !== goalId) return { still: stillTo };
+    const hi = lang === "hi";
+    const faq = (id: string) => { const f = FAQ.find((x) => x.id === id); return f ? { q: hi ? f.q.hi : f.q.en, a: hi ? f.a.hi : f.a.en } : undefined; };
+    const suggest = kind === "self_gotra" ? { title: hi ? "प्रचलित गोत्र — एक चुनिए, या अपना लिखिए" : "Common gotras — tap one, or type yours", set: gotraSuggestions(), moreLabel: hi ? "सभी गोत्र" : "All gotras" }
+      : kind === "self_mool" ? (() => { const set = moolSuggestions(m?.gotra?.id); return { title: m?.gotra?.id ? (hi ? "इस गोत्र के मूल — एक चुनिए, या अपना लिखिए" : "Mools of this gotra — tap one, or type yours") : (hi ? "प्रचलित मूल — एक चुनिए, या अपना लिखिए" : "Common mools — tap one, or type yours"), set, moreLabel: `${hi ? "सभी" : "All"} ${set.top.length + set.rest.length} ${hi ? "मूल" : "mools"}` }; })()
+      : undefined;
+    const bundle = isHelper ? null : householdBundle(family, g);
     return {
+      household: bundle ? { bundle, onSubmit: submitHousehold } : undefined,
       kind: kind === "self_gotra" ? "gotra" : kind === "self_mool" ? "mool" : undefined,
       moolUrl: kind === "self_mool" ? moolSearchUrl(m?.gotra?.roman) : undefined,
+      suggest,
+      what: kind === "self_gotra" ? faq("gotra-what") : kind === "self_mool" ? faq("mool-what") : undefined,
+      date: kind === "self_birth",
       askUrl: kind === "self_name" || kind === "self_gender" ? undefined : askRelativeUrl(lang === "hi" ? hiGoal(family, g)?.question ?? g.question : g.question, lang),
       onLater: g.optional && kind.startsWith("self_") && g.quick[0] ? () => send(g.quick[0]!) : undefined,
       still: stillTo,
     };
   })();
   const matchesProps = { family, online: !!sh.share, role: sh.share?.role, connect: cx, similar: sm, discoverable: sh.discoverable, onDiscoverable: sh.setDiscoverable, activity: sh.activity, onSee: seeLinked, bridgeHref: sh.share ? (tree: string) => `/app/bridge/${sh.share!.treeId}/${tree}${sh.keyQs ? `?${sh.keyQs}` : ""}` : undefined, onOpenShare: () => { setInviteFor(undefined); setShareOpen(true); } };
-  const leftPane = (cls: string) => isHelper
+  const leftPane = (cls: string, dense = false) => isHelper
     ? <HelperPane className={cls} name={sh.share?.memberName} onOpenShare={() => { setInviteFor(undefined); setShareOpen(true); }} ownTreeHref={inAccount ? "/app" : undefined} />
     : <ChatPane className={cls} messages={messages} busy={busy} onSend={send} section={section} mode={mode}
-      reply={replyCtx} onReply={(m) => { const g = m.role === "assistant" ? m.goalId : m.answeredGoal; if (g) replyTo(g, m.text, m.role === "user" ? "You" : "Panji Sahayak", m.id); else setNotice("That older message can’t be replied to. Tap the person in the tree to change their details."); }} onMode={(md) => setReplyCtx((c) => (c ? { ...c, mode: md } : c))} onClearReply={() => setReplyCtx(null)} canUndo={undo.length > 0} onUndo={undoLast} help={questionHelp} lang={lang} onLang={changeLang} />;
+      reply={replyCtx} onReply={(m) => { const g = m.role === "assistant" ? m.goalId : m.answeredGoal; if (g) replyTo(g, m.text, m.role === "user" ? "You" : "Panji Sahayak", m.id); else setNotice("That older message can’t be replied to. Tap the person in the tree to change their details."); }} onMode={(md) => setReplyCtx((c) => (c ? { ...c, mode: md } : c))} onClearReply={() => setReplyCtx(null)} canUndo={undo.length > 0} onUndo={undoLast} help={questionHelp} lang={lang} onLang={changeLang} onSeeInTree={seeInTree} dense={dense} />;
   const treePane = <LiveTree ref={tree} family={family} template={template} onTemplate={setTemplate} onSelect={setSelected} onContext={(id, x, y, touch) => setMenu({ id, x, y, touch })} className="flex min-h-0 flex-1 flex-col"
     extra={data ? <Button size="sm" variant="outline" onClick={() => setFreeOpen(true)} aria-label="Edit freely with boxes and connectors"><Pencil /> <span className="hidden min-[420px]:inline">Edit freely</span></Button> : undefined} />;
 
@@ -334,7 +385,8 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
       ) : (
         <>
           <main className="flex min-h-0 flex-1 flex-col">
-            {tab === "chat" && leftPane("flex-1")}
+            {tab === "chat" && !isHelper && people > 0 && <TreeStrip family={family} template={template} lang={lang} people={people} fresh={unseen} onOpenTree={() => goTab("tree")} onSeen={() => setUnseen(0)} />}
+            {tab === "chat" && leftPane("flex-1", !isHelper && people > 0)}
             {tab === "tree" && treePane}
             {tab === "matches" && <MatchesPane className="flex-1" {...matchesProps} />}
           </main>

@@ -148,8 +148,8 @@ export const FAQ: Faq[] = [
     id: "dates", group: "app",
     q: { en: "Do I need the exact date of birth?", hi: "क्या जन्म-तिथि बिल्कुल सही चाहिए?" },
     a: {
-      en: "No. The year alone is fine. If you only know roughly, give the year you think is closest, or skip. The full date is best when you have it.",
-      hi: "नहीं। केवल साल भी चलेगा। अगर अंदाज़ा ही है तो सबसे नज़दीकी साल लिख दीजिए, या छोड़ दीजिए। पूरी तारीख़ हो तो सबसे अच्छा।",
+      en: "No. The year alone is fine. If you know the full date, write it as DD.MM.YYYY — day, month, year — for example 14.03.1958. If you only know roughly, give the year you think is closest, or skip.",
+      hi: "नहीं। केवल साल भी चलेगा। पूरी तारीख़ पता हो तो DD.MM.YYYY (दिन.महीना.साल) के रूप में लिखिए, जैसे 14.03.1958। अगर अंदाज़ा ही है तो सबसे नज़दीकी साल लिख दीजिए, या छोड़ दीजिए।",
     },
     m: [both("date|year|birth|dob|janm|tarikh|तारीख|जन्म|साल|वर्ष", "exact|approx|roughly|only year|just year|exactly|सही|अंदाज़|अंदाज|बिल्कुल")],
   },

@@ -82,7 +82,7 @@ export function hiGoal(f: DFamily, goal: Goal): HiGoal | null {
     case "self_gender": return out(`धन्यवाद${sub ? `, ${first(sub)}` : ""}। क्या आप पुरुष हैं या महिला?`);
     case "self_gotra": return out(sub?.gender === "female" ? "आपका गोत्र क्या है? कृपया अपने पिता का गोत्र बताइए, विवाह के बाद भी। (जैसे शाण्डिल्य, कश्यप, वत्स)" : "आपका गोत्र क्या है? (जैसे शाण्डिल्य, कश्यप, वत्स)");
     case "self_mool": return out(sub?.gender === "female" ? "आपका मूल क्या है? कृपया अपने पिता का मूल बताइए। आप अंग्रेज़ी या देवनागरी में लिख सकते हैं।" : "आपका मूल क्या है? आप अंग्रेज़ी या देवनागरी में लिख सकते हैं।");
-    case "self_birth": return out("आपकी जन्म-तिथि क्या है? दिन, महीना और साल पता हो तो बताइए — या केवल साल। (वैकल्पिक)");
+    case "self_birth": return out("आपकी जन्म-तिथि क्या है? कृपया DD.MM.YYYY (दिन.महीना.साल) के रूप में लिखिए, जैसे 14.03.1958 — या केवल साल, जैसे 1958। (वैकल्पिक)");
     case "self_place": return out("आप अभी कहाँ रहते हैं? कृपया गाँव या शहर, ज़िला और राज्य बताइए (विदेश में हों तो शहर और देश)।");
   }
   if (!sub) return null;
@@ -94,7 +94,7 @@ export function hiGoal(f: DFamily, goal: Goal): HiGoal | null {
       return out(g <= 0 ? "आपके पिता का नाम क्या है?" : `${first(sub)} के पिता (आपके ${upTerm(g + 1)}) का नाम क्या था? इससे आगे का पता न हो तो बस यही कह दीजिए।`);
     case "mother":
       return out(g <= 0 ? "आपकी माताजी का नाम क्या है?" : `${first(sub)} की माता (आपकी ${upTerm(g + 1, true)}) का नाम क्या आपको याद है? केवल नाम ही काफ़ी है।`);
-    case "details": return out(`क्या ${nm(sub)} जीवित हैं? और क्या आपको उनकी जन्म-तिथि (केवल साल भी चलेगा) और उनका गाँव (ज़िले सहित) पता है?`);
+    case "details": return out(`क्या ${nm(sub)} जीवित हैं? और क्या आपको उनकी जन्म-तिथि (DD.MM.YYYY, जैसे 14.03.1950 — या केवल साल) और उनका गाँव (ज़िले सहित) पता है?`);
     case "gender": return out(`क्या ${nm(sub)} पुरुष (बेटा या भाई) हैं या महिला (बेटी या बहन)?`);
     case "brothers": return out(isMe
       ? "क्या आपके भाई हैं? कृपया अपने सभी भाइयों (अपने पिता के पुत्रों) के नाम अल्पविराम से अलग करके लिखिए — या “कोई भाई नहीं” दबाइए। बहनों के बारे में अगले चरण में पूछेंगे।"
@@ -181,6 +181,14 @@ const UI_HI: Record<string, string> = {
   Gotra: "गोत्र", Mool: "मूल", "Birth date": "जन्म-तिथि", "Where you live": "आप कहाँ रहते हैं",
   "Undo my last answer": "मेरा पिछला उत्तर वापस लीजिए",
   "Writing…": "लिख रहा हूँ…",
+  "Common gotras — tap one, or type yours": "प्रचलित गोत्र — एक चुनिए, या अपना लिखिए",
+  "Mools of this gotra — tap one, or type yours": "इस गोत्र के मूल — एक चुनिए, या अपना लिखिए",
+  "Common mools — tap one, or type yours": "प्रचलित मूल — एक चुनिए, या अपना लिखिए",
+  "All gotras": "सभी गोत्र", "All mools": "सभी मूल", "Fewer": "कम दिखाइए",
+  "What is a gotra?": "गोत्र क्या होता है?", "What is a mool?": "मूल क्या होता है?",
+  "Pick a date": "तारीख़ चुनिए", "Day": "दिन", "Month": "महीना", "Year": "साल", "Use this date": "यह तारीख़ लीजिए", "Only the year": "केवल साल",
+  "Add a photo": "फ़ोटो जोड़िए", "Add a photo of yourself, or of anyone in the tree": "अपनी या वंशावली में किसी की फ़ोटो जोड़िए",
+  "Drawing your tree…": "आपकी वंशावली बन रही है…",
 };
 export const tr = (lang: Lang, en: string) => (lang === "hi" ? UI_HI[en] ?? en : en);
 

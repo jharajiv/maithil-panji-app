@@ -4,6 +4,7 @@
  * server and every browser that holds a link (owner or invited helper) edits the same tree. Saves are optimistic: if
  * someone else saved first, the server answers 409 and we three-way merge (see lib/merge.ts) and retry.
  */
+import { clearRef, storedRef } from "@/lib/invite";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DFamily } from "@/lib/family";
 import { mergeFamilies } from "@/lib/merge";
@@ -144,7 +145,8 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
   }, [share?.treeId, pull]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const create = useCallback(async (ownerName: string) => {
-    const res = await fetch("/api/trees", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ family: famRef.current, ownerName, consentVersion: "v1" }) });
+    const res = await fetch("/api/trees", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ family: famRef.current, ownerName, consentVersion: "v1", ref: storedRef() }) });
+    if (res.ok) clearRef();
     const j = await res.json();
     if (!res.ok) throw new Error(j.error ?? "Could not save.");
     base.current = famRef.current;

@@ -1,6 +1,7 @@
 /** Admin graph API (dev server started with ADMIN_EMAILS=admin.<anything>@example.com is NOT needed: set ADMIN_EMAILS=boss@example.com) */
 import assert from "node:assert/strict";
 import { applyOps, emptyFamily } from "../src/lib/family";
+import { refCodeOf } from "../src/lib/invite";
 
 const BASE = process.env.BASE ?? "http://localhost:3100";
 const ADMIN = process.env.ADMIN_EMAIL ?? "boss@example.com";
@@ -30,7 +31,17 @@ class Client {
     { op: "add_person", ref: "f", name_roman: `${uniq} Jha`, gender: "male", birth: "1950", place: "Sarisab, Madhubani, Bihar", gotra: { roman: "Shandilya" }, mool: { roman: "Sarisab" } },
     { op: "add_person", ref: "me", name_roman: "Rohan Jha", gender: "male", birth: "1980", relation: { type: "child_of", to: "f" } },
   ]).family;
-  assert.equal((await admin.call("/api/trees", "POST", { family: fam })).status, 200);
+  const mine = await admin.call("/api/trees", "POST", { family: fam }); assert.equal(mine.status, 200);
+  // invitations: a tree saved by someone who came through the admin's invite code is counted under the admin
+  const code = await refCodeOf(mine.body.id);
+  const before = (await admin.call("/api/admin/queue")).body.invites.byInvite as number;
+  const guest = applyOps(emptyFamily(), [{ op: "add_person", name_roman: "Guest Visitor", gender: "male", is_me: true }]).family;
+  assert.equal((await user.call("/api/trees", "POST", { family: guest, ref: code })).status, 200);
+  assert.equal((await user.call("/api/trees", "POST", { family: guest, ref: "<script>alert(1)</script>" })).status, 200, "a malformed code is simply ignored");
+  const q = (await admin.call("/api/admin/queue")).body.invites;
+  assert.equal(q.byInvite, before + 1, "only the well-formed code counted");
+  assert.ok(q.top.some((x: { name: string; count: number }) => x.name === "Boss" && x.count >= 1), "counted under the inviter");
+  assert.equal((await user.call("/api/admin/queue")).status, 404);
   const st = await admin.call("/api/admin/graph?op=stats&fresh=1"); assert.equal(st.status, 200); assert.ok(st.body.people >= 2 && st.body.trees >= 1);
   const s = await admin.call(`/api/admin/graph?op=search&q=${uniq}&fresh=1`); assert.equal(s.body.people.length, 1); assert.equal(s.body.people[0].gotra, "Shandilya", "inherits the root's gotra");
   const r = await admin.call(`/api/admin/graph?op=search&q=Rohan&gotra=shandilya&fresh=1`); const rohan = r.body.people.find((p: { tree: string }) => p.tree === s.body.people[0].tree);

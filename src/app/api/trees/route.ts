@@ -5,6 +5,7 @@ import { keepLinks } from "@/lib/connect-server";
 import { getStore, hashToken, newMemberId, newToken, newTreeId, syncAll, treeMeta } from "@/lib/store";
 import { authEnabled, currentAccount } from "@/lib/auth";
 import { clientIp, limited } from "@/lib/ratelimit";
+import { refCodeOf, REF_RX } from "@/lib/invite";
 
 export const dynamic = "force-dynamic";
 
@@ -36,19 +37,23 @@ export async function POST(req: Request) {
   const now = new Date().toISOString();
   const memberId = newMemberId();
   const personId = family.persons.find((p) => p.is_me)?.id;
+  // who brought this person (an invite code from a link); a code can never be the tree's own
+  const refIn = typeof body.ref === "string" ? body.ref.trim().toLowerCase() : "";
+  const invited_by = REF_RX.test(refIn) && refIn !== (await refCodeOf(id)) ? refIn : undefined;
   if (account) {
     await store.createTree({
       id, family, rev: 1, updated_at: now, ...treeMeta(family),
-      members: [{ id: memberId, name: account.name, role: "owner", account_id: account.id, email: account.email, phone: account.phone, status: "joined", person_id: personId, created_at: now }],
+      members: [{ id: memberId, name: account.name, role: "owner", account_id: account.id, email: account.email, phone: account.phone, status: "joined", person_id: personId, created_at: now, ...(invited_by ? { invited_by } : {}) }],
     });
     await syncAll(store, id, family);
     logEvent("tree_saved");
+    if (invited_by) logEvent("tree_from_invite");
     return NextResponse.json({ id, rev: 1 });
   }
   const token = newToken();
   await store.createTree({
     id, family, rev: 1, updated_at: now, ...treeMeta(family),
-    members: [{ id: memberId, name: name || "Owner", role: "owner", token_hash: hashToken(token), person_id: personId, created_at: now }],
+    members: [{ id: memberId, name: name || "Owner", role: "owner", token_hash: hashToken(token), person_id: personId, created_at: now, ...(invited_by ? { invited_by } : {}) }],
   });
   await store.addConsent({ tree_id: id, member_id: memberId, kind: "share-and-store", version: typeof body.consentVersion === "string" ? body.consentVersion.slice(0, 20) : "v1", given_at: now }).catch(() => {});
   await syncAll(store, id, family);

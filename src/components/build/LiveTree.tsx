@@ -2,7 +2,7 @@
 import "family-chart/styles/family-chart.css";
 import "@/components/tree/tree-templates.css";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { Crosshair, Maximize2, Minimize2, Minus, Plus, Scan, Search, X } from "lucide-react";
+import { Crosshair, Loader2, Maximize2, Minimize2, Minus, Plus, Scan, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { Motif } from "@/components/landing/Motif";
@@ -33,7 +33,9 @@ export const LiveTree = forwardRef<LiveTreeHandle, {
   readOnly?: boolean;
   /** no "YOU" badge — for a tree that is not the viewer's own (the sample) */
   plain?: boolean;
-}>(function LiveTree({ family, template, onTemplate, onSelect, onContext, className, extra, readOnly, plain }, ref) {
+  /** a small preview: no toolbar, no caption (the phone's strip above the chat) */
+  compact?: boolean;
+}>(function LiveTree({ family, template, onTemplate, onSelect, onContext, className, extra, readOnly, plain, compact }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const mounted = useRef<MountedTree | null>(null);
   const view = useRef<{ k: number; x: number; y: number } | null>(null);
@@ -52,6 +54,10 @@ export const LiveTree = forwardRef<LiveTreeHandle, {
   const [full, setFull] = useState(false);
   const [finding, setFinding] = useState(false);
   const [q, setQ] = useState("");
+  /** the drawing code is a separate download: say so while it loads, and offer a retry if it does not arrive */
+  const [load, setLoad] = useState<"ok" | "loading" | "slow" | "failed">("ok");
+  const [attempt, setAttempt] = useState(0);
+  const drawn = useRef(false);
 
   useImperativeHandle(ref, () => ({
     fit: () => mounted.current?.fit(),
@@ -62,26 +68,31 @@ export const LiveTree = forwardRef<LiveTreeHandle, {
     if (!scoped || !host.current || !data) return;
     let cancelled = false;
     const el = host.current;
+    let slow: ReturnType<typeof setTimeout> | undefined;
+    if (!drawn.current) { setLoad("loading"); slow = setTimeout(() => setLoad((v) => (v === "loading" ? "slow" : v)), 8000); }
     // small debounce: the chat can change the family several times in a second
     const t = setTimeout(() => {
-      mountTree(el, scoped, template, { rootId: plain ? "" : data.root_person_id, onSelect: (id) => select.current(id), onContext: ctx.current ? (id, x, y, touch) => ctx.current?.(id, x, y, touch) : undefined, transition: 0 }).then((m) => {
+      mountTree(el, scoped, template, { rootId: plain ? "" : data.root_person_id, onSelect: (id) => select.current(id), onContext: ctx.current ? (id, x, y, touch) => ctx.current?.(id, x, y, touch) : undefined, transition: 0, ...(compact ? { inset: [10, 14] as [number, number] } : {}) }).then((m) => {
         if (cancelled) { m.destroy(); return; }
-        mounted.current = m;
+        mounted.current = m; drawn.current = true; setLoad("ok");
         if (plain && apex) {
           // a long line of descent: begin at the founder at a readable size, and let the reader scroll down the generations
           if (view.current) m.setView(view.current); else m.panTo(apex, 0.8, 0.16);
+        } else if (compact && scoped.persons.length > 8) {
+          // a small preview of a bigger family: show where the user is, not everyone at once
+          m.panTo(data.root_person_id, 0.6);
         } else if (scoped.persons.length > BIG) {
           // a big family cannot be read when squeezed onto the screen: keep the reader's place, or start at "me" at a readable size
           if (view.current) m.setView(view.current); else m.panTo(data.root_person_id, 0.7);
         }
-      });
+      }).catch(() => { if (!cancelled) setLoad("failed"); });
     }, 250);
     return () => {
-      cancelled = true; clearTimeout(t);
+      cancelled = true; clearTimeout(t); clearTimeout(slow);
       if (mounted.current) view.current = mounted.current.getView() ?? view.current;
       mounted.current?.destroy(); mounted.current = null;
     };
-  }, [scoped, template, data, plain, apex]);
+  }, [scoped, template, data, plain, apex, attempt, compact]);
 
   // after entering/leaving full screen the pane changes size: fit again
   useEffect(() => { const t = setTimeout(() => mounted.current?.fit(), 120); return () => clearTimeout(t); }, [full]);
@@ -100,7 +111,7 @@ export const LiveTree = forwardRef<LiveTreeHandle, {
 
   return (
     <section className={cn(className, full && "fixed inset-0 z-40 flex flex-col bg-background")} aria-label="Your family tree">
-      <div className="flex flex-wrap items-center gap-2 border-b bg-card px-3 py-2">
+      {!compact && <div className="flex flex-wrap items-center gap-2 border-b bg-card px-3 py-2">
         <Segmented ariaLabel="Tree style" className="min-w-0 flex-1 sm:max-w-md" options={TEMPLATES as unknown as { value: TemplateId; label: string }[]} value={template} onChange={onTemplate} />
         <div className="flex flex-wrap gap-1.5">
           <Button size="icon" variant="outline" onClick={() => mounted.current?.zoomBy(1 / 1.35)} disabled={!scoped} aria-label="Zoom out"><Minus /></Button>
@@ -111,8 +122,8 @@ export const LiveTree = forwardRef<LiveTreeHandle, {
           {extra}
           <Button size="icon" variant="outline" onClick={() => setFull((v) => !v)} aria-label={full ? "Leave full screen" : "Full screen"} disabled={!scoped}>{full ? <Minimize2 /> : <Maximize2 />}</Button>
         </div>
-      </div>
-      {finding && (
+      </div>}
+      {finding && !compact && (
         <div className="relative border-b bg-card px-3 pb-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
@@ -143,7 +154,17 @@ export const LiveTree = forwardRef<LiveTreeHandle, {
             </div>
           </div>
         )}
-        {scoped && <p className="pointer-events-none absolute bottom-2 left-1/2 w-max max-w-[92%] -translate-x-1/2 rounded-full bg-card/90 px-3 py-1 text-center text-xs text-muted-foreground shadow">{count} {count === 1 ? "person" : "people"} · {readOnly ? "tap anyone for details" : "tap anyone to edit · press and hold (or right-click) for more"} · drag to move · pinch or scroll to zoom</p>}
+        {scoped && (load === "loading" || load === "slow" || load === "failed") && (
+          <div className="absolute inset-0 z-10 grid place-items-center bg-background/90 p-8 text-center" role={load === "failed" ? "alert" : "status"}>
+            <div className="max-w-xs">
+              {load !== "failed" && <Loader2 className="mx-auto mb-3 size-7 animate-spin text-primary" />}
+              <h3 className="font-display text-lg font-semibold">{load === "failed" ? "The tree could not be drawn" : "Drawing your tree…"}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">{load === "failed" ? "Your answers are safe. This is usually a weak internet connection." : load === "slow" ? "This is taking longer than usual — the connection may be slow. Please wait a little, or try again." : "Just a moment."}</p>
+              {load !== "loading" && <Button className="mt-3" onClick={() => { setLoad("loading"); setAttempt((n) => n + 1); }}>Try again</Button>}
+            </div>
+          </div>
+        )}
+        {scoped && !compact && <p className="pointer-events-none absolute bottom-2 left-1/2 w-max max-w-[92%] -translate-x-1/2 rounded-full bg-card/90 px-3 py-1 text-center text-xs text-muted-foreground shadow">{count} {count === 1 ? "person" : "people"} · {readOnly ? "tap anyone for details" : "tap anyone to edit · press and hold (or right-click) for more"} · drag to move · pinch or scroll to zoom</p>}
       </div>
     </section>
   );

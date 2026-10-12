@@ -25,6 +25,8 @@ export interface Member {
   view_epoch?: number; view_off?: boolean;
   /** owner only: other families may find this tree when matching married women (off until the owner turns it on) */
   discoverable?: boolean;
+  /** owner only: the invite code (see invite.ts) of the person whose link brought this owner to the site */
+  invited_by?: string;
   /** owner only: short notes about changes others made (a link confirmed, a correction applied) — newest last, at most 30 */
   activity?: { at: string; by: string; text: string }[];
   /** owner only: requests to connect with the owner of a similar tree (sent "out" or received "in"), at most 40 */

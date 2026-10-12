@@ -30,7 +30,7 @@ async function main() {
   const unsub = await import("../src/app/api/newsletter/unsubscribe/route");
   const adm = await import("../src/app/api/admin/newsletter/route");
   const stat = await import("../src/app/api/admin/status/route");
-  const { textToHtml, emailFromToken, confirmToken, unsubToken } = await import("../src/lib/newsletter");
+  const { emailFromToken, confirmToken, unsubToken } = await import("../src/lib/newsletter");
   const store = getStore()!;
   let ip = 0;
   const post = (body: unknown) => sub.POST(new Request("http://x/api/newsletter", { method: "POST", headers: { "x-forwarded-for": `10.0.0.${++ip}` }, body: JSON.stringify(body) }));
@@ -94,27 +94,11 @@ async function main() {
   assert.match(csv, /asha@example.com,confirmed,hi,footer/); assert.match(csv, /email,status,language/);
   assert.match(csvRes.headers.get("content-disposition")!, /PAAG-newsletter-subscribers\.csv/);
 
-  const before = sent.length;
-  const t = await (await adm.POST(asAdmin("http://x/api/admin/newsletter", { method: "POST", body: JSON.stringify({ subject: "Hello", body: "Namaste\n\nSee https://paag.org.in/sample.", test: true }) }))).json();
-  assert.equal(t.sent, 1); assert.deepEqual(sent.at(-1)!.to, ["boss@example.com"]); assert.match(sent.at(-1)!.subject, /^\[Test\]/);
-  assert.equal(sent.length, before + 1);
-
-  const r = await (await adm.POST(asAdmin("http://x/api/admin/newsletter", { method: "POST", body: JSON.stringify({ subject: "Diwali greetings", body: "## Namaste\n\nHello <b>friends</b>\n\nVisit https://paag.org.in/sample.", audience: "all" }) }))).json();
-  assert.equal(r.total, 2); assert.equal(r.sent, 2);
-  const mails = sent.slice(-2);
-  assert.deepEqual(mails.map((m) => m.to[0]).sort(), ["asha@example.com", "meena@example.com"], "only confirmed people");
-  for (const m of mails) {
-    assert.match(m.headers!["List-Unsubscribe"]!, /^<https:\/\/paag\.org\.in\/api\/newsletter\/unsubscribe\?t=/);
-    assert.equal(m.headers!["List-Unsubscribe-Post"], "List-Unsubscribe=One-Click");
-    assert.match(m.html, /&lt;b&gt;friends&lt;\/b&gt;/, "typed HTML is shown as text, not run");
-    assert.match(m.html, /<a href="https:\/\/paag\.org\.in\/sample" /, "web address becomes a link without the full stop");
-    assert.match(m.html, /<h2/);
-  }
-  assert.equal((await (await adm.POST(asAdmin("http://x/api/admin/newsletter", { method: "POST", body: JSON.stringify({ subject: "", body: "x" }) }))).status), 400);
-  assert.equal((await adm.POST(new Request("http://x/api/admin/newsletter", { method: "POST", body: "{}" }))).status, 404, "anonymous cannot send");
+  // newsletters are no longer written or sent from the admin page: that goes through a mailing platform
+  assert.equal((adm as Record<string, unknown>).POST, undefined, "no send endpoint");
 
   // unsubscribe: from the email link (the page's button posts), one-click from the mail program
-  const un = tokenOf(mails.find((m) => m.to[0] === "asha@example.com")!.text);
+  const un = unsubToken("asha@example.com");
   const g = await unsub.GET(new Request(`https://paag.org.in/api/newsletter/unsubscribe?t=${encodeURIComponent(un)}`));
   assert.match(g.headers.get("location")!, /\/newsletter\/unsubscribe\?t=/);
   assert.equal((await store.getSubscriber("asha@example.com"))!.status, "confirmed", "just visiting the link does not unsubscribe");
@@ -126,11 +110,6 @@ async function main() {
   // someone who left can come back (and must confirm again)
   await post({ email: "asha@example.com", consent: true });
   assert.equal((await store.getSubscriber("asha@example.com"))!.status, "pending");
-
-  // text → html
-  assert.equal(textToHtml("a\n\nb"), `<p style="font-size:16px;line-height:1.6;margin:0 0 16px">a</p>\n<p style="font-size:16px;line-height:1.6;margin:0 0 16px">b</p>`);
-  assert.ok(!textToHtml("<script>alert(1)</script>").includes("<script>"));
-  assert.ok(!textToHtml("javascript:alert(1) http://evil.example").includes("<a "), "only https addresses become links");
 
   // setup status: admin only, no secret values
   assert.equal((await stat.GET(new Request("http://x/api/admin/status"))).status, 404);

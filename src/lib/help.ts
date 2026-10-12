@@ -30,6 +30,10 @@ export function askRelativeUrl(question: string, lang: Lang = "en"): string {
 export const HINT = "The better your answers, the better your tree. Take your time, and skip anything you don’t know.";
 export const HINT_HI = "जितने सही उत्तर, उतनी सही आपकी वंशावली।";
 
+/** shown inside the typing box while a date is asked for */
+export const DATE_PLACEHOLDER = "DD.MM.YYYY, e.g. 14.03.1958 — or just the year";
+export const DATE_PLACEHOLDER_HI = "DD.MM.YYYY, जैसे 14.03.1958 — या केवल साल";
+
 export interface StillTo { field: "gotra" | "mool" | "birth" | "place"; label: string }
 
 /** things the person skipped about themselves that can still be filled in */

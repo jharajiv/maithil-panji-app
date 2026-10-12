@@ -9,6 +9,9 @@ import {
   type DFamily, type DPerson, type Flag, type Op,
 } from "./family";
 
+export const DONE_TEXT =
+  "Thank you! Your family tree is ready. Tap anyone in the tree to correct details or add a photo, change the style, and download your PDF. Use Share to invite relatives from other households to add their own branches.";
+
 export type GoalKind =
   | "self_name" | "self_gender" | "self_gotra" | "self_mool" | "self_birth" | "self_place"
   | "father" | "mother" | "details" | "gender"
@@ -85,8 +88,8 @@ export function nextGoal(f: DFamily, opts: PlanOptions = {}): Goal | null {
   };
   if (!m.birth && !m.flags.birth) return {
     id: "self_birth", kind: "self_birth", section: "About you", subjects: [m.id], optional: true, quick: ["Skip"], skip: flagOps([m.id], "birth", "skipped"),
-    question: "What is your date of birth? Day, month and year if you know it — or just the year. (optional)",
-    instruction: `Ask for the user's date of birth (${m.id}). Optional; the full date is best (day, month, year) but a year alone is fine. Store as birth "YYYY-MM-DD" when the full date is given, "YYYY-MM" for month and year, otherwise "YYYY".`,
+    question: "What is your date of birth? Please write it as DD.MM.YYYY, for example 14.03.1958 — or just the year, like 1958. (optional)",
+    instruction: `Ask for the user's date of birth (${m.id}) and tell them the format: DD.MM.YYYY (day first, as is usual in India), for example 14.03.1958 — or just the year. Optional. Always read a numeric date day-first. Store as birth "YYYY-MM-DD" when the full date is given, "YYYY-MM" for month and year, otherwise "YYYY".`,
   };
   if (!m.place && !m.flags.place) return {
     id: "self_place", kind: "self_place", section: "About you", subjects: [m.id], optional: true, quick: ["Skip"], skip: flagOps([m.id], "place", "skipped"),
@@ -131,8 +134,8 @@ export function nextGoal(f: DFamily, opts: PlanOptions = {}): Goal | null {
     if (!father.flags.details) return {
       id: `details:${father.id}`, kind: "details", section: sect, subjects: [father.id], optional: true, quick: ["Skip"],
       skip: flagOps([father.id], "details", "skipped"),
-      question: `Is ${nm(father)} living? And do you know his date of birth (even just the year is fine) and his village (with district)?`,
-      instruction: `Ask in ONE question whether ${who(father, lab)} is living or has passed away, and (if known) his date of birth/death — a full date, month and year, or just a year — and his village + district (never a street address). Update via update_person {status, birth, death, place} with place as "Village, District, State". Optional — set_flag details=done when answered, or skipped.`,
+      question: `Is ${nm(father)} living? And do you know his date of birth (write DD.MM.YYYY, for example 14.03.1950 — or just the year) and his village (with district)?`,
+      instruction: `Ask in ONE question whether ${who(father, lab)} is living or has passed away, and (if known) his date of birth/death — a full date written DD.MM.YYYY (day first), month and year, or just a year; tell the user this format — and his village + district (never a street address). Update via update_person {status, birth, death, place} with place as "Village, District, State". Optional — set_flag details=done when answered, or skipped.`,
     };
     chain.push(father);
     c = father;
@@ -319,7 +322,7 @@ export function replyGoal(f: DFamily, id: string): Goal | null {
   const p = f.persons.find((x) => x.id === sid);
   if (!p) return null;
   const q: Record<string, string> = {
-    self_name: "What is your full name?", self_gender: "Are you male or female?", self_birth: "What is your date of birth?", self_place: "Where do you live now?",
+    self_name: "What is your full name?", self_gender: "Are you male or female?", self_birth: "What is your date of birth? (DD.MM.YYYY, or just the year)", self_place: "Where do you live now?",
     father: `What is ${p.is_me ? "your" : `${firstName(p)}’s`} father’s name?`, mother: `What is ${p.is_me ? "your" : `${firstName(p)}’s`} mother’s name?`,
     details: `Is ${nm(p)} living, and what are his dates and village?`, gender: `Is ${nm(p)} male or female?`,
   };

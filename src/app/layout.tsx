@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { StagingBanner } from "@/components/StagingBanner";
+import { RefCapture } from "@/components/RefCapture";
 import { isStaging } from "@/lib/env";
 import { ORG_LONG, ORG_NAME, siteUrl, TAGLINE } from "@/lib/site";
 
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body className="antialiased">
         <StagingBanner />
+        <RefCapture />
         {children}
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: orgJson }} />
       </body>

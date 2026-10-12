@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { safeNextPath } from "@/lib/next-path";
 
-export interface Account { id: string; name: string; email: string; phone?: string }
+export interface Account { id: string; name: string; email: string; phone?: string; /** on the ADMIN_EMAILS list */ admin?: boolean }
 export interface AuthState { loading: boolean; enabled: boolean; dev: boolean; google: boolean; email: boolean; pending: { name: string; email: string } | null; account: Account | null }
 
 /** Who is signed in on this browser (cookie session), and is sign-in available on this site at all? */

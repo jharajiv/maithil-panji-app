@@ -7,6 +7,7 @@ import { sanitizeFamily } from "@/lib/sanitize";
 import { clientIp, limited } from "@/lib/ratelimit";
 import { registerExtras } from "@/lib/lookup";
 import { getStore } from "@/lib/store";
+import { DEVICE_RX } from "@/lib/device";
 
 export const runtime = "nodejs";
 export const maxDuration = 45;
@@ -67,6 +68,12 @@ export async function POST(req: Request) {
     lang: body.lang === "hi" ? ("hi" as const) : ("en" as const),
   };
   await loadExtras();
+
+  // a day's limit per device (and a wider one per network) protects the AI budget; past it the simple reader carries on
+  const dev = req.headers.get("x-device-id") ?? "";
+  const perDevice = Number(process.env.CHAT_DAILY_LIMIT) || 150;
+  const overLimit = hasKey() && (limited("chat-day-ip", clientIp(req), perDevice * 4, 24 * 3_600_000) || limited("chat-day", DEVICE_RX.test(dev) ? dev : clientIp(req), perDevice, 24 * 3_600_000));
+  if (overLimit) return NextResponse.json({ ...(await takeTurn(null, input)), notice: "You have used today’s AI answers on this phone, so I switched to simple questions. They work just as well for your tree." });
 
   if (hasKey()) {
     try {

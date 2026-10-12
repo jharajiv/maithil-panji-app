@@ -1,11 +1,11 @@
 /**
  * Newsletter: people ask for occasional updates; a link in a confirmation email proves the address is theirs (double opt-in);
- * every email carries a one-click unsubscribe. Only the email, language and dates are kept (see supabase/schema.sql, section 9).
+ * the newsletters themselves are sent from a mailing platform (the subscriber list is exported from the admin page). Only the email, language and dates are kept (see supabase/schema.sql, section 9).
  */
 import { sign, unsign, originOf } from "./google";
 import { mailConfigured, type Mail } from "./mail";
 import { ORG_LONG, ORG_NAME, SITE_DOMAIN, siteUrl } from "./site";
-import { getStore, type Store, type Subscriber } from "./store";
+import { getStore, type Store } from "./store";
 
 export type Lang = "en" | "hi";
 export const isLang = (x: unknown): x is Lang => x === "en" || x === "hi";
@@ -24,8 +24,6 @@ export function emailFromToken(t: string | null | undefined, kind: "nl-confirm" 
 
 const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const base = () => siteUrl();
-export const unsubscribeUrl = (email: string) => `${base()}/newsletter/unsubscribe?t=${encodeURIComponent(unsubToken(email))}`;
-const oneClickUrl = (email: string) => `${base()}/api/newsletter/unsubscribe?t=${encodeURIComponent(unsubToken(email))}`;
 
 const FRAME = (inner: string, foot: string) => `<div style="font-family:Georgia,serif;max-width:520px;margin:auto;padding:24px;color:#1f2a5c">
 <p style="letter-spacing:.2em;font-size:12px;color:#b5482a;margin:0 0 16px">PAAG FOUNDATION</p>
@@ -45,28 +43,6 @@ export function confirmMail(email: string, lang: Lang): Mail {
 <p style="margin:0 0 20px"><a href="${esc(link)}" style="background:#c4452a;color:#fff;text-decoration:none;padding:12px 22px;border-radius:10px;font-size:16px;display:inline-block">${btn}</a></p>
 <p style="font-size:13px;color:#555;margin:0">${note}</p>`, `${ORG_NAME} (${ORG_LONG}) · ${SITE_DOMAIN}`);
   return { to: email, subject, html, text: `${lead}\n\n${link}\n\n${note}` };
-}
-
-/** plain text typed by the operator → safe HTML: blank line = new paragraph, "## " = heading, web addresses become links */
-export function textToHtml(text: string): string {
-  const link = (s: string) => esc(s).replace(/https:\/\/[^\s<]+/g, (u) => { const clean = u.replace(/[.,;:!?)]+$/, ""), tail = u.slice(clean.length); return `<a href="${clean}" style="color:#c4452a">${clean}</a>${tail}`; });
-  return text.replace(/\r/g, "").split(/\n{2,}/).map((b) => b.trim()).filter(Boolean).map((b) =>
-    b.startsWith("## ") ? `<h2 style="font-size:19px;margin:22px 0 8px">${link(b.slice(3))}</h2>` : `<p style="font-size:16px;line-height:1.6;margin:0 0 16px">${link(b).replace(/\n/g, "<br>")}</p>`).join("\n");
-}
-
-/** one copy of a newsletter for one subscriber */
-export function newsletterMail(sub: Pick<Subscriber, "email" | "lang">, subject: string, text: string): Mail {
-  const un = unsubscribeUrl(sub.email);
-  const hi = sub.lang === "hi";
-  const foot = hi
-    ? `आपको यह ईमेल इसलिए मिला क्योंकि आपने ${SITE_DOMAIN} पर समाचार के लिए नाम लिखवाया था। <a href="${esc(un)}" style="color:#888">सदस्यता छोड़ें</a>`
-    : `You receive this because you asked for updates at ${SITE_DOMAIN}. <a href="${esc(un)}" style="color:#888">Unsubscribe</a>`;
-  return {
-    to: sub.email, subject,
-    html: FRAME(textToHtml(text), foot),
-    text: `${text}\n\n—\n${hi ? "सदस्यता छोड़ें" : "Unsubscribe"}: ${un}`,
-    headers: { "List-Unsubscribe": `<${oneClickUrl(sub.email)}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
-  };
 }
 
 /** a new request: remember it as pending and send the confirmation (not again within 10 minutes) */

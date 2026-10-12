@@ -136,7 +136,8 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
           <div className="min-w-0">
             <h2 className="font-display text-xl font-semibold leading-tight">{person.placeholder ? "Name not known" : person.name_roman}</h2>
             <p className="text-sm text-muted-foreground">{lab}</p>
-            {draft.photo && <button type="button" className="mt-1 text-xs text-terracotta underline" onClick={() => { set({ photo: undefined }); onSave(person.id, { photo: null }); }}>Remove photo</button>}
+            <button type="button" onClick={() => file.current?.click()} className="mt-1.5 inline-flex h-9 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-3 text-sm font-medium text-primary"><Camera className="size-4" />{draft.photo ? "Change photo" : "Add photo"}</button>
+            {draft.photo && <button type="button" className="ml-3 mt-1 text-xs text-terracotta underline" onClick={() => { set({ photo: undefined }); onSave(person.id, { photo: null }); }}>Remove photo</button>}
             {photoErr && <p role="alert" className="mt-1 text-xs text-terracotta">{photoErr}</p>}
           </div>
         </div>

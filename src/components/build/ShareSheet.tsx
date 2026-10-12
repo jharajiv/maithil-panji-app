@@ -9,6 +9,8 @@ import type { DFamily } from "@/lib/family";
 import type { MemberRow, ShareInfo, SyncStatus } from "./useShare";
 import { inputCls, Label, PhoneField, phoneState, type PhoneValue } from "./widgets";
 import { SocialShare } from "./SocialShare";
+import { inviteUrl, refCodeOf } from "@/lib/invite";
+import { track } from "@/lib/track";
 
 interface Props {
   open: boolean; onClose: () => void;
@@ -45,6 +47,9 @@ export function ShareSheet(p: Props) {
   const [phone, setPhone] = useState<PhoneValue>({ country: "IN", national: "" });
   const [ready, setReady] = useState<{ name: string; link: string; wa: string } | null>(null);
   const [copied, setCopied] = useState("");
+  const [code, setCode] = useState("");
+  const treeId = p.share?.treeId;
+  useEffect(() => { if (treeId && p.share?.role === "owner") refCodeOf(treeId).then(setCode).catch(() => setCode("")); }, [treeId, p.share?.role]);
 
   const candidates = useMemo(() => p.family.persons.filter((x) => !x.is_me && !x.placeholder && x.status !== "deceased"), [p.family]);
   useEffect(() => { if (p.open) setName(me?.name_roman.split(" ")[0] ?? ""); }, [p.open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -152,6 +157,16 @@ export function ShareSheet(p: Props) {
                   onChange={async (e) => { setBusy(true); setErr(""); try { await p.onDiscoverable!(e.target.checked); } catch (x) { setErr(x instanceof Error ? x.message : "Could not change this."); } finally { setBusy(false); } }} />
                 <span>Let other families’ trees find this one, so a married woman can be linked to her father’s or husband’s tree. Nothing is linked until someone confirms, and living people appear by first name only. You can switch this off any time.</span>
               </label>
+            </section>
+          )}
+
+          {code && (
+            <section aria-label="Invite your family to PAAG" className="space-y-2 rounded-xl border p-3">
+              <h3 className="flex items-center gap-2 font-medium"><MessageCircle className="size-5 text-terracotta" /> Invite family to try PAAG</h3>
+              <p className="text-sm text-muted-foreground">The site is open for your relatives and friends to try. Send them this link — each family builds its own tree, and later you can connect them.</p>
+              <a onClick={() => track("invite_shared")} target="_blank" rel="noopener noreferrer" className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-3 text-sm font-medium text-white hover:bg-[#25D366]/90"
+                href={`https://wa.me/?text=${encodeURIComponent(`Namaste! I am recording our family’s lineage on PAAG Foundation — a free site for Maithil families. Please try it and build your own tree: ${inviteUrl(typeof location === "undefined" ? "" : location.origin, code)}`)}`}><MessageCircle className="size-5" /> Invite on WhatsApp</a>
+              <Button variant="outline" className="w-full" onClick={() => { track("invite_shared"); copy(inviteUrl(location.origin, code), "ref"); }}>{copied === "ref" ? <Check /> : <Copy />} Copy invitation link</Button>
             </section>
           )}
 

@@ -1,4 +1,5 @@
 "use client";
+import { clearRef, storedRef } from "@/lib/invite";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -62,7 +63,8 @@ export function Dashboard() {
   const create = async (family: unknown, key: string) => {
     setBusy(key); setErr("");
     try {
-      const res = await fetch("/api/trees", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ family, ownerName: auth.account?.name }) });
+      const res = await fetch("/api/trees", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ family, ownerName: auth.account?.name, ref: storedRef() }) });
+      if (res.ok) clearRef();
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Could not create the tree.");
       if (key === "import") { try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ } }
@@ -90,6 +92,7 @@ export function Dashboard() {
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-5 py-3">
           <Link href="/" aria-label="PAAG Foundation home" className="flex items-center"><PaagLogo height={32} /></Link>
           <span className="flex-1" />
+          {auth.account.admin && <Link href="/admin" className="text-sm font-medium text-terracotta underline-offset-4 hover:underline">Admin</Link>}
           <Link href="/app/profile" className="truncate text-sm font-medium text-indigo underline-offset-4 hover:underline">{auth.account.name}</Link>
           <Button size="sm" variant="outline" onClick={async () => { await auth.logout(); router.replace("/"); }}><LogOut /> Sign out</Button>
         </div>

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authEnabled, currentAccount, emailLoginEnabled, otpProvider, readCookie } from "@/lib/auth";
+import { authEnabled, currentAccount, emailLoginEnabled, isAdmin, otpProvider, readCookie } from "@/lib/auth";
 import { googleEnabled, NEW_COOKIE, unsign } from "@/lib/google";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +14,6 @@ export async function GET(req: Request) {
   return NextResponse.json({
     enabled: true, dev: otpProvider() === "dev", google, email: emailLoginEnabled(),
     pending: pending ? { name: pending.name, email: pending.email } : null,
-    account: a ? { id: a.id, name: a.name, email: a.email, phone: a.phone } : null,
+    account: a ? { id: a.id, name: a.name, email: a.email, phone: a.phone, ...(isAdmin(a) ? { admin: true } : {}) } : null,
   });
 }

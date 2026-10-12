@@ -8,7 +8,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { applyOps, removeWithFamily, type DFamily, type Op } from "./family";
 import {
-  groupMembers, isListGoal, listOps, LIST_SPEC, nextGoal, SKIP_REST, type Goal, type ListKind,
+  DONE_TEXT, groupMembers, isListGoal, listOps, LIST_SPEC, nextGoal, SKIP_REST, type Goal, type ListKind,
 } from "./interview";
 import { isNo, isSkip, parseNames } from "./basic";
 import { romanToDevanagari } from "./translit";
@@ -21,8 +21,7 @@ export interface ListInput extends TurnInput {
   mode?: "add" | "replace";
 }
 
-export const DONE_TEXT =
-  "Thank you! Your family tree is ready. Tap anyone in the tree to correct details or add a photo, change the style, and download your PDF. Use Share to invite relatives from other households to add their own branches.";
+export { DONE_TEXT };
 
 interface Named { name: string; dev?: string; hint?: "male" | "female" }
 export interface ListAnswer { kind: "names" | "none" | "unknown" | "unclear"; names: Named[]; note?: string; ask?: string }
