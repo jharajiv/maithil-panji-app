@@ -33,6 +33,9 @@ export const USAGE_ROWS: [string, string][] = [
   ["share_clicked", "Share buttons used"],
   ["invite_shared", "Invitation links shared"],
   ["sample_opened", "Opened the sample tree"],
+  ["ai_turn", "AI helper answers (each one costs money)"],
+  ["ai_save_gate", "AI helper stepped aside: tree not saved yet"],
+  ["ai_day_limit", "AI helper stepped aside: a device used its day’s answers"],
 ];
 export async function buildUsage(store: Store, days = 30): Promise<Usage> {
   let c: Record<string, number> = {}; let failed = false;

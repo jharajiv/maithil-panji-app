@@ -12,7 +12,7 @@ import {
 } from "./interview";
 import { isNo, isSkip, parseNames } from "./basic";
 import { romanToDevanagari } from "./translit";
-import type { AgentDeps, TurnInput, TurnOutput } from "./agent";
+import { logUsage, type AgentDeps, type TurnInput, type TurnOutput } from "./agent";
 
 export interface ListInput extends TurnInput {
   /** the question being answered when it is not the current one (the user replied to an earlier message or a tree box) */
@@ -84,12 +84,22 @@ You are told the question that was asked. Extract only the people the reply name
 
 async function parseListAI(deps: AgentDeps, goal: Goal, text: string, family: DFamily): Promise<ListAnswer> {
   const known = family.persons.filter((p) => !p.placeholder).slice(0, 80).map((p) => p.name_roman).join(", ");
-  const res = await deps.client.messages.create({
-    model: deps.model, max_tokens: 500,
+  const ask = (model: string) => deps.client.messages.create({
+    model, max_tokens: 500,
     system: [{ type: "text", text: LIST_PROMPT, cache_control: { type: "ephemeral" } }, { type: "text", text: `QUESTION THAT WAS ASKED:\n${goal.question}\n\nPEOPLE ALREADY IN THE TREE (do not list them again as new): ${known || "(none)"}` }],
     tools: [RECORD_TOOL], tool_choice: { type: "tool", name: "record_answer" },
     messages: [{ role: "user", content: text.slice(0, 700) }],
   });
+  // reading names is easy work: the smaller model does it; if that fails for any reason the main model tries, then the plain reader
+  let model = deps.lightModel || deps.model;
+  let res;
+  try { res = await ask(model); }
+  catch (e) {
+    if (model === deps.model) throw e;
+    console.error("small model failed, trying the main model:", e instanceof Error ? e.message : e);
+    model = deps.model; res = await ask(model);
+  }
+  logUsage(deps, "names", model, res.usage);
   const use = res.content.find((b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use");
   if (!use) throw new Error("no tool call");
   const inp = (use.input ?? {}) as { answer?: string; people?: unknown };

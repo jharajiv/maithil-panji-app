@@ -30,7 +30,8 @@ export async function GET(req: Request) {
     { id: "remind", label: "Birthday reminders (daily job)", ok: set("CRON_SECRET") && mailConfigured() && store?.kind === "supabase", detail: set("CRON_SECRET") ? (mailConfigured() ? "on: runs every morning, about 8 am India time" : "needs email sending") : "CRON_SECRET is not set (a long random text; the daily job does not run without it)" },
     { id: "admin", label: "Admin emails", ok: set("ADMIN_EMAILS"), detail: set("ADMIN_EMAILS") ? "set" : "ADMIN_EMAILS is not set" },
     { id: "places", label: "Village suggestions (Google Places)", ok: set("GOOGLE_PLACES_API_KEY"), detail: set("GOOGLE_PLACES_API_KEY") ? "on" : "off: the free OpenStreetMap service is used" },
-    { id: "ai", label: "AI interviewer", ok: set("ANTHROPIC_API_KEY"), detail: set("ANTHROPIC_API_KEY") ? "on" : "off: Simple mode is used" },
+    { id: "ai", label: "AI interviewer", ok: set("ANTHROPIC_API_KEY"), detail: set("ANTHROPIC_API_KEY") ? `on: ${process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5"} for the interview, ${process.env.ANTHROPIC_MODEL_LIGHT || "claude-haiku-4-5"} for reading names. Open /api/chat?test=1 to check both models answer.` : "off: Simple mode is used" },
+    { id: "aialert", label: "AI use alert (daily email)", ok: set("ADMIN_EMAILS") && mailConfigured(), detail: set("ADMIN_EMAILS") && mailConfigured() ? `emails the admins at 70% and 100% of ${Number(process.env.AI_DAILY_ALERT) || 300} AI answers a day (change with AI_DAILY_ALERT)` : "needs ADMIN_EMAILS and email sending" },
     { id: "donate", label: "Voluntary contribution (UPI / card link)", ok: set("NEXT_PUBLIC_DONATE_UPI_ID") || set("NEXT_PUBLIC_DONATE_CARD_URL"), detail: set("NEXT_PUBLIC_DONATE_UPI_ID") || set("NEXT_PUBLIC_DONATE_CARD_URL") ? "on" : "off: nothing is asked" },
     { id: "wa", label: "WhatsApp community button", ok: set("NEXT_PUBLIC_WA_COMMUNITY_URL"), detail: set("NEXT_PUBLIC_WA_COMMUNITY_URL") ? "on" : "off" },
   ];

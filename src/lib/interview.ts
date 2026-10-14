@@ -5,7 +5,7 @@
  */
 import { WOMAN_GOTRA_QUICK } from "./faq";
 import {
-  childrenOf, fatherOf, labels, me, motherOf, siblingsOf, spousesOf,
+  childrenOf, fatherOf, labels, me, motherOf, parentsOf, siblingsOf, spousesOf,
   type DFamily, type DPerson, type Flag, type Op,
 } from "./family";
 
@@ -355,18 +355,44 @@ export function progress(f: DFamily) {
   return { people, generations: m ? gens : 0 };
 }
 
-/** The family as compact text for the AI's context. */
-export function describeFamily(f: DFamily): string {
+/** Trees up to this size are described in full; beyond it only the people near the question get full detail. */
+export const FULL_BELOW = 12;
+
+/** the people the AI needs in detail right now: the user, the person(s) the question is about, and each one's parents, spouses, children and siblings */
+export function focusIds(f: DFamily, goals: (Goal | null)[]): Set<string> {
+  const core = new Set<string>();
+  const m = me(f); if (m) core.add(m.id);
+  for (const g of goals) for (const id of g?.subjects ?? []) core.add(id);
+  const out = new Set(core);
+  for (const id of core) for (const x of [...parentsOf(f, id), ...spousesOf(f, id), ...childrenOf(f, id), ...siblingsOf(f, id)]) out.add(x.id);
+  return out;
+}
+
+/**
+ * The family as compact text for the AI's context.
+ * With `focus` (and a tree larger than FULL_BELOW) the people in `focus` get every detail and everyone else one short line
+ * (id, name, relation), which is all the AI needs to avoid adding someone twice. `only` leaves the short lines out
+ * (used for the answer to a change, where the AI already has the short list).
+ */
+export function describeFamily(f: DFamily, focus?: Set<string>, only = false): string {
   if (!f.persons.length) return "(empty — nobody added yet)";
   const lab = labels(f);
-  return f.persons
+  const big = !!focus && f.persons.length > FULL_BELOW;
+  // gotra and mool belong to the whole male line and are passed down by the app itself, so they are said once at the top and marked on a
+  // person only when that person differs (a wife, a mother, someone who gave her father's)
+  const m = me(f), fg = m?.gotra?.roman, fm = m?.mool?.roman;
+  const head0 = !only && (fg || fm) ? `FAMILY GOTRA / MOOL (the same for everyone in the father's line; passed down automatically, never asked again): ${[fg && `gotra ${fg}${m!.gotra!.id ? ` [id ${m!.gotra!.id}]` : ""}`, fm && `mool ${fm}`].filter(Boolean).join(", ")}\n` : "";
+  return head0 + f.persons
+    .filter((p) => !(big && only && !focus!.has(p.id)))
     .map((p) => {
+      const head = `${p.id} ${nm(p)}${p.name_dev ? ` (${p.name_dev})` : ""} — ${lab[p.id]}${p.is_me ? " [THE USER]" : ""}`;
+      if (big && !focus!.has(p.id)) return head;
       const bits = [
         p.gender, p.birth && `b.${p.birth}`, p.status === "deceased" ? `d.${p.death ?? "?"}` : p.status === "living" ? "living" : "",
-        p.place && `place:${p.place}`, p.gotra && `gotra:${p.gotra.roman}`, p.mool && `mool:${p.mool.roman}`,
+        p.place && `place:${p.place}`, p.gotra && p.gotra.roman !== fg && `gotra:${p.gotra.roman}`, p.mool && p.mool.roman !== fm && `mool:${p.mool.roman}`,
         Object.entries(p.flags).length ? `flags:${Object.entries(p.flags).map(([k, v]) => `${k}=${v}`).join("|")}` : "",
       ].filter(Boolean).join(", ");
-      return `${p.id} ${nm(p)}${p.name_dev ? ` (${p.name_dev})` : ""} — ${lab[p.id]}${p.is_me ? " [THE USER]" : ""}${bits ? ` — ${bits}` : ""}`;
+      return `${head}${bits ? ` — ${bits}` : ""}`;
     })
     .join("\n");
 }

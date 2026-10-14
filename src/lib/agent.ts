@@ -9,7 +9,7 @@
  */
 import type Anthropic from "@anthropic-ai/sdk";
 import { applyOps, type DFamily, type Op, type PanjiRef, type Pending } from "./family";
-import { describeFamily, isListGoal, nextGoal, type Goal } from "./interview";
+import { describeFamily, focusIds, FULL_BELOW, isListGoal, nextGoal, type Goal } from "./interview";
 import { faqPromptBlock } from "./faq";
 import {
   classify, gotraById, moolById, plainRoman, searchGotras, searchMools,
@@ -47,6 +47,17 @@ export interface TurnOutput {
 export interface AgentDeps {
   client: Pick<Anthropic, "messages">;
   model: string;
+  /** a smaller, cheaper model for the one job that only reads names from an answer (see list-turn.ts); falls back to `model` */
+  lightModel?: string;
+  /** counts the real calls made to the AI model during this one turn (a turn that was answered from fixed rules makes none) */
+  used?: { calls: number };
+}
+
+/** one line per AI call in the server log: what was read fresh, what came from the cache, what was written. Lets you see (in Vercel → Logs, search "ai_usage") whether caching works. */
+export function logUsage(deps: AgentDeps, kind: string, model: string, u: Anthropic.Messages.Usage | undefined): void {
+  if (deps.used) deps.used.calls++;
+  if (!u) return;
+  console.log(`ai_usage ${JSON.stringify({ kind, model, in: u.input_tokens, cache_read: u.cache_read_input_tokens ?? 0, cache_write: u.cache_creation_input_tokens ?? 0, out: u.output_tokens })}`);
 }
 
 const MAX_ROUNDS = 7;
@@ -275,7 +286,7 @@ export async function runTurn(deps: AgentDeps, input: TurnInput): Promise<TurnOu
 
   const dynamic =
     `THE USER IS NOW ANSWERING THIS QUESTION (the one you asked last):\n${lastGoal ? lastGoal.instruction : "(none — interview complete)"}\n\n` +
-    `FAMILY SAVED SO FAR (ids you may reference):\n${describeFamily(family)}` +
+    `FAMILY SAVED SO FAR (ids you may reference${family.persons.length > FULL_BELOW ? "; the people closest to this question are in full detail, everyone else on one short line" : ""}):\n${describeFamily(family, focusIds(family, [lastGoal]))}` +
     (input.lang === "hi" ? "\n\nLANGUAGE: The user has chosen Hindi. Write every message to the user, and every quick reply, in simple, warm, respectful Hindi in Devanagari script (use आप). Say वंशावली for \"family tree\". Keep people's names in the spelling the user gave. Still read English, Hindi and Hinglish answers." : "");
 
   const messages: Anthropic.Messages.MessageParam[] = [
@@ -299,6 +310,7 @@ export async function runTurn(deps: AgentDeps, input: TurnInput): Promise<TurnOu
       tool_choice: { type: "any", disable_parallel_tool_use: true },
       messages,
     });
+    logUsage(deps, "interview", deps.model, res.usage);
     messages.push({ role: "assistant", content: res.content });
     const use = res.content.find((b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use");
     if (!use) break;
@@ -333,7 +345,8 @@ export async function runTurn(deps: AgentDeps, input: TurnInput): Promise<TurnOu
         const r = applyOps(family, ops, { panji: true });
         family = r.family;
         const g = nextGoal(family);
-        result = { applied: r.results, family: describeFamily(family), next: nextBlock(g) };
+        // a big tree is not sent again: the AI already has its short list, so it gets only the people near the next question, in full
+        result = { applied: r.results, family: describeFamily(family, focusIds(family, [g, lastGoal]), true), next: nextBlock(g) };
       }
     } else if (use.name.startsWith("lookup_")) {
       result = runLookup(use.name, inp);

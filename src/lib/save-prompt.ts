@@ -8,8 +8,10 @@ import type { Lang } from "./hi";
  *  back:    someone returns to an unsaved tree        "welcome back"
  * "Later" remembers the stage, so the same reminder is not shown twice; the next one comes at the next stage.
  */
-export type SaveKind = "first" | "more" | "done" | "back";
+export type SaveKind = "first" | "more" | "done" | "back" | "paused";
 export const STAGE_AT = { first: 3, more: 8 } as const;
+/** the AI helper works for a tree that is not saved only up to this many named people; after that it works for saved trees (the simple questions carry on for everyone) */
+export const AI_FREE_PEOPLE = 8;
 
 export const stageOf = (people: number, complete: boolean): 0 | 1 | 2 | 3 =>
   people >= STAGE_AT.first && complete ? 3 : people >= STAGE_AT.more ? 2 : people >= STAGE_AT.first ? 1 : 0;
@@ -31,18 +33,25 @@ export function saveCardText(lang: Lang, kind: SaveKind, people: number, signedI
     const cta = signedIn ? "मेरे खाते में सहेजिए" : "वंशावली सहेजिए";
     const later = "बाद में";
     switch (kind) {
-      case "first": return { title: "अपनी वंशावली सहेज लीजिए", body: `अभी यह सिर्फ़ इसी फ़ोन में रखी है। ${how} — फिर किसी भी फ़ोन पर खोल सकेंगे और रिश्तेदारों को जोड़ सकेंगे।`, cta, later };
+      case "first": return { title: "अपनी वंशावली सहेज लीजिए", body: `अभी यह सिर्फ़ इसी फ़ोन में रखी है। ${how} — फिर किसी भी फ़ोन पर खोल सकेंगे और रिश्तेदारों को जोड़ सकेंगे। AI सहायक लगभग ${AI_FREE_PEOPLE} लोगों के बाद सिर्फ़ सहेजी हुई वंशावली के लिए चलता है।`, cta, later };
       case "more": return { title: `${people} लोग जुड़ चुके हैं`, body: "इतनी मेहनत कहीं खो न जाए — इसे ऑनलाइन सहेज लीजिए। यह अभी सिर्फ़ इसी फ़ोन में है।", cta, later };
       case "done": return { title: "आपकी वंशावली तैयार है!", body: "इसे ऑनलाइन सहेजिए, WhatsApp पर परिवार को भेजिए, और QR कोड वाली PDF पाइए।", cta, later };
+      case "paused": return { title: "AI सहायक रुका है", body: "AI सहायक उन्हीं वंशावलियों के लिए चलता है जो खाते में सहेजी गई हों। जब तक सहेजेंगे नहीं, सरल सवाल पूछे जाते रहेंगे — आपके जवाब उसी तरह दर्ज होंगे। वंशावली सहेजते ही AI सहायक वापस आ जाएगा। Google या ईमेल से सहेजना मुफ़्त है।", cta, later: "अभी नहीं" };
       case "back": return { title: "फिर स्वागत है!", body: `आपकी वंशावली (${people} लोग) अब भी सिर्फ़ इसी फ़ोन में है। इसे सहेज लीजिए ताकि कभी खोए नहीं।`, cta, later };
     }
   }
   const cta = signedIn ? "Save to my account" : "Save my tree";
   const later = "Later";
   switch (kind) {
-    case "first": return { title: "Save your tree so you do not lose it", body: `Right now it is kept only on this phone. ${how} — then you can open it on any phone and invite relatives to help.`, cta, later };
+    case "first": return { title: "Save your tree so you do not lose it", body: `Right now it is kept only on this phone. ${how} — then you can open it on any phone and invite relatives to help. The AI helper keeps working after about ${AI_FREE_PEOPLE} people only for saved trees.`, cta, later };
     case "more": return { title: `${people} people so far`, body: "This much work should not be lost. Save it online — it is kept only on this phone right now.", cta, later };
     case "done": return { title: "Your tree is ready!", body: "Save it online to keep it safe, share it with your family on WhatsApp, and get a PDF with a QR code.", cta, later };
+    case "paused": return { title: "The AI helper is paused", body: "The AI helper works for trees that are saved to an account. Until you save, I will keep asking simple questions — your answers are recorded the same way. Save your tree and the AI helper comes back. It is free, with Google or email.", cta, later: "Not now" };
     case "back": return { title: "Welcome back!", body: `Your tree (${people} ${people === 1 ? "person" : "people"}) is still only on this phone. Save it so it is never lost.`, cta, later };
   }
 }
+
+/** the line put at the top of the chat message the first time the AI helper steps aside (see /api/chat, "gate") */
+export const pausedLine = (lang: Lang) => lang === "hi"
+  ? "AI सहायक के साथ आगे बढ़ने के लिए पहले अपनी वंशावली सहेज लीजिए — Google या ईमेल से मुफ़्त है। तब तक सरल सवालों से काम चलेगा, और आपके जवाब उसी तरह दर्ज होते रहेंगे।"
+  : "To keep going with the AI helper, please save your tree first — it is free, with Google or email. Until then I will ask simple questions instead, and your answers are recorded just the same.";

@@ -36,7 +36,7 @@ import { SuggestionsSheet } from "./SuggestionsSheet";
 import { ChatRail, PaneDivider, FamiliesRail, usePaneLayout } from "./PaneDivider";
 import { PersonEditSheet } from "./PersonEditSheet";
 import { ShareSheet } from "./ShareSheet";
-import { pickSaveCard, saveCardText } from "@/lib/save-prompt";
+import { pausedLine, pickSaveCard, saveCardText } from "@/lib/save-prompt";
 import { useShare } from "./useShare";
 import { useAccount } from "@/components/account/useAccount";
 
@@ -132,6 +132,10 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const [welcomed, setWelcomed] = useState(true);
   const [returning, setReturning] = useState(false);
   const shownSave = useRef(false);
+  /* the AI helper steps aside until the tree is saved (the server says so with gate: "save"); the person is told once, in the chat */
+  const [aiPaused, setAiPaused] = useState(false);
+  const pausedTold = useRef(false);
+  const [pausedDismissed, setPausedDismissed] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [replyCtx, setReplyCtx] = useState<ReplyCtx | null>(null);
   const [undo, setUndo] = useState<Snap[]>([]);
@@ -228,7 +232,10 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
       // told us they do not know their gotra: the next message says where to find it
       const nm = next.persons.find((p) => p.is_me);
       const gotraHelp = goalId === "self_gotra" && nm && !nm.gotra && nm.flags.gotra ? `${gotraHelpMessage(lang)}\n\n` : "";
-      setMessages((m) => [...m, { id: uid(), role: "assistant", text: `${gotraHelp}${j.reply}`, quick: j.quick, goalId: j.goal?.id as string | undefined, added: addedPeople(sent, next) }]);
+      const told = j.gate === "save" && !pausedTold.current ? `${pausedLine(lang)}\n\n` : "";
+      if (told) pausedTold.current = true;
+      setAiPaused(j.gate === "save");
+      setMessages((m) => [...m, { id: uid(), role: "assistant", text: `${told}${gotraHelp}${j.reply}`, quick: j.quick, goalId: j.goal?.id as string | undefined, added: addedPeople(sent, next) }]);
       setGoalId(j.goal?.id); setSection(j.goal?.section); setRepeats(j.repeats ?? 0); setPending(j.pending);
       if (j.ops > 0) setUndo((u) => [...u.slice(-14), snap]);
       if (ctx && j.ops > 0) setReplyCtx(null); // an answer that was not understood keeps the reply open
@@ -334,9 +341,11 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const canSave = !inAccount && !isHelper && !auth.loading && auth.enabled && !sh.share && people > 0;
   const saveHref = auth.account ? "/app?import=1" : `/login?next=${encodeURIComponent("/app?import=1")}`;
   const complete = people > 0 && !nextGoal(family) && !!family.persons.find((p) => p.is_me);
-  const pickedSave = canSave && !exportOpen && !shareOpen ? pickSaveCard({ people, complete, dismissed: saveDismissed, returning, welcomed }) : null;
+  const pausedCard = canSave && aiPaused && !pausedDismissed && !exportOpen && !shareOpen;
+  const pickedSave = canSave && !exportOpen && !shareOpen ? (pausedCard ? ({ kind: "paused", stage: 3 } as const) : pickSaveCard({ people, complete, dismissed: saveDismissed, returning, welcomed })) : null;
   const closeSave = () => {
     if (!pickedSave) return;
+    if (pickedSave.kind === "paused") { setPausedDismissed(true); return; } // "continue with simple questions": the stage reminders stay as they were
     try { localStorage.setItem(SAVE_KEY, String(pickedSave.stage)); sessionStorage.setItem(WELCOME_KEY, "1"); } catch { /* ignore */ }
     setSaveDismissed(pickedSave.stage); setWelcomed(true);
   };
@@ -375,7 +384,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const matchesProps = { family, online: !!sh.share, role: sh.share?.role, connect: cx, similar: sm, discoverable: sh.discoverable, onDiscoverable: sh.setDiscoverable, activity: sh.activity, onSee: seeLinked, bridgeHref: sh.share ? (tree: string) => `/app/bridge/${sh.share!.treeId}/${tree}${sh.keyQs ? `?${sh.keyQs}` : ""}` : undefined, onOpenShare: openShare };
   const leftPane = (cls: string, phone = false) => isHelper
     ? <HelperPane className={cls} name={sh.share?.memberName} onOpenShare={openShare} ownTreeHref={inAccount ? "/app" : undefined} />
-    : <ChatPane className={cls} messages={messages} busy={busy} onSend={send} section={section} mode={mode}
+    : <ChatPane className={cls} messages={messages} busy={busy} onSend={send} section={section} mode={mode} pausedHref={aiPaused && canSave ? saveHref : undefined}
       reply={replyCtx} onReply={(m) => { const g = m.role === "assistant" ? m.goalId : m.answeredGoal; if (g) replyTo(g, m.text, m.role === "user" ? "You" : "Panji Sahayak", m.id); else setNotice("That older message can’t be replied to. Tap the person in the tree to change their details."); }} onMode={(md) => setReplyCtx((c) => (c ? { ...c, mode: md } : c))} onClearReply={() => setReplyCtx(null)} canUndo={undo.length > 0} onUndo={undoLast} help={questionHelp} lang={lang} onLang={changeLang} onSeeInTree={seeInTree} phone={phone} saveCard={saveCard} />;
   const treePane = <LiveTree ref={tree} family={family} template={template} onTemplate={setTemplate} onSelect={setSelected} onContext={(id, x, y, touch) => setMenu({ id, x, y, touch })} className="flex min-h-0 flex-1 flex-col"
     extra={data ? <Button size="sm" variant="outline" onClick={() => setFreeOpen(true)} aria-label="Edit freely with boxes and connectors"><Pencil /> <span className="hidden min-[420px]:inline">Edit freely</span></Button> : undefined} />;

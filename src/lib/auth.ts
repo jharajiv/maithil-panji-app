@@ -159,8 +159,5 @@ export const newInviteSecret = () => randomBytes(18).toString("base64url");
 export const inviteHash = (secret: string) => hashToken(secret);
 
 /** operators of the site: the emails in ADMIN_EMAILS (comma separated). They must still be signed in with that address. */
-export const isAdmin = (a: AccountRow | null) => {
-  if (!a) return false;
-  const list = (process.env.ADMIN_EMAILS ?? "").split(/[,;\s]+/).map((e) => normalizeEmail(e)).filter(Boolean);
-  return list.includes(a.email);
-};
+export const adminEmails = (): string[] => (process.env.ADMIN_EMAILS ?? "").split(/[,;\s]+/).map((e) => normalizeEmail(e)).filter((e): e is string => !!e);
+export const isAdmin = (a: AccountRow | null) => !!a && adminEmails().includes(a.email);

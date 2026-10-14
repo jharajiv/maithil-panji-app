@@ -148,7 +148,7 @@ function Suggest({ s, lang, onPick }: { s: NonNullable<QuestionHelp["suggest"]>;
 /** a gentle "save your tree" reminder that sits in the conversation (see save-prompt.ts) */
 export interface SaveCard { text: SaveText; href: string; onSave: () => void; onLater: () => void; onShown: () => void }
 
-export function ChatPane({ messages, busy, onSend, section, mode, className, reply, onReply, onMode, onClearReply, canUndo, onUndo, help, lang = "en", onLang, onSeeInTree, phone, saveCard }: {
+export function ChatPane({ messages, busy, onSend, section, mode, className, reply, onReply, onMode, onClearReply, canUndo, onUndo, help, lang = "en", onLang, onSeeInTree, phone, saveCard, pausedHref }: {
   lang?: Lang; onLang?: (l: Lang) => void;
   messages: ChatMessage[]; busy: boolean; onSend: (text: string, display?: string) => void; section?: string; mode?: "ai" | "basic"; className?: string;
   reply?: ReplyCtx | null; onReply?: (m: ChatMessage) => void; onMode?: (m: "add" | "replace") => void; onClearReply?: () => void;
@@ -158,6 +158,8 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
   /** phone: no header or banners of its own (the page header holds the language switch), notes appear inside the chat, one-line answer box */
   phone?: boolean;
   saveCard?: SaveCard | null;
+  /** the AI helper is paused until the tree is saved: where to save (the pill in the header then links there) */
+  pausedHref?: string;
 }) {
   const [text, setText] = useState("");
   const [listening, setListening] = useState(false);
@@ -308,7 +310,9 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
         <div className="border-b bg-card px-4 py-2.5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-display text-base font-semibold leading-tight">Panji Sahayak <span lang="hi" className="text-muted-foreground">· पञ्जी सहायक</span></h2>
-            {mode && <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium", mode === "ai" ? "bg-green-100 text-green-800" : "bg-secondary text-muted-foreground")}>{mode === "ai" ? "AI assistant" : "Simple mode"}</span>}
+            {mode && (pausedHref
+              ? <a href={pausedHref} className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-medium text-amber-900 underline-offset-2 hover:underline">{lang === "hi" ? "सरल मोड · AI के लिए सहेजिए" : "Simple mode · save to get AI back"}</a>
+              : <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium", mode === "ai" ? "bg-green-100 text-green-800" : "bg-secondary text-muted-foreground")}>{mode === "ai" ? "AI assistant" : "Simple mode"}</span>)}
           </div>
           <div className="mt-1 flex items-center justify-between gap-3">
             <p className="min-w-0 text-xs text-muted-foreground">{section ? `${lang === "hi" ? hiSection(section) : section} · ` : ""}{lang === "hi" ? "मैं केवल आपकी वंशावली में मदद करता हूँ" : "I only help with your family tree"}</p>
