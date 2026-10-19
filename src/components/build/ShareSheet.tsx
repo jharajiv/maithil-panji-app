@@ -25,6 +25,7 @@ interface Props {
   /** read-only links (living relatives protected / shown in full); empty until the tree is online */
   viewUrl?: string; viewUrlFull?: string;
   viewOff?: boolean; onViewLink?: (action: "stop" | "start" | "renew") => Promise<void>;
+  viewPass?: boolean; onViewPass?: (password: string | null) => Promise<void>;
   /** owner: other families' trees may find this one when matching married women */
   discoverable?: boolean; onDiscoverable?: (on: boolean) => Promise<void>;
   onRevoke: (memberId: string) => void;
@@ -121,7 +122,7 @@ export function ShareSheet(p: Props) {
         <div className="mt-2 space-y-5">
           <p className="flex items-center gap-2 text-sm text-green-800"><Check className="size-4" /> {STATUS_TEXT[p.status] || "Saved online"}</p>
 
-          <SocialShare viewUrl={p.viewUrl ?? ""} viewUrlFull={p.viewUrlFull ?? ""} viewOff={p.viewOff} onViewLink={p.onViewLink} familyName={`${(p.ownerName ?? me?.name_roman ?? "our").split(" ")[0]}${p.ownerName || me ? "’s" : ""}`} />
+          <SocialShare viewUrl={p.viewUrl ?? ""} viewUrlFull={p.viewUrlFull ?? ""} viewOff={p.viewOff} onViewLink={p.onViewLink} viewPass={p.viewPass} onViewPass={p.onViewPass} familyName={`${(p.ownerName ?? me?.name_roman ?? "our").split(" ")[0]}${p.ownerName || me ? "’s" : ""}`} />
 
           <section aria-label="Invite" className="space-y-3 rounded-xl border p-3">
             <h3 className="flex items-center gap-2 font-medium"><MessageCircle className="size-5 text-[#128c4a]" /> Invite a family member</h3>

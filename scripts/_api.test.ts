@@ -4,7 +4,8 @@ import { applyOps, emptyFamily } from "../src/lib/family";
 import { mergeFamilies } from "../src/lib/merge";
 
 const BASE = process.env.BASE ?? "http://localhost:3100";
-const j = async (path: string, init?: RequestInit) => { const r = await fetch(BASE + path, init); return { status: r.status, body: await r.json() as Record<string, any> }; }; // eslint-disable-line @typescript-eslint/no-explicit-any
+const BROWSER = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36"; // shared-link data is refused to programs that do not look like a browser (B-109)
+const j = async (path: string, init?: RequestInit) => { const r = await fetch(BASE + path, { ...init, headers: { "user-agent": BROWSER, ...(init?.headers as Record<string, string> | undefined) } }); return { status: r.status, body: await r.json() as Record<string, any> }; }; // eslint-disable-line @typescript-eslint/no-explicit-any
 const post = (path: string, body: unknown, method = "POST") => j(path, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 
 (async () => {

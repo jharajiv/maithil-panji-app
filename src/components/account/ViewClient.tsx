@@ -12,7 +12,11 @@ import type { TemplateId } from "@/lib/types";
 /** What someone sees after scanning the QR code on a printed tree: the family, read-only. */
 /** With `bridge`, `id` is the viewer's OWN tree and the page shows the tree of the family linked through a woman (see /api/trees/[id]/bridge). */
 export function ViewClient({ id, v, bridge }: { id: string; v: string; bridge?: { to: string; k: string } }) {
-  const [state, setState] = useState<{ title: string; mode?: "private" | "full"; family: DFamily; focus?: string; by?: string } | "loading" | "invalid">("loading");
+  const [state, setState] = useState<{ title: string; mode?: "private" | "full"; family: DFamily; focus?: string; by?: string } | "loading" | "invalid" | "password">("loading");
+  /** the password the owner set on the view link (kept for this visit only) */
+  const [pass, setPass] = useState<string>(() => { try { return sessionStorage.getItem(`maithil-panji.vp.${id}`) ?? ""; } catch { return ""; } });
+  const [passIn, setPassIn] = useState("");
+  const [passWrong, setPassWrong] = useState(false);
   const treeRef = useRef<LiveTreeHandle>(null);
   const [template, setTemplate] = useState<TemplateId>("madhubani");
   const [sel, setSel] = useState<string | undefined>();
@@ -24,18 +28,40 @@ export function ViewClient({ id, v, bridge }: { id: string; v: string; bridge?: 
     const url = bridge
       ? `/api/trees/${encodeURIComponent(id)}/bridge?to=${encodeURIComponent(bridge.to)}${bridge.k ? `&k=${encodeURIComponent(bridge.k)}` : ""}`
       : `/api/trees/${encodeURIComponent(id)}/view?v=${encodeURIComponent(v)}`;
-    fetch(url, { cache: "no-store" })
-      .then(async (r) => (r.ok ? await r.json() : null))
-      .then((j) => { if (live) setState(j?.family ? { title: j.title, mode: j.mode, family: j.family, focus: j.focus, by: j.bridge?.by } : "invalid"); })
+    fetch(url, { cache: "no-store", headers: pass ? { "x-view-pass": pass } : undefined })
+      .then(async (r) => {
+        if (r.status === 401) { const j = await r.json().catch(() => ({})); return { needsPassword: true, wrong: !!j.wrong }; }
+        return r.ok ? await r.json() : null;
+      })
+      .then((j) => {
+        if (!live) return;
+        if (j?.needsPassword) { setPassWrong(!!j.wrong && !!pass); try { sessionStorage.removeItem(`maithil-panji.vp.${id}`); } catch { /* ignore */ } setState("password"); return; }
+        if (pass) { try { sessionStorage.setItem(`maithil-panji.vp.${id}`, pass); } catch { /* ignore */ } }
+        setState(j?.family ? { title: j.title, mode: j.mode, family: j.family, focus: j.focus, by: j.bridge?.by } : "invalid");
+      })
       .catch(() => { if (live) setState("invalid"); });
     return () => { live = false; };
-  }, [id, v, bridge]);
+  }, [id, v, bridge, pass]);
   // after crossing a bridge, show the woman who links the two families
-  const focus = state !== "loading" && state !== "invalid" ? state.focus : undefined;
+  const focus = state !== "loading" && state !== "invalid" && state !== "password" ? state.focus : undefined;
   useEffect(() => { if (!focus) return; const t = setTimeout(() => treeRef.current?.centreOn(focus), 700); return () => clearTimeout(t); }, [focus]);
 
-  const person = useMemo(() => (state !== "loading" && state !== "invalid" ? state.family.persons.find((p) => p.id === sel) : undefined), [state, sel]);
+  const person = useMemo(() => (state !== "loading" && state !== "invalid" && state !== "password" ? state.family.persons.find((p) => p.id === sel) : undefined), [state, sel]);
 
+  if (state === "password") {
+    return (
+      <div className="grid h-dvh place-items-center bg-background px-6">
+        <form className="w-full max-w-sm space-y-4 text-center" onSubmit={(e) => { e.preventDefault(); if (passIn.trim()) { setState("loading"); setPass(passIn.trim()); } }}>
+          <PaagMark size={40} className="mx-auto" />
+          <h1 className="font-display text-2xl font-semibold text-indigo">This family tree has a password</h1>
+          <p className="text-muted-foreground">The family who shared it asked for a password first. Please ask them for it.</p>
+          <input type="password" autoComplete="off" value={passIn} onChange={(e) => setPassIn(e.target.value)} aria-label="Password" className="h-12 w-full rounded-xl border bg-card px-3 text-center text-base" />
+          {passWrong && <p role="alert" className="text-sm text-terracotta">That password did not work. Please try again.</p>}
+          <Button type="submit" size="lg" className="h-12 w-full" disabled={!passIn.trim()}>Open the tree</Button>
+        </form>
+      </div>
+    );
+  }
   if (state === "loading") return <div className="grid h-dvh place-items-center text-muted-foreground">Loading the family tree…</div>;
   if (state === "invalid") {
     return (

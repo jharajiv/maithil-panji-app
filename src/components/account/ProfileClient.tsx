@@ -2,11 +2,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { Camera, ChevronLeft, Loader2, Trash2 } from "lucide-react";
 import { parsePhoneNumberFromString } from "libphonenumber-js/min";
 import { Button } from "@/components/ui/button";
 import { inputCls, Label, PhoneField, phoneState, PlaceField, type PhoneValue } from "@/components/build/widgets";
-import { MARITAL, nativePlace, type Profile } from "@/lib/profile";
+import { HOBBIES, MARITAL, MAX_PROFILE_PHOTO, nativePlace, type Profile } from "@/lib/profile";
+import { shrink } from "@/lib/photo-client";
 import { useAccount } from "./useAccount";
 import { RemindersCard } from "./RemindersCard";
 
@@ -53,6 +54,17 @@ export function ProfileClient() {
     }).catch(() => setErr("Could not load your profile. Please refresh."));
   }, [auth.loading, auth.enabled, auth.account, router]);
 
+  const [photoErr, setPhotoErr] = useState("");
+  const pickPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setPhotoErr("");
+    try {
+      const url = await shrink(file);
+      if (!url || url.length > MAX_PROFILE_PHOTO) { setPhotoErr("That photo is too large. Please choose a smaller one."); return; }
+      setPr((x) => ({ ...x, photo: url })); setSaved(false);
+    } catch { setPhotoErr("Could not read that photo. Please try another."); }
+  };
+  const toggleHobby = (key: string) => { setPr((x) => { const cur = x.hobbies ?? []; const next = cur.includes(key) ? cur.filter((h) => h !== key) : [...cur, key].slice(0, 10); return { ...x, hobbies: next.length ? next : undefined }; }); setSaved(false); };
   const set = <K extends keyof Profile>(k: K, v: Profile[K]) => { setPr((x) => ({ ...x, [k]: v })); setSaved(false); };
   const st = phoneState(phone);
   const phoneBad = !!phone.national.replace(/\D/g, "") && !st.valid;
@@ -133,11 +145,42 @@ export function ProfileClient() {
           </div>
         </Section>
 
+        <Section title="Work and interests" hint="Optional. Helps families who connect with you know you a little better.">
+          {text("employer", "Where you work", { placeholder: "Company, school, farm or business" })}
+          {text("education", "Education", { placeholder: "For example B.Sc., Sanskrit Acharya, Class 12" })}
+          {text("languages", "Languages you speak", { placeholder: "For example Maithili, Hindi, English" })}
+          <fieldset>
+            <legend className="mb-1 text-sm font-medium text-foreground/80">Hobbies and interests</legend>
+            <div className="flex flex-wrap gap-2">
+              {HOBBIES.map((h) => { const on = !!pr.hobbies?.includes(h.key); return (
+                <button key={h.key} type="button" aria-pressed={on} onClick={() => toggleHobby(h.key)}
+                  className={`min-h-11 rounded-full border px-4 py-1.5 text-sm font-medium ${on ? "border-primary bg-primary text-primary-foreground" : "bg-card"}`}>{h.en} <span lang="hi" className="opacity-80">· {h.hi}</span></button>
+              ); })}
+            </div>
+          </fieldset>
+          <div>
+            <span className="mb-1 block text-sm font-medium text-foreground/80">Your photo</span>
+            <div className="flex items-center gap-3">
+              {pr.photo
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={pr.photo} alt="Your profile photo" className="size-16 rounded-full border object-cover" />
+                : <span className="grid size-16 place-items-center rounded-full border bg-secondary/60 text-muted-foreground"><Camera className="size-6" /></span>}
+              <label className="inline-flex h-11 cursor-pointer items-center rounded-xl border px-4 text-sm font-medium hover:bg-secondary">
+                {pr.photo ? "Change photo" : "Add a photo"}
+                <input type="file" accept="image/*" className="sr-only" onChange={(e) => { void pickPhoto(e.target.files?.[0]); e.target.value = ""; }} />
+              </label>
+              {pr.photo && <button type="button" onClick={() => { setPr((x) => ({ ...x, photo: undefined })); setSaved(false); }} className="inline-flex h-11 items-center gap-1 rounded-xl px-3 text-sm text-muted-foreground hover:bg-secondary"><Trash2 className="size-4" /> Remove</button>}
+            </div>
+            {photoErr && <p role="alert" className="mt-1 text-sm text-terracotta">{photoErr}</p>}
+            <p className="mt-1 text-xs text-muted-foreground">The photo is shown only to owners you share your contact details with.</p>
+          </div>
+        </Section>
+
         <Section title="Who can see this">
-          <p className="text-sm text-muted-foreground">When you ask another family to connect, or accept their request, the owner sees your name, pravar, native place, city, marital status and occupation.</p>
+          <p className="text-sm text-muted-foreground">When you ask another family to connect, or accept their request, the owner sees your name, pravar, native place, city, marital status, occupation, work, education, languages and hobbies. Your photo is shown only if you also share contact details below.</p>
           <label className="flex gap-3 rounded-xl border p-3 text-sm">
             <input type="checkbox" className="mt-1 size-5 accent-[var(--primary)]" checked={!!pr.share_contact} onChange={(e) => set("share_contact", e.target.checked)} />
-            <span><strong>Also share my mobile number, email and address</strong> with those owners, so they can reach me on WhatsApp. You can switch this off at any time.</span>
+            <span><strong>Also share my mobile number, email, address and photo</strong> with those owners, so they can reach me on WhatsApp. You can switch this off at any time.</span>
           </label>
         </Section>
       </main>

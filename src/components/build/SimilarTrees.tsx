@@ -81,11 +81,15 @@ function Person({ r }: { r: ConnectRequest }) {
   const w = r.who;
   const [copied, setCopied] = useState(false);
   if (!w) return null;
-  const rows: [string, string | undefined][] = [["Pravar", w.pravar], ["Native place", w.native_place], ["Lives in", w.current_city], ["Marital status", w.marital_status], ["Occupation", w.occupation], ["Address", w.address], ["Email", w.email], ["Mobile", w.phone]];
+  const rows: [string, string | undefined][] = [["Pravar", w.pravar], ["Native place", w.native_place], ["Lives in", w.current_city], ["Marital status", w.marital_status], ["Occupation", w.occupation], ["Works at", w.employer], ["Education", w.education], ["Languages", w.languages], ["Interests", w.hobbies], ["Address", w.address], ["Email", w.email], ["Mobile", w.phone]];
   const hello = `Namaste ${w.name.split(" ")[0]}, I am writing from PAAG Foundation about our family trees “${r.title}”.`;
   return (
     <div className="mt-2 rounded-xl border bg-card p-3 text-sm">
-      <p className="font-medium">{w.name}</p>
+      <div className="flex items-center gap-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {w.photo && <img src={w.photo} alt="" className="size-12 shrink-0 rounded-full border object-cover" />}
+        <p className="font-medium">{w.name}</p>
+      </div>
       <dl className="mt-1 space-y-0.5">{rows.filter(([, v]) => v).map(([k, v]) => <div key={k} className="flex gap-2"><dt className="w-28 shrink-0 text-muted-foreground">{k}</dt><dd className="min-w-0 break-all">{v}</dd></div>)}</dl>
       {w.about && <p className="mt-1 text-muted-foreground">{w.about}</p>}
       <div className="mt-2 flex flex-wrap gap-2">

@@ -11,6 +11,7 @@ import { fold } from "./lookup";
 import type { DFamily } from "./family";
 import type { CombineDelta } from "./combine";
 import type { Profile } from "./profile";
+import type { Story } from "./stories";
 import { flatten, type PersonRow, type RelRow } from "./flatten";
 
 /**
@@ -23,6 +24,8 @@ export interface Member {
   phone?: string; email?: string; account_id?: string; status?: "invited" | "joined"; invite_hash?: string;
   /** owner only: view-only links were replaced this many times / are switched off */
   view_epoch?: number; view_off?: boolean;
+  /** owner only: optional password on the view-only links (salted hash, see view.ts) */
+  view_pass?: string;
   /** owner only: other families may find this tree when matching married women (off until the owner turns it on) */
   discoverable?: boolean;
   /** owner only: the invite code (see invite.ts) of the person whose link brought this owner to the site */
@@ -35,7 +38,7 @@ export interface Member {
   combine_undo?: { at: string; req: string; title: string; delta: CombineDelta };
 }
 /** what the other owner is shown about a person: community facts always, contact details because they agreed to share them with this one request */
-export interface OwnerCard { name: string; pravar?: string; native_place?: string; current_city?: string; marital_status?: string; occupation?: string; about?: string; phone?: string; email?: string; address?: string }
+export interface OwnerCard { name: string; pravar?: string; native_place?: string; current_city?: string; marital_status?: string; occupation?: string; about?: string; employer?: string; education?: string; languages?: string; hobbies?: string; phone?: string; email?: string; address?: string; photo?: string }
 export interface ConnectRequest {
   id: string; dir: "in" | "out"; tree: string; title: string; percent: number; message?: string; at: string;
   status: "pending" | "accepted" | "declined";
@@ -98,6 +101,12 @@ export interface Store {
   addSuggestion(row: Suggestion): Promise<void>;
   listSuggestions(treeId: string): Promise<Suggestion[]>;
   resolveSuggestion(treeId: string, id: string, status: "applied" | "dismissed"): Promise<boolean>;
+  /* story board: photos and memories on a person (see stories.ts) */
+  addStory(row: Story): Promise<void>;
+  /** every story of a tree (or of one person); `light` leaves out the photo and text (for counting) */
+  listStories(treeId: string, opts?: { person?: string; light?: boolean }): Promise<Story[]>;
+  updateStory(treeId: string, id: string, patch: Partial<Pick<Story, "status" | "flags">>): Promise<boolean>;
+  deleteStory(treeId: string, id: string): Promise<boolean>;
   /** one anonymous usage count (a name and a time — nothing about the person) */
   addEvent(name: string): Promise<void>;
   /** how often each usage count happened since a time (for the admin page) */
@@ -217,6 +226,19 @@ function supabase(url: string, key: string): Store {
       if (rels.length) await call("relations?on_conflict=tree_id,type,a,b", { method: "POST", body: JSON.stringify(rels), prefer: "resolution=ignore-duplicates,return=minimal" });
     },
     async addConsent(row) { await call("consents", { method: "POST", body: JSON.stringify(row), prefer: "return=minimal" }); },
+    async addStory(row) { await call("stories", { method: "POST", body: JSON.stringify(row), prefer: "return=minimal" }); },
+    async listStories(treeId, opts = {}) {
+      const cols = opts.light ? "id,tree_id,person_id,by_member,by_name,created_at,status,flags" : "*";
+      return (await call(`stories?tree_id=eq.${encodeURIComponent(treeId)}${opts.person ? `&person_id=eq.${encodeURIComponent(opts.person)}` : ""}&order=created_at.asc&limit=400&select=${cols}`)) as Story[];
+    },
+    async updateStory(treeId, id, patch) {
+      const rows = (await call(`stories?tree_id=eq.${encodeURIComponent(treeId)}&id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch), prefer: "return=representation" })) as unknown[] | null;
+      return !!rows?.length;
+    },
+    async deleteStory(treeId, id) {
+      const rows = (await call(`stories?tree_id=eq.${encodeURIComponent(treeId)}&id=eq.${encodeURIComponent(id)}`, { method: "DELETE", prefer: "return=representation" })) as unknown[] | null;
+      return !!rows?.length;
+    },
     async deleteTree(id) {
       const rows = (await call(`trees?id=eq.${encodeURIComponent(id)}`, { method: "DELETE", prefer: "return=representation" })) as unknown[] | null;
       return !!rows?.length; // persons / relations go with it (ON DELETE CASCADE)
@@ -228,7 +250,7 @@ function supabase(url: string, key: string): Store {
 function file(): Store {
   const dir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(process.cwd(), ".data"); // DATA_DIR: keep the dev file outside the project so editing/testing never makes the dev server recompile
   const f = path.join(dir, "store.json");
-  type Db = { suggestions?: Suggestion[]; events?: { name: string; at: string }[]; subscribers?: Subscriber[]; trees: Record<string, TreeRow>; refs: Record<string, RefRow>; persons?: PersonRow[]; rels?: RelRow[]; consents?: ConsentRow[]; accounts?: AccountRow[]; sessions?: SessionRow[]; codes?: LoginCode[] };
+  type Db = { stories?: Story[]; suggestions?: Suggestion[]; events?: { name: string; at: string }[]; subscribers?: Subscriber[]; trees: Record<string, TreeRow>; refs: Record<string, RefRow>; persons?: PersonRow[]; rels?: RelRow[]; consents?: ConsentRow[]; accounts?: AccountRow[]; sessions?: SessionRow[]; codes?: LoginCode[] };
   const read = async (): Promise<Db> => { try { return JSON.parse(await fs.readFile(f, "utf8")) as Db; } catch { return { trees: {}, refs: {} }; } };
   const write = async (db: Db) => { await fs.mkdir(dir, { recursive: true }); const tmp = `${f}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`; await fs.writeFile(tmp, JSON.stringify(db)); await fs.rename(tmp, f); }; // atomic: a reader never sees half a file
   let chain: Promise<unknown> = Promise.resolve();
@@ -295,12 +317,17 @@ function file(): Store {
       await write(db);
     }),
     addConsent: (row) => lock(async () => { const db = await read(); (db.consents ??= []).push(row); await write(db); }),
+    addStory: (row) => lock(async () => { const db = await read(); db.stories = [...(db.stories ?? []), row]; await write(db); }),
+    listStories: (treeId, opts = {}) => lock(async () => ((await read()).stories ?? []).filter((x) => x.tree_id === treeId && (!opts.person || x.person_id === opts.person)).sort((a, b) => a.created_at.localeCompare(b.created_at)).map((x) => (opts.light ? { ...x, text: undefined, photo: undefined } : x))),
+    updateStory: (treeId, id, patch) => lock(async () => { const db = await read(); const s = db.stories?.find((x) => x.tree_id === treeId && x.id === id); if (!s) return false; Object.assign(s, patch); await write(db); return true; }),
+    deleteStory: (treeId, id) => lock(async () => { const db = await read(); const n = db.stories?.length ?? 0; db.stories = (db.stories ?? []).filter((x) => !(x.tree_id === treeId && x.id === id)); await write(db); return db.stories.length < n; }),
     deleteTree: (id) => lock(async () => {
       const db = await read(); if (!db.trees[id]) return false;
       delete db.trees[id];
       db.persons = (db.persons ?? []).filter((p) => p.tree_id !== id);
       db.rels = (db.rels ?? []).filter((r) => r.tree_id !== id);
       db.suggestions = (db.suggestions ?? []).filter((x) => x.tree_id !== id);
+      db.stories = (db.stories ?? []).filter((x) => x.tree_id !== id);
       await write(db); return true;
     }),
   };

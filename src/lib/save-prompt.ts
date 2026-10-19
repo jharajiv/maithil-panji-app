@@ -12,6 +12,10 @@ export type SaveKind = "first" | "more" | "done" | "back" | "paused";
 export const STAGE_AT = { first: 3, more: 8 } as const;
 /** the AI helper works for a tree that is not saved only up to this many named people; after that it works for saved trees (the simple questions carry on for everyone) */
 export const AI_FREE_PEOPLE = 8;
+/** from this many named people the chat says, once, how many more the AI helper will work for — so the pause is never a surprise */
+export const AI_WARN_AT = 6;
+/** how many more people the AI helper will work for, when it is time to say so (null = not yet / not needed) */
+export const aiPeopleLeft = (named: number): number | null => (named >= AI_WARN_AT && named < AI_FREE_PEOPLE ? AI_FREE_PEOPLE - named : null);
 
 export const stageOf = (people: number, complete: boolean): 0 | 1 | 2 | 3 =>
   people >= STAGE_AT.first && complete ? 3 : people >= STAGE_AT.more ? 2 : people >= STAGE_AT.first ? 1 : 0;
@@ -55,3 +59,8 @@ export function saveCardText(lang: Lang, kind: SaveKind, people: number, signedI
 export const pausedLine = (lang: Lang) => lang === "hi"
   ? "AI सहायक के साथ आगे बढ़ने के लिए पहले अपनी वंशावली सहेज लीजिए — Google या ईमेल से मुफ़्त है। तब तक सरल सवालों से काम चलेगा, और आपके जवाब उसी तरह दर्ज होते रहेंगे।"
   : "To keep going with the AI helper, please save your tree first — it is free, with Google or email. Until then I will ask simple questions instead, and your answers are recorded just the same.";
+
+/** the one-time heads-up put at the top of a chat message a little before the AI helper steps aside (see /api/chat, "left") */
+export const headsUpLine = (lang: Lang, left: number) => lang === "hi"
+  ? `ध्यान दीजिए: ${left === 1 ? "एक और व्यक्ति" : `${left} और लोग`} जुड़ने के बाद AI सहायक आपसे वंशावली सहेजने को कहेगा (Google या ईमेल से मुफ़्त)। सहेजने में एक मिनट लगता है, और सब कुछ सुरक्षित रहता है।`
+  : `Heads up: after ${left === 1 ? "one more person" : `${left} more people`} the AI helper will ask you to save your tree (free, with Google or email). It takes a minute and keeps everything safe.`;

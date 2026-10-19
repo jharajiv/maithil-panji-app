@@ -65,7 +65,7 @@ for (const f of FAQ) { const got = id(f.q.en); if (got !== f.id) console.log("no
 
 // the AI interviewer is told the FAQ and the father's-gotra rule
 assert.ok(SYSTEM_PROMPT.includes("FATHER'S gotra and mool") && SYSTEM_PROMPT.includes("FAQ (the only source"));
-assert.ok(SYSTEM_PROMPT.includes(FAQ[0]!.a.en));
+assert.ok(SYSTEM_PROMPT.includes(FAQ[0]!.q.en) && !SYSTEM_PROMPT.includes(FAQ[0]!.a.en), "the AI gets the list of questions, and reads an answer with get_faq");
 
 // ── in the chat: answer, then back to the question; nothing is saved ──
 const base = () => {

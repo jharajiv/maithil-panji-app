@@ -133,6 +133,16 @@ export function ActionQueue() {
           <h3 className="text-sm font-medium">Usage <span className="font-normal text-muted-foreground">· last {q.usage.days} days</span></h3>
           {q.usage.failed ? <p role="alert" className="text-sm text-terracotta">The counts could not be read just now. Try again in a minute.</p> : null}
           <table className={`w-full text-sm ${q.usage.failed ? "hidden" : ""}`}><tbody>{q.usage.rows.map((r) => <tr key={r.name} className="border-b last:border-0"><td className="py-1 pr-3">{r.label}</td><td className="py-1 text-right font-medium tabular-nums">{r.count}</td></tr>)}</tbody></table>
+          {q.usage.ai && !q.usage.failed && (
+            <p className="rounded-lg bg-secondary/60 px-3 py-2 text-sm">AI cost check: <strong>{q.usage.ai.perAnswer}</strong> model calls per AI answer ({q.usage.ai.calls} calls for {q.usage.ai.answers} answers); <strong>{q.usage.ai.lightShare}%</strong> of the calls went to the small, cheaper model. Lower is better for the first number; the second should be well above 0 once people answer the brothers, sisters and children questions. Counting started with v12, so older days are not included.</p>
+          )}
+          {q.usage.questions && !q.usage.failed && (
+            <div className="mt-3 border-t pt-3">
+              <h4 className="text-sm font-medium">Questions people asked in the chat <span className="font-normal text-muted-foreground">· answers given, most asked first</span></h4>
+              {q.usage.questions.rows.length ? <table className="mt-1 w-full text-sm"><tbody>{q.usage.questions.rows.map((r) => <tr key={r.id} className="border-b last:border-0"><td className="py-1 pr-3">{r.q}</td><td className="py-1 text-right font-medium tabular-nums">{r.count}</td></tr>)}</tbody></table> : <p className="text-sm text-muted-foreground">No ready-made answer has been given yet.</p>}
+              <p className="mt-1 text-sm"><span className="font-medium tabular-nums">{q.usage.questions.unanswered}</span> typed questions had no ready-made answer <span className="text-muted-foreground">(the AI may still have answered them). Only the count is kept, never the words, so a high number is a hint to add FAQ entries.</span></p>
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">These count visits and taps, not different people — one person can be counted more than once. No names or trees are kept.</p>
         </div>
       )}

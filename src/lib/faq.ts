@@ -253,6 +253,8 @@ export const faqById = (id: string) => FAQ.find((f) => f.id === id);
 
 /** the same answers for the AI interviewer's instructions (English; it answers in the user's language) */
 export const faqPromptBlock = () => FAQ.map((f) => `Q: ${f.q.en}\nA: ${f.a.en}`).join("\n\n");
+/** only the questions, with their ids: the AI asks for the full answer with its get_faq tool, so the long answers are not re-sent with every message */
+export const faqIndexBlock = () => FAQ.map((f) => `${f.id}: ${f.q.en}`).join("\n");
 
 /** a tappable chat suggestion shown under the gotra / mool question for women (what it SENDS is matched by the entry above) */
 export const WOMAN_GOTRA_QUICK = "Why father’s gotra?";

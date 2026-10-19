@@ -3,10 +3,11 @@ import { clearRef, storedRef } from "@/lib/invite";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, CalendarHeart, Loader2, LogOut, Network, Plus, Trees } from "lucide-react";
+import { ArrowRight, CalendarHeart, Globe2, Loader2, LogOut, Network, Plus, Trees } from "lucide-react";
 import { PaagLogo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { familyFor } from "@/lib/new-tree";
+import { CommunityButton } from "@/components/landing/CommunityButton";
 import { useAccount } from "./useAccount";
 
 interface TreeItem { id: string; title: string; people: number; updated_at: string; owner: string; members?: number; invitedAs?: string }
@@ -35,6 +36,7 @@ export function Dashboard() {
   const [err, setErr] = useState("");
   const [complete, setComplete] = useState<number | null>(null);
   const [remOn, setRemOn] = useState<boolean | null>(null);
+  const [bday, setBday] = useState<{ living: number; withDate: number } | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/me/trees", { cache: "no-store" });
@@ -48,6 +50,7 @@ export function Dashboard() {
     if (!auth.account) { router.replace("/login?next=/app"); return; }
     load().catch(() => setErr("Could not load your trees. Please refresh."));
     fetch("/api/me/profile", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j) { setComplete(j.complete); setRemOn(j.profile?.reminders?.birthdays === true); } }).catch(() => {});
+    fetch("/api/me/reminders", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && j.living > 0) setBday({ living: j.living, withDate: j.withDate }); }).catch(() => {});
     setDraft(localDraft());
   }, [auth.loading, auth.enabled, auth.account, load, router]);
 
@@ -105,10 +108,24 @@ export function Dashboard() {
           <span className="min-w-0 flex-1"><span className="block font-semibold">My connections</span><span className="block text-sm text-muted-foreground">See how your family is connected to other families, and through whom.</span></span>
           <ArrowRight className="size-4 text-muted-foreground" />
         </Link>
+        {lists.mine.length > 0 && lists.mine[0]!.people > 1 && (
+          <Link href={`/app/tree/${lists.mine[0]!.id}?map=1`} className="flex items-center gap-3 rounded-2xl border bg-card p-4 hover:bg-secondary/50">
+            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-secondary text-primary"><Globe2 className="size-5" /></span>
+            <span className="min-w-0 flex-1"><span className="block font-semibold">Where we are today <span lang="hi" className="font-medium text-muted-foreground">· हम आज कहाँ हैं</span></span><span className="block text-sm text-muted-foreground">See on a map where your family members live, and share the picture.</span></span>
+            <ArrowRight className="size-4 text-muted-foreground" />
+          </Link>
+        )}
         {remOn === false && (
           <Link href="/app/profile#reminders" className="flex items-center gap-3 rounded-2xl border bg-card p-4 hover:bg-secondary/50">
             <span className="grid size-11 shrink-0 place-items-center rounded-full bg-secondary text-terracotta"><CalendarHeart className="size-5" /></span>
             <span className="min-w-0 flex-1"><span className="block font-semibold">Birthday reminders <span lang="hi" className="font-medium text-muted-foreground">· जन्मदिन की याद</span></span><span className="block text-sm text-muted-foreground">Get an email before a relative’s birthday, so you never miss one.</span></span>
+            <ArrowRight className="size-4 text-muted-foreground" />
+          </Link>
+        )}
+        {remOn && bday && bday.withDate < bday.living && (
+          <Link href="/app/profile#reminders" className="flex items-center gap-3 rounded-2xl border bg-card p-4 hover:bg-secondary/50">
+            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-secondary text-sm font-semibold text-terracotta">{bday.withDate}/{bday.living}</span>
+            <span className="min-w-0 flex-1"><span className="block font-semibold">{bday.withDate} of {bday.living} living relatives have a birthday</span><span className="block text-sm text-muted-foreground">Add the rest so none of their birthdays is missed. <span lang="hi">बाकी लोगों का जन्मदिन जोड़िए।</span></span></span>
             <ArrowRight className="size-4 text-muted-foreground" />
           </Link>
         )}
@@ -131,6 +148,8 @@ export function Dashboard() {
           )}
           {lists.mine.length > 0 && <Button variant="outline" disabled={!!busy} onClick={() => create(familyFor(auth.account!.name), "new")}>{busy === "new" ? <Loader2 className="animate-spin" /> : <Plus />} Start another tree</Button>}
         </section>
+
+        <CommunityButton card source="dashboard" />
 
         {draft && (
           <section aria-label="Tree on this device" className="rounded-2xl border bg-secondary/50 p-5">

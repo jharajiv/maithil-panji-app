@@ -59,6 +59,15 @@ export function coverage(f: DFamily): { living: number; withDate: number } {
   return { living: living.length, withDate: living.filter((p) => !!birthMonthDay(p.birth)).length };
 }
 
+/** living people with no full birthday yet, so the page can ask for them by name (the first few, the person themselves last) */
+export function missingBirthdays(f: DFamily, tree: string, max = 6): { tree: string; id: string; name: string; partial: boolean }[] {
+  return f.persons
+    .filter((p) => !p.placeholder && p.status !== "deceased" && !p.death && p.name_roman?.trim() && !birthMonthDay(p.birth))
+    .sort((a, b) => Number(!!a.is_me) - Number(!!b.is_me))
+    .slice(0, max)
+    .map((p) => ({ tree, id: p.id, name: p.name_roman.trim(), partial: !!p.birth }));
+}
+
 export type DueKind = "week" | "day";
 export interface Due extends Birthday { kind: DueKind; key: string }
 

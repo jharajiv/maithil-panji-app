@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { authEnabled, currentAccount } from "@/lib/auth";
 import { mailConfigured, sendMail } from "@/lib/mail";
-import { birthdayLabel, coverage, leadOf, reminderMail, remindersOn, todayIST } from "@/lib/reminders";
+import { birthdayLabel, coverage, leadOf, missingBirthdays, reminderMail, remindersOn, todayIST } from "@/lib/reminders";
 import { birthdaysOf, familiesOf } from "@/lib/reminders-run";
 import { clientIp, limited } from "@/lib/ratelimit";
 import { getStore } from "@/lib/store";
@@ -14,9 +14,10 @@ async function state(accountId: string, profile: Parameters<typeof remindersOn>[
   const today = todayIST();
   const fams = await familiesOf(store, accountId);
   let living = 0, withDate = 0;
-  for (const f of fams) { const c = coverage(f.family); living += c.living; withDate += c.withDate; }
+  const missing: ReturnType<typeof missingBirthdays> = [];
+  for (const f of fams) { const c = coverage(f.family); living += c.living; withDate += c.withDate; missing.push(...missingBirthdays(f.family, f.id, 6)); }
   const next = (await birthdaysOf(store, accountId, today, 60)).slice(0, 5).map((b) => ({ name: b.person.name_roman, name_dev: b.person.name_dev, when: birthdayLabel(b), daysAway: b.daysAway, turns: b.turns }));
-  return { on: remindersOn(profile), lead: leadOf(profile), email, mailReady: mailConfigured(), living, withDate, next };
+  return { on: remindersOn(profile), lead: leadOf(profile), email, mailReady: mailConfigured(), living, withDate, missing: missing.slice(0, 6), next };
 }
 
 /** GET → the person's reminder settings, how many living people have a full birthday, and the next birthdays (so they see it working before they switch it on) */

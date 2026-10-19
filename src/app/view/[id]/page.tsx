@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ViewClient } from "@/components/account/ViewClient";
 import { getStore } from "@/lib/store";
-import { viewMode, viewState } from "@/lib/view";
+import { viewMode, viewPassOf, viewState } from "@/lib/view";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ v?: string }> };
 
@@ -14,7 +14,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   let count = 0;
   try {
     const row = await getStore()?.getTree(id);
-    if (!row || !viewMode(id, v, viewState(row))) return base;
+    if (!row || !viewMode(id, v, viewState(row)) || viewPassOf(row)) return base; // a password-protected tree shows nothing in a link preview
     title = (row.title ?? "Family tree").replace(/ family$/, " family tree"); count = row.family.persons.length;
   } catch { return base; }
   const description = `${count ? `${count} people. ` : ""}View this Maithil family tree on PAAG Foundation — and build your own, free.`;

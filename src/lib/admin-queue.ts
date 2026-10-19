@@ -8,6 +8,7 @@ import { ownerOf, isDiscoverable } from "./connect-server";
 import { fold } from "./lookup";
 import { compareTrees, stockOf, type TreeMatch } from "./similar";
 import { refCodeOf } from "./invite";
+import { FAQ } from "./faq";
 import type { Store, TreeRow } from "./store";
 
 export interface QOwner { name: string; email?: string; phone?: string }
@@ -23,7 +24,14 @@ export interface NewRef { kind: "gotra" | "mool"; roman: string; dev?: string; t
 /** how many trees came through someone's invitation link (the site is open: this only counts, nothing is blocked) */
 export interface Invites { total: number; byInvite: number; inviters: number; top: { name: string; count: number }[] }
 /** anonymous usage counts for the last 30 days, in the order people move through the site */
-export interface Usage { days: number; rows: { name: string; label: string; count: number }[]; /** the counts could not be read */ failed?: boolean }
+export interface Usage {
+  days: number; rows: { name: string; label: string; count: number }[];
+  /** which ready-made answers were given, most asked first, and how many typed questions had none (counts only, never the words) */
+  questions?: { rows: { id: string; q: string; count: number }[]; unanswered: number };
+  /** how many model calls one AI answer needs, and how much of the work the small model does — the two numbers that decide the AI bill */
+  ai?: { answers: number; calls: number; light: number; perAnswer: number; lightShare: number };
+  /** the counts could not be read */ failed?: boolean;
+}
 export const USAGE_ROWS: [string, string][] = [
   ["tree_started", "Started a tree (answered the first question)"],
   ["save_card_shown", "Saw the “save your tree” reminder"],
@@ -31,16 +39,24 @@ export const USAGE_ROWS: [string, string][] = [
   ["tree_saved", "Trees saved online"],
   ["pdf_downloaded", "PDFs downloaded"],
   ["share_clicked", "Share buttons used"],
+  ["story_added", "Stories and photos added to people"],
+  ["story_approved", "Waiting stories approved"],
   ["invite_shared", "Invitation links shared"],
   ["sample_opened", "Opened the sample tree"],
   ["ai_turn", "AI helper answers (each one costs money)"],
+  ["ai_call", "Calls to the main AI model (Sonnet)"],
+  ["ai_call_light", "Calls to the small AI model (Haiku, a third of the price)"],
   ["ai_save_gate", "AI helper stepped aside: tree not saved yet"],
   ["ai_day_limit", "AI helper stepped aside: a device used its day’s answers"],
+  ["community_clicked", "Tapped “Join our WhatsApp community”"],
 ];
 export async function buildUsage(store: Store, days = 30): Promise<Usage> {
   let c: Record<string, number> = {}; let failed = false;
   try { c = await store.countEvents(new Date(Date.now() - days * 86_400_000).toISOString()); } catch { failed = true; /* usage counts are optional */ }
-  return { days, failed, rows: USAGE_ROWS.map(([name, label]) => ({ name, label, count: c[name] ?? 0 })) };
+  const asked = FAQ.map((f) => ({ id: f.id, q: f.q.en, count: c[`faq:${f.id}`] ?? 0 })).filter((r) => r.count > 0).sort((a, b) => b.count - a.count);
+  const answers = c["ai_turn"] ?? 0, calls = (c["ai_call"] ?? 0) + (c["ai_call_light"] ?? 0), light = c["ai_call_light"] ?? 0;
+  const ai = answers ? { answers, calls, light, perAnswer: +(calls / answers).toFixed(2), lightShare: calls ? Math.round((100 * light) / calls) : 0 } : undefined;
+  return { days, failed, ai, rows: USAGE_ROWS.map(([name, label]) => ({ name, label, count: c[name] ?? 0 })), questions: { rows: asked, unanswered: c["faq_unanswered"] ?? 0 } };
 }
 
 export interface Queue { duplicates: DupPair[]; newRefs: NewRef[]; scanned: number; optedIn: number; invites: Invites; usage?: Usage }

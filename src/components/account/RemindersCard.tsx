@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CalendarHeart, Loader2 } from "lucide-react";
 
-interface State { on: boolean; lead: "week" | "day"; email: string; mailReady: boolean; living: number; withDate: number; next: { name: string; name_dev?: string; when: string; daysAway: number; turns?: number }[] }
+interface State { on: boolean; lead: "week" | "day"; email: string; mailReady: boolean; living: number; withDate: number; missing?: { tree: string; id: string; name: string; partial: boolean }[]; next: { name: string; name_dev?: string; when: string; daysAway: number; turns?: number }[] }
 
 /** My profile → birthday reminders. Saves on its own (not with the profile button) because switching a reminder on or off should take effect at once. */
 export function RemindersCard() {
@@ -72,6 +72,14 @@ export function RemindersCard() {
           {s.next.length > 0 && <ul className="mt-1.5 space-y-1">{s.next.map((b, i) => <li key={i}>{b.name}{b.name_dev ? ` · ${b.name_dev}` : ""} — {b.when}{b.turns ? ` (turns ${b.turns})` : ""} <span className="text-muted-foreground">{b.daysAway === 0 ? "today" : b.daysAway === 1 ? "tomorrow" : `in ${b.daysAway} days`}</span></li>)}</ul>}
           <p className="mt-2 text-muted-foreground">{s.living === 0 ? "Add family members in your tree to get started." : `${s.withDate} of ${s.living} living people in your tree have a full birthday (day, month and year).`} {s.withDate < s.living && "Add the rest in the tree: tap a person, then their birth date."}</p>
         </div>
+
+        {s.missing && s.missing.length > 0 && (
+          <div className="rounded-xl border border-dashed p-3 text-sm">
+            <p className="font-medium">Add a birthday to be reminded <span lang="hi" className="font-normal text-muted-foreground">· जन्मदिन जोड़ें</span></p>
+            <p className="mt-0.5 text-muted-foreground">Open the person in your tree and fill in their date of birth (day, month and year).</p>
+            <ul className="mt-2 flex flex-wrap gap-2">{s.missing.map((m) => <li key={`${m.tree}:${m.id}`}><Link href={`/app/tree/${m.tree}`} className="inline-flex min-h-10 items-center rounded-full border bg-card px-3 hover:bg-secondary">{m.name}{m.partial ? " · year only" : ""}</Link></li>)}</ul>
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-3">
           {s.mailReady && s.withDate > 0 && <button type="button" onClick={test} disabled={busy} className="h-11 rounded-xl border px-4 text-[15px] font-medium hover:bg-secondary disabled:opacity-50">Send me a test email</button>}

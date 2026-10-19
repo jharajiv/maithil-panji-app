@@ -184,3 +184,22 @@ create table if not exists public.newsletter (
 );
 create index if not exists newsletter_status_idx on public.newsletter (status, lang);
 alter table public.newsletter enable row level security;
+
+-- 10. STORY BOARD — photos and short memories that family members add to a person on a tree.
+--     A story about a LIVING person stays "pending" until that person (or, if they have not joined, the tree owner on their
+--     behalf) approves it; a story about someone who has passed away is "shown" at once. "flags" holds the member ids of
+--     people who flagged a story. Photos are small pictures kept as text. Safe to run again.
+create table if not exists public.stories (
+  id          text primary key,
+  tree_id     text not null references public.trees(id) on delete cascade,
+  person_id   text not null,                -- id inside that tree ("p3")
+  text        text,
+  photo       text,                         -- small data address (about 70 KB at most)
+  by_member   text not null,                -- member id of the writer
+  by_name     text not null,
+  created_at  timestamptz not null default now(),
+  status      text not null default 'pending' check (status in ('pending', 'shown')),
+  flags       jsonb not null default '[]'::jsonb
+);
+create index if not exists stories_tree_idx on public.stories (tree_id, person_id);
+alter table public.stories enable row level security;

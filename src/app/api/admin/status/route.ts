@@ -4,6 +4,7 @@ import { envName, isStaging } from "@/lib/env";
 import { googleEnabled, originOf } from "@/lib/google";
 import { mailConfigured } from "@/lib/mail";
 import { newsletterEnabled } from "@/lib/newsletter";
+import { communityUrl } from "@/lib/community";
 import { getStore } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,7 @@ export async function GET(req: Request) {
     { id: "ai", label: "AI interviewer", ok: set("ANTHROPIC_API_KEY"), detail: set("ANTHROPIC_API_KEY") ? `on: ${process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5"} for the interview, ${process.env.ANTHROPIC_MODEL_LIGHT || "claude-haiku-4-5"} for reading names. Open /api/chat?test=1 to check both models answer.` : "off: Simple mode is used" },
     { id: "aialert", label: "AI use alert (daily email)", ok: set("ADMIN_EMAILS") && mailConfigured(), detail: set("ADMIN_EMAILS") && mailConfigured() ? `emails the admins at 70% and 100% of ${Number(process.env.AI_DAILY_ALERT) || 300} AI answers a day (change with AI_DAILY_ALERT)` : "needs ADMIN_EMAILS and email sending" },
     { id: "donate", label: "Voluntary contribution (UPI / card link)", ok: set("NEXT_PUBLIC_DONATE_UPI_ID") || set("NEXT_PUBLIC_DONATE_CARD_URL"), detail: set("NEXT_PUBLIC_DONATE_UPI_ID") || set("NEXT_PUBLIC_DONATE_CARD_URL") ? "on" : "off: nothing is asked" },
-    { id: "wa", label: "WhatsApp community button", ok: set("NEXT_PUBLIC_WA_COMMUNITY_URL"), detail: set("NEXT_PUBLIC_WA_COMMUNITY_URL") ? "on" : "off" },
+    { id: "wa", label: "WhatsApp community button", ok: !!communityUrl(), detail: communityUrl() ? "on" : set("NEXT_PUBLIC_WA_COMMUNITY_URL") ? "set, but not a WhatsApp invite link (it must start with https://chat.whatsapp.com/)" : "off" },
   ];
   if (isStaging()) checks.unshift({ id: "env", label: "This is the STAGING copy", ok: true, detail: `Search engines are told to stay away. Email goes only to: ${process.env.STAGING_MAIL_ALLOW?.trim() || "nobody (STAGING_MAIL_ALLOW is empty)"}`, extra: undefined });
   return NextResponse.json({ env: envName(), checks }, { headers: { "cache-control": "no-store" } });

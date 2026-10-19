@@ -34,6 +34,7 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
   const [viewKey, setViewKey] = useState("");
   const [viewKeyFull, setViewKeyFull] = useState("");
   const [viewOff, setViewOff] = useState(false);
+  const [viewPass, setViewPassState] = useState(false);
   const [discoverable, setDiscoverableState] = useState(false);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [adopted, setAdopted] = useState(false); // true once a tree was loaded from a link / server (BuildApp resets chat then)
@@ -56,6 +57,7 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
     if (j.members) setMembers(j.members);
     if (typeof j.viewKey === "string") setViewKey(j.viewKey);
     setViewOff(!!j.viewOff);
+    setViewPassState(j.viewPass === true);
     setDiscoverableState(!!j.discoverable);
     setActivity(Array.isArray(j.activity) ? j.activity : []);
     setViewKeyFull(typeof j.viewKeyFull === "string" ? j.viewKeyFull : "");
@@ -196,6 +198,14 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
     await pull();
   }, [pull]);
 
+  /** owner: put a password on the view-only links (people are asked for it first), or take it off (password = null) */
+  const setViewPass = useCallback(async (password: string | null) => {
+    const s = shareRef.current!;
+    const res = await fetch(`/api/trees/${s.treeId}/view-link`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...keyBody(s), action: password ? "password" : "nopassword", password: password ?? undefined }) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Could not change the password.");
+    await pull();
+  }, [pull]);
+
   /** owner: let other families’ trees find this one (needed to match married women across trees) */
   const setDiscoverable = useCallback(async (on: boolean) => {
     const s = shareRef.current!;
@@ -213,5 +223,5 @@ export function useShare(family: DFamily, setFamily: (f: DFamily) => void, ready
   const viewUrl = share && viewKey && typeof location !== "undefined" ? `${location.origin}/view/${share.treeId}?v=${viewKey}` : "";
   /** the same, but living relatives show in full — only the owner gets this one, and only by choosing it */
   const viewUrlFull = share && viewKeyFull && typeof location !== "undefined" ? `${location.origin}/view/${share.treeId}?v=${viewKeyFull}` : "";
-  return { enabled, share, status, members, adopted, discoverable, setDiscoverable, activity, refresh, keyQs: share ? keyQs(share) : "", keyBody: share ? keyBody(share) : {}, viewUrl, viewUrlFull, viewOff, viewLink, create, invite, revoke, deleteOnline, ownerLink, leave, leaveTree };
+  return { enabled, share, status, members, adopted, discoverable, setDiscoverable, activity, refresh, keyQs: share ? keyQs(share) : "", keyBody: share ? keyBody(share) : {}, viewUrl, viewUrlFull, viewOff, viewPass, setViewPass, viewLink, create, invite, revoke, deleteOnline, ownerLink, leave, leaveTree };
 }

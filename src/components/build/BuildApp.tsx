@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, Download, GitMerge, MessageCircle, MessageSquareWarning, Network, Pencil, RotateCcw, Share2, Users } from "lucide-react";
+import { BookHeart, ChevronLeft, Download, GitMerge, Globe2, MessageCircle, MessageSquareWarning, Network, Pencil, RotateCcw, Share2, Users } from "lucide-react";
 import { PaagMark } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -20,6 +20,7 @@ import { deviceId } from "@/lib/device";
 import { hiGoal, hiReply, tr, type Lang } from "@/lib/hi";
 import { applyHousehold, householdBundle, type HAnswer } from "@/lib/household";
 import { TreeStrip } from "./TreeStrip";
+import dynamic from "next/dynamic";
 import { HeaderMenu } from "./HeaderMenu";
 import { FAQ } from "@/lib/faq";
 import { gotraSuggestions, moolSuggestions } from "@/lib/chips";
@@ -33,10 +34,14 @@ import { useConnect } from "./useConnect";
 import { useSimilar } from "./useSimilar";
 import { useSuggestions } from "./useSuggestions";
 import { SuggestionsSheet } from "./SuggestionsSheet";
+import { useStories } from "./useStories";
+import { StoriesSheet } from "./StoriesSheet";
 import { ChatRail, PaneDivider, FamiliesRail, usePaneLayout } from "./PaneDivider";
 import { PersonEditSheet } from "./PersonEditSheet";
 import { ShareSheet } from "./ShareSheet";
-import { pausedLine, pickSaveCard, saveCardText } from "@/lib/save-prompt";
+/** the world outline is a large drawing, so the map is loaded only when someone opens it */
+const DiasporaMap = dynamic(() => import("./DiasporaMap").then((m) => m.DiasporaMap), { ssr: false });
+import { headsUpLine, pausedLine, pickSaveCard, saveCardText } from "@/lib/save-prompt";
 import { useShare } from "./useShare";
 import { useAccount } from "@/components/account/useAccount";
 
@@ -124,6 +129,9 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const [exportOpen, setExportOpen] = useState(false);
   const [freeOpen, setFreeOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
+  // the dashboard link "Where our family lives" opens the tree with ?map=1
+  useEffect(() => { try { if (new URLSearchParams(window.location.search).get("map") === "1") setMapOpen(true); } catch { /* ignore */ } }, []);
   const [inviteFor, setInviteFor] = useState<string | undefined>();
   const [resetOpen, setResetOpen] = useState(false);
   /* "save your tree" reminders: the stage already dismissed, and whether this tree was already on the phone when the page opened */
@@ -135,6 +143,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   /* the AI helper steps aside until the tree is saved (the server says so with gate: "save"); the person is told once, in the chat */
   const [aiPaused, setAiPaused] = useState(false);
   const pausedTold = useRef(false);
+  const headsTold = useRef(false);
   const [pausedDismissed, setPausedDismissed] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [replyCtx, setReplyCtx] = useState<ReplyCtx | null>(null);
@@ -153,6 +162,9 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const sm = useSimilar(sh.share?.treeId, sh.keyQs, sh.share?.role, sh.discoverable, simSig, sh.refresh);
   const sg = useSuggestions(sh.share, { qs: sh.keyQs, body: sh.keyBody }, sh.refresh);
   const [sgOpen, setSgOpen] = useState(false);
+  const stories = useStories(sh.share, sh.keyQs);
+  /** story board: "inbox" = what is waiting for me; a person id = that person's stories */
+  const [stOpen, setStOpen] = useState<"inbox" | { person: string } | null>(null);
   const [see, setSee] = useState<{ person: string; tree: string; p: string; state?: { loading?: boolean; preview?: import("@/lib/connect").Preview; error?: string } } | null>(null);
   const seeLinked = (person: string, tree: string, p: string) => {
     setSee({ person, tree, p, state: { loading: true } });
@@ -234,8 +246,11 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
       const gotraHelp = goalId === "self_gotra" && nm && !nm.gotra && nm.flags.gotra ? `${gotraHelpMessage(lang)}\n\n` : "";
       const told = j.gate === "save" && !pausedTold.current ? `${pausedLine(lang)}\n\n` : "";
       if (told) pausedTold.current = true;
+      // a little before the pause: say once how many more people the AI helper will work for
+      const heads = !told && !headsTold.current && typeof j.left === "number" && j.left > 0 ? `${headsUpLine(lang, j.left)}\n\n` : "";
+      if (heads) headsTold.current = true;
       setAiPaused(j.gate === "save");
-      setMessages((m) => [...m, { id: uid(), role: "assistant", text: `${told}${gotraHelp}${j.reply}`, quick: j.quick, goalId: j.goal?.id as string | undefined, added: addedPeople(sent, next) }]);
+      setMessages((m) => [...m, { id: uid(), role: "assistant", text: `${told}${heads}${gotraHelp}${j.reply}`, quick: j.quick, goalId: j.goal?.id as string | undefined, added: addedPeople(sent, next) }]);
       setGoalId(j.goal?.id); setSection(j.goal?.section); setRepeats(j.repeats ?? 0); setPending(j.pending);
       if (j.ops > 0) setUndo((u) => [...u.slice(-14), snap]);
       if (ctx && j.ops > 0) setReplyCtx(null); // an answer that was not understood keeps the reply open
@@ -405,8 +420,10 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
         </div>
         {desktop ? (
           <>
+          {stories.total > 0 && <Button size="sm" variant="outline" onClick={() => setStOpen("inbox")} aria-label={`${stories.total} stories waiting for you`} className="relative"><BookHeart /> <span className="hidden sm:inline">Stories</span><span className="ml-0.5 rounded-full bg-terracotta px-1.5 text-xs font-semibold text-white">{stories.total}</span></Button>}
           {sg.list.length > 0 && <Button size="sm" variant="outline" onClick={() => setSgOpen(true)} aria-label={`${sg.list.length} suggested corrections`} className="relative"><MessageSquareWarning /> <span className="hidden sm:inline">Corrections</span><span className="ml-0.5 rounded-full bg-terracotta px-1.5 text-xs font-semibold text-white">{sg.list.length}</span></Button>}
           {people > 0 && <Button size="sm" variant="outline" onClick={() => { setInviteFor(undefined); setShareOpen(true); }} aria-label="Share"><Share2 /> <span className="hidden sm:inline">Share</span></Button>}
+          {people > 1 && <Button size="sm" variant="outline" onClick={() => setMapOpen(true)} aria-label="Where we are today: a map of where the family lives" className="hidden md:inline-flex"><Globe2 /> Map</Button>}
           {people > 1 && <Button size="sm" variant="outline" onClick={openMatches} aria-label="Families: connect trees through married women" className="relative hidden md:inline-flex"><GitMerge /> Families{cx.matches.length > 0 && <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-terracotta" aria-label="Possible matches found" />}</Button>}
           <Button size="sm" onClick={() => setExportOpen(true)} disabled={!data} aria-label="Download PDF"><Download /> <span className="hidden min-[400px]:inline">PDF</span></Button>
           {!isHelper && !inAccount && <Button size="icon" variant="ghost" onClick={() => setResetOpen(true)} aria-label="Start over"><RotateCcw /></Button>}
@@ -420,7 +437,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
                 ))}
               </div>
             )}
-            <HeaderMenu lang={lang} corrections={sg.list.length} onCorrections={() => setSgOpen(true)} onShare={people > 0 ? openShare : undefined} onPdf={data ? () => setExportOpen(true) : undefined} onReset={!isHelper && !inAccount ? () => setResetOpen(true) : undefined} />
+            <HeaderMenu lang={lang} corrections={sg.list.length} onCorrections={() => setSgOpen(true)} stories={stories.total} onStories={() => setStOpen("inbox")} onShare={people > 0 ? openShare : undefined} onPdf={data ? () => setExportOpen(true) : undefined} onMap={people > 1 ? () => setMapOpen(true) : undefined} onReset={!isHelper && !inAccount ? () => setResetOpen(true) : undefined} />
           </>
         )}
       </header>
@@ -465,13 +482,15 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
       <TreeMenu family={family} menu={menu} onClose={() => setMenu(null)} onChat={(kind, id) => replyTo(`${kind}:${id}`)} onEdit={(id) => { setRelFor(undefined); setSelected(id); }} onChange={(id) => { setRelFor(id); setSelected(id); }} />
       <PersonEditSheet family={family} personId={selected} openRelation={!!selected && relFor === selected} onChangeRelation={changeRel} onClose={() => { setSelected(undefined); setRelFor(undefined); }} onSave={saveEdit} onDelete={deletePerson} onCentre={(id) => tree.current?.centreOn(id)}
         onSeeLinked={seeLinked} bridgeHref={matchesProps.bridgeHref} hasMatch={!!selected && cx.matches.some((m) => m.person === selected)} onOpenMatches={openMatches}
-        onAdd={addRelative} canInvite={(sh.enabled === true || auth.enabled) && sh.share?.role !== "editor"} onInvite={(id) => { setInviteFor(id); setShareOpen(true); }} />
+        onStories={sh.share ? (id) => setStOpen({ person: id }) : undefined} onAdd={addRelative} canInvite={(sh.enabled === true || auth.enabled) && sh.share?.role !== "editor"} onInvite={(id) => { setInviteFor(id); setShareOpen(true); }} />
       {data && <ExportSheet open={exportOpen} onClose={() => setExportOpen(false)} data={data} template={template} defaultScope="all" viewUrl={sh.viewUrl || undefined} saveHref={auth.enabled && !sh.share ? `/login?next=${encodeURIComponent("/app?import=1")}` : undefined} />}
+      {mapOpen && <DiasporaMap family={family} hindi={lang === "hi"} onClose={() => setMapOpen(false)} />}
       <ShareSheet open={shareOpen} onClose={() => setShareOpen(false)} family={family} enabled={sh.enabled} share={sh.share} status={sh.status} members={sh.members} ownerLink={sh.ownerLink}
         invitePersonId={inviteFor} onCreate={sh.create} onInvite={sh.invite} onRevoke={sh.revoke} onRememberPhone={rememberPhone} onLeave={() => { sh.leave(); setShareOpen(false); }}
         onDeleteOnline={async () => { await sh.deleteOnline(); if (inAccount) router.replace("/app"); }}
         onLeaveTree={async () => { await sh.leaveTree(); router.replace("/app"); }}
-        viewUrl={sh.viewUrl} viewUrlFull={sh.viewUrlFull} viewOff={sh.viewOff} onViewLink={sh.viewLink} discoverable={sh.discoverable} onDiscoverable={sh.share?.role === "owner" ? sh.setDiscoverable : undefined} signInHref={auth.enabled && !sh.share ? "/app" : undefined} ownerName={family.persons.find((p) => p.is_me)?.name_roman ?? sh.share?.memberName} />
+        viewUrl={sh.viewUrl} viewUrlFull={sh.viewUrlFull} viewOff={sh.viewOff} onViewLink={sh.viewLink} viewPass={sh.viewPass} onViewPass={sh.share?.role === "owner" ? sh.setViewPass : undefined} discoverable={sh.discoverable} onDiscoverable={sh.share?.role === "owner" ? sh.setDiscoverable : undefined} signInHref={auth.enabled && !sh.share ? "/app" : undefined} ownerName={family.persons.find((p) => p.is_me)?.name_roman ?? sh.share?.memberName} />
+      <StoriesSheet open={stOpen !== null} onClose={() => setStOpen(null)} family={family} share={sh.share} qs={sh.keyQs} body={sh.keyBody} personId={stOpen && stOpen !== "inbox" ? stOpen.person : undefined} onChanged={stories.reload} />
       <SuggestionsSheet open={sgOpen} onClose={() => setSgOpen(false)} family={family} sg={sg} onEdit={(id) => { setRelFor(undefined); setSelected(id); }} />
       <Sheet open={!!see} onClose={() => setSee(null)} title="Her family in the other tree">
         <h2 className="font-display text-xl font-semibold">Her family in the other tree</h2>

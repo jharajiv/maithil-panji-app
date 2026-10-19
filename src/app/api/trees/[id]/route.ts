@@ -3,7 +3,7 @@ import { sanitizeFamily } from "@/lib/sanitize";
 import { getStore, syncAll, treeMeta } from "@/lib/store";
 import { accessFor, currentAccount, publicMember } from "@/lib/auth";
 import { clientIp, limited } from "@/lib/ratelimit";
-import { viewKey, viewState } from "@/lib/view";
+import { viewKey, viewPassOf, viewState } from "@/lib/view";
 import { keepLinks } from "@/lib/connect-server";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +27,7 @@ export async function GET(req: Request, { params }: Ctx) {
   const have = Number(url.searchParams.get("rev"));
   const vs = viewState(row);
   const owner = row.members.find((m) => m.role === "owner");
-  const base = { rev: row.rev, role: me.role, discoverable: owner?.discoverable === true, activity: me.role === "owner" ? (owner?.activity ?? []) : undefined, title: row.title, viewOff: vs.off, viewKey: vs.off ? "" : viewKey(row.id, "private", vs.epoch), viewKeyFull: me.role === "owner" && !vs.off ? viewKey(row.id, "full", vs.epoch) : undefined, member: { id: me.id, name: me.name, person_id: me.person_id }, members: me.role === "owner" ? publicMembers(row) : undefined };
+  const base = { rev: row.rev, role: me.role, discoverable: owner?.discoverable === true, activity: me.role === "owner" ? (owner?.activity ?? []) : undefined, title: row.title, viewOff: vs.off, viewPass: me.role === "owner" ? !!viewPassOf(row) : undefined, viewKey: vs.off ? "" : viewKey(row.id, "private", vs.epoch), viewKeyFull: me.role === "owner" && !vs.off ? viewKey(row.id, "full", vs.epoch) : undefined, member: { id: me.id, name: me.name, person_id: me.person_id }, members: me.role === "owner" ? publicMembers(row) : undefined };
   if (have && have === row.rev) return NextResponse.json({ ...base, unchanged: true });
   return NextResponse.json({ ...base, family: row.family });
 }

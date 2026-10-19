@@ -1,6 +1,6 @@
 // Minimal PostgREST look-alike (tables: trees, custom_refs) to exercise the Supabase adapter without a real project.
 import http from "node:http";
-const events = []; const trees = new Map(); const refs = new Map(); const persons = new Map(); let rels = []; const consents = []; const accounts = new Map(); const sessions = new Map(); const codes = new Map();
+const events = []; const trees = new Map(); const refs = new Map(); const persons = new Map(); let rels = []; const consents = []; const accounts = new Map(); const stories = new Map(); const sessions = new Map(); const codes = new Map();
 const srv = http.createServer(async (req, res) => {
   const u = new URL(req.url, "http://x");
   const chunks = []; for await (const c of req) chunks.push(c);
@@ -50,6 +50,13 @@ const srv = http.createServer(async (req, res) => {
     if (req.method === "POST") { sessions.set(body.token_hash, body); return send(201); }
     if (req.method === "GET") { const r = sessions.get(eq("token_hash")); return send(200, r ? [r] : []); }
     if (req.method === "DELETE") { if (eq("token_hash")) sessions.delete(eq("token_hash")); else for (const [k, v] of sessions) if (v.account_id === eq("account_id")) sessions.delete(k); return send(204); }
+  }
+  if (u.pathname === "/rest/v1/stories") {
+    if (req.method === "POST") { stories.set(body.id, { created_at: new Date().toISOString(), ...body }); return send(201); }
+    const mine = () => [...stories.values()].filter((x) => x.tree_id === eq("tree_id") && (!eq("person_id") || x.person_id === eq("person_id")) && (!eq("id") || x.id === eq("id")));
+    if (req.method === "GET") return send(200, mine().sort((a, b) => a.created_at.localeCompare(b.created_at)));
+    if (req.method === "PATCH") { const r = mine(); for (const x of r) Object.assign(x, body); return send(200, r); }
+    if (req.method === "DELETE") { const r = mine(); for (const x of r) stories.delete(x.id); return send(200, r); }
   }
   if (u.pathname === "/rest/v1/consents" && req.method === "POST") { consents.push(body); return send(201); }
   if (u.pathname === "/rest/v1/custom_refs") {

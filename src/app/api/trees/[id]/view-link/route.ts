@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getStore } from "@/lib/store";
 import { accessFor, currentAccount } from "@/lib/auth";
 import { clientIp, limited } from "@/lib/ratelimit";
-import { viewState } from "@/lib/view";
+import { hashPass, PASS_MAX, PASS_MIN, viewState } from "@/lib/view";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
  *  stop  → every view-only link and printed QR code for this tree stops working (the tree itself is untouched)
  *  renew → all earlier view-only links stop working, and new ones are made
  *  start → switch view-only links back on (they are the same links as before the last "stop")
+ *  password → { password } people who open a view-only link are asked for it first ("nopassword" removes it)
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const store = getStore();
@@ -25,6 +26,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (me.role !== "owner") return NextResponse.json({ error: "Only the owner can change the view links." }, { status: 403 });
   const st = viewState(row);
   const action = body.action;
+  if (action === "password" || action === "nopassword") {
+    const pw = typeof body.password === "string" ? body.password.trim() : "";
+    if (action === "password" && (pw.length < PASS_MIN || pw.length > PASS_MAX)) return NextResponse.json({ error: `The password needs ${PASS_MIN} to ${PASS_MAX} characters.` }, { status: 400 });
+    const mem = row.members.map((m) => { if (m.role !== "owner") return m; const { view_pass: _old, ...rest } = m; void _old; return action === "password" ? { ...rest, view_pass: hashPass(pw) } : rest; });
+    const done = await store.updateTree(id, row.rev, { members: mem }, false);
+    if (!done) return NextResponse.json({ error: "The tree changed at the same moment. Please try again." }, { status: 409 });
+    return NextResponse.json({ ok: true, pass: action === "password" });
+  }
   let next: { epoch: number; off: boolean };
   if (action === "stop") next = { epoch: st.epoch, off: true };
   else if (action === "start") next = { epoch: st.epoch, off: false };

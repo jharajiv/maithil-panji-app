@@ -11,7 +11,8 @@ import { DEVICE_RX } from "@/lib/device";
 import { authEnabled, currentAccount } from "@/lib/auth";
 import { logEvent } from "@/lib/events";
 import { watchBudget } from "@/lib/ai-budget";
-import { AI_FREE_PEOPLE } from "@/lib/save-prompt";
+import { AI_FREE_PEOPLE, aiPeopleLeft } from "@/lib/save-prompt";
+import { noteQuestion } from "@/lib/question-count";
 
 export const runtime = "nodejs";
 export const maxDuration = 45;
@@ -90,26 +91,33 @@ export async function POST(req: Request) {
   const named = family.persons.filter((p) => !p.placeholder).length;
   if (hasKey() && authEnabled() && !account && named >= AI_FREE_PEOPLE) {
     logEvent("ai_save_gate");
-    return NextResponse.json({ ...(await takeTurn(null, input)), gate: "save" });
+    const gated = await takeTurn(null, input);
+    noteQuestion(input.text, gated);
+    return NextResponse.json({ ...gated, gate: "save" });
   }
 
   // a day's limit per person/device (and a wider one per network) protects the AI budget; past it the simple reader carries on
   const perDevice = Number(process.env.CHAT_DAILY_LIMIT) || 150;
   const who = account ? `a:${account.id}` : DEVICE_RX.test(dev) ? dev : clientIp(req);
   const overLimit = hasKey() && (limited("chat-day-ip", clientIp(req), perDevice * 4, 24 * 3_600_000) || limited("chat-day", who, perDevice, 24 * 3_600_000));
-  if (overLimit) { logEvent("ai_day_limit"); return NextResponse.json({ ...(await takeTurn(null, input)), notice: "You have used today’s AI answers on this phone, so I switched to simple questions. They work just as well for your tree." }); }
+  if (overLimit) { logEvent("ai_day_limit"); const capped = await takeTurn(null, input); noteQuestion(input.text, capped); return NextResponse.json({ ...capped, notice: "You have used today’s AI answers on this phone, so I switched to simple questions. They work just as well for your tree." }); }
 
   if (hasKey()) {
     try {
       const client = new Anthropic({ timeout: 40_000, maxRetries: 1 });
-      const used = { calls: 0 };
+      const used: { calls: number; light?: number } = { calls: 0 };
       const out = await takeTurn({ client, model: MODEL, lightModel: LIGHT_MODEL, used }, input);
-      if (used.calls > 0) { logEvent("ai_turn"); await watchBudget(); } // counted only when the AI model was really called
-      return NextResponse.json(out);
+      if (used.calls > 0) { logEvent("ai_turn"); for (let i = 0; i < Math.min(used.calls, 12); i++) logEvent(i < (used.light ?? 0) ? "ai_call_light" : "ai_call"); await watchBudget(); } // counted only when the AI model was really called
+      noteQuestion(input.text, out);
+      // a tree that is not saved: say once, a little early, how many more people the AI helper will work for
+      const left = authEnabled() && !account ? aiPeopleLeft(out.family.persons.filter((p) => !p.placeholder).length) : null;
+      return NextResponse.json(left ? { ...out, left } : out);
     } catch (e) {
       console.error("AI turn failed, falling back to basic mode:", e instanceof Error ? e.message : e);
       return NextResponse.json({ ...(await takeTurn(null, input)), notice: "The AI assistant is unavailable right now, so I switched to simple questions." });
     }
   }
-  return NextResponse.json(await takeTurn(null, input));
+  const plain = await takeTurn(null, input);
+  noteQuestion(input.text, plain);
+  return NextResponse.json(plain);
 }

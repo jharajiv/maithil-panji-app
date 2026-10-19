@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PaagLogo } from "@/components/brand/Logo";
 import { NewsletterForm } from "./NewsletterForm";
+import { CommunityButton } from "./CommunityButton";
 import { contactEmail, ORG_LONG, ORG_NAME, SITE_DOMAIN } from "@/lib/site";
 
 /** footer for the public pages: who is behind the site, and where to read more */
@@ -10,6 +11,7 @@ export function SiteFooter({ dark }: { dark?: boolean }) {
   return (
     <footer className={`px-5 py-8 text-center text-sm ${dark ? "bg-indigo text-cream/70" : "border-t bg-secondary/40 text-muted-foreground"}`}>
       <NewsletterForm dark={dark} />
+      <div className="mb-6 flex justify-center"><CommunityButton onDark={dark} source="footer" /></div>
       <Link href="/about" aria-label={ORG_NAME} className="mb-2 inline-block"><PaagLogo height={36} onDark={dark} /></Link>
       <span className="sr-only">{ORG_NAME}</span>
       <p>{ORG_NAME} ({ORG_LONG}) · a community project for Maithil families</p>

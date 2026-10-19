@@ -1,46 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Camera, Crosshair, GitMerge, MessageCircle, Plus, Shuffle, Trash2 } from "lucide-react";
+import { BookHeart, Camera, Crosshair, GitMerge, MessageCircle, Plus, Shuffle, Trash2 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { fatherOf, labels, motherOf, RELATION_WORDS, spousesOf, type DFamily, type DPerson, type Gender, type PersonFields, type RelationSpec, type RelationWord } from "@/lib/family";
 import { romanToDevanagari } from "@/lib/translit";
 import { DateField, Label, NameField, PlaceField, SearchSelect, inputCls } from "./widgets";
-
-/** Largest photo we keep per person (characters of the data URL) — must stay below the server limit in lib/sanitize.ts. */
-export const MAX_PHOTO_CHARS = 70_000;
-
-async function decode(file: File): Promise<{ w: number; h: number; draw: (c: CanvasRenderingContext2D, w: number, h: number) => void }> {
-  try {
-    const bmp = await createImageBitmap(file);
-    return { w: bmp.width, h: bmp.height, draw: (c, w, h) => c.drawImage(bmp, 0, 0, w, h) };
-  } catch {
-    // some phones / browsers cannot decode certain formats with createImageBitmap — fall back to an <img>
-    const url = URL.createObjectURL(file);
-    try {
-      const img = await new Promise<HTMLImageElement>((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error("decode")); i.src = url; });
-      return { w: img.naturalWidth, h: img.naturalHeight, draw: (c, w, h) => c.drawImage(img, 0, 0, w, h) };
-    } finally { setTimeout(() => URL.revokeObjectURL(url), 5000); }
-  }
-}
-
-/** Downscale a picked photo to a small JPEG data URL, shrinking further until it is safely small to store and share. */
-async function shrink(file: File): Promise<string> {
-  const src = await decode(file);
-  if (!src.w || !src.h) throw new Error("empty");
-  for (const [max, q] of [[320, 0.82], [320, 0.7], [256, 0.7], [200, 0.65], [160, 0.6]] as const) {
-    const k = Math.min(1, max / Math.max(src.w, src.h));
-    const c = document.createElement("canvas");
-    c.width = Math.max(1, Math.round(src.w * k)); c.height = Math.max(1, Math.round(src.h * k));
-    const ctx = c.getContext("2d")!;
-    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
-    src.draw(ctx, c.width, c.height);
-    const url = c.toDataURL("image/jpeg", q);
-    if (url.length <= MAX_PHOTO_CHARS) return url;
-  }
-  throw new Error("too big");
-}
+import { shrink } from "@/lib/photo-client";
 
 /* eslint-disable-next-line @next/next/no-img-element */
 const PhotoImg = ({ src }: { src: string }) => <img src={src} alt="" className="size-full object-cover" />;
@@ -77,7 +44,7 @@ function relativeChoices(family: DFamily, p: DPerson): Rel[] {
   return out;
 }
 
-export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, onCentre, onAdd, canInvite, onInvite, openRelation, onChangeRelation, onSeeLinked, bridgeHref, hasMatch, onOpenMatches }: {
+export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, onCentre, onAdd, canInvite, onInvite, openRelation, onChangeRelation, onSeeLinked, bridgeHref, hasMatch, onOpenMatches, onStories }: {
   family: DFamily; personId?: string; onClose: () => void;
   onSave: (id: string, set: PersonFields) => void; onDelete: (id: string) => void; onCentre: (id: string) => void;
   onAdd: (toId: string, type: RelationSpec["type"], name: string, gender?: Gender) => void;
@@ -90,6 +57,8 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
   bridgeHref?: (tree: string) => string;
   /** a possible match for her exists in another tree */
   hasMatch?: boolean; onOpenMatches?: () => void;
+  /** open this person's story board (only when the tree is saved online) */
+  onStories?: (id: string) => void;
 }) {
   const person = family.persons.find((p) => p.id === personId);
   const [draft, setDraft] = useState<DPerson | undefined>(person);
@@ -146,6 +115,9 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
           onChange={(v) => set({ name_roman: v.roman, name_dev: v.dev, placeholder: false })} />
         <Seg label="Gender" value={draft.gender as Gender | undefined} onChange={(v) => set({ gender: v })} options={[{ v: "male", l: "Male" }, { v: "female", l: "Female" }]} />
         <DateField label="Born" value={draft.birth ?? ""} onChange={(v) => set({ birth: v })} />
+        {draft.status !== "deceased" && !draft.placeholder && !/^\d{4}-\d{2}-\d{2}$/.test(draft.birth ?? "") && (
+          <p className="-mt-3 rounded-lg bg-secondary/60 px-3 py-2 text-sm text-muted-foreground">With the full date of birth (day, month and year) you can get a birthday reminder for {draft.name_roman.split(" ")[0] || "this person"}. <span lang="hi">पूरी जन्मतिथि से जन्मदिन की याद मिलेगी।</span></p>
+        )}
         {!person.is_me && <Seg label="Living?" value={draft.status} onChange={(v) => set({ status: v })} options={[{ v: "living", l: "Living" }, { v: "deceased", l: "Passed away" }]} />}
         {draft.status === "deceased" && <DateField label="Passed away" helper="Year is enough." value={draft.death ?? ""} onChange={(v) => set({ death: v })} />}
         <PlaceField value={draft.place ?? ""} onChange={(v) => set({ place: v })} helper="Village, district and state where they live or lived — no street address needed." />
@@ -230,6 +202,12 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
               <p className="text-xs text-muted-foreground">Their old connections to parents and spouse are replaced by the new one. Children who have another parent stay with that parent.</p>
             </div>
           </details>
+        )}
+
+        {onStories && !person.placeholder && (
+          <button type="button" onClick={() => { onClose(); onStories(person.id); }} className="flex w-full items-center justify-center gap-2 rounded-xl border border-terracotta/40 bg-terracotta/5 px-4 py-3 text-sm font-medium text-terracotta">
+            <BookHeart className="size-5" /> Stories and photos of {person.name_roman.split(" ")[0]}
+          </button>
         )}
 
         {canInvite && !person.is_me && person.status !== "deceased" && (

@@ -63,4 +63,18 @@ const card = profileForOwner("Rajiv", "+919876543210", "r@x.in", { pravar: "P", 
 assert.equal(card.phone, undefined, "contact stays private unless shared");
 assert.equal(profileForOwner("Rajiv", "+919876543210", "r@x.in", { current_address: "12 Street" }, true).address, "12 Street");
 console.log("similar + profile OK");
-if (process.env.SHOW) console.log(JSON.stringify(m, null, 1));
+if (process.env.SHOW) /* profile extras (B-74): work, study, languages, hobbies, photo */
+{
+  const c = cleanProfile({ employer: " Tata  Steel ", education: "B.Sc.", languages: "Maithili, Hindi", hobbies: ["reading", "reading", " cricket ", "<b>", 5, "x".repeat(60)], photo: "data:image/jpeg;base64,AAAA" });
+  assert.equal(c.employer, "Tata Steel"); assert.equal(c.education, "B.Sc."); assert.equal(c.languages, "Maithili, Hindi");
+  assert.deepEqual(c.hobbies, ["reading", "cricket", "b", "x".repeat(30)], "deduplicated, trimmed, shortened, no markup characters");
+  assert.equal(c.photo, "data:image/jpeg;base64,AAAA");
+  assert.equal(cleanProfile({ photo: "data:text/html;base64,AAAA" }).photo, undefined, "only pictures");
+  assert.equal(cleanProfile({ photo: "data:image/jpeg;base64," + "A".repeat(80_000) }).photo, undefined, "too large");
+  assert.equal(cleanProfile({ hobbies: Array.from({ length: 30 }, (_, i) => "h" + i) }).hobbies?.length, 10);
+  const o = profileForOwner("Rohan", "+919800000000", "r@example.com", { ...c, hobbies: ["reading", "bhajan", "kite"], share_contact: false });
+  assert.equal(o.hobbies, "Reading, Bhajan and kirtan, kite"); assert.equal(o.employer, "Tata Steel"); assert.equal(o.photo, undefined, "no photo without sharing contact details");
+  assert.equal(profileForOwner("Rohan", undefined, "r@example.com", { ...c, share_contact: true }).photo, c.photo);
+}
+
+console.log(JSON.stringify(m, null, 1));

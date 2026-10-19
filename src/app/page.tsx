@@ -8,7 +8,9 @@ import { PatternBand } from "@/components/landing/Motif";
 import { AuthLink, StartLink } from "@/components/account/AuthLink";
 import { StickyStart } from "@/components/landing/StickyStart";
 import { SiteFooter } from "@/components/landing/SiteFooter";
+import { CommunityButton } from "@/components/landing/CommunityButton";
 import { ORG_NAME } from "@/lib/site";
+import { communityUrl } from "@/lib/community";
 import { PaagLogo } from "@/components/brand/Logo";
 import { ldJson } from "@/lib/jsonld";
 import { siteUrl } from "@/lib/site";
@@ -75,6 +77,24 @@ function Head({ label, title, text, id }: { label: string; title: string; text?:
       <h2 id={id} className="font-display mt-2 text-3xl font-semibold leading-tight text-indigo sm:text-4xl">{title}</h2>
       {text && <p className="mt-3 text-lg leading-relaxed text-muted-foreground">{text}</p>}
     </header>
+  );
+}
+
+/** a quiet band inviting visitors into the WhatsApp community; nothing is drawn when the link is not set */
+function CommunitySection() {
+  if (!communityUrl()) return null;
+  return (
+    <section className="mx-auto max-w-6xl px-5 py-14 sm:px-8" aria-labelledby="community">
+      <div className="grid items-center gap-6 rounded-2xl border bg-secondary/60 p-6 sm:p-8 md:grid-cols-[1.4fr_1fr]">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-terracotta">Our community <span lang="hi" className="tracking-normal">· हमारा समुदाय</span></p>
+          <h2 id="community" className="font-display mt-2 text-2xl font-semibold leading-tight text-indigo sm:text-3xl">Talk with other Maithil families</h2>
+          <p className="mt-3 text-base leading-relaxed text-muted-foreground">Ask how to find a mool, share what you have learned, and hear what others are recording. It is a friendly WhatsApp group run by {ORG_NAME}.</p>
+          <p lang="hi" className="mt-2 text-base text-muted-foreground">मूल कैसे ढूँढें, आपने क्या सीखा, दूसरे क्या दर्ज कर रहे हैं — सब बाँटिए।</p>
+        </div>
+        <div className="md:justify-self-end"><CommunityButton source="home" /></div>
+      </div>
+    </section>
   );
 }
 
@@ -189,6 +209,9 @@ export default function Home() {
         </ul>
         <p className="mt-6"><Link href="/safety" className="text-base font-semibold text-indigo underline underline-offset-4 hover:text-indigo/80">How we keep your family data safe <span lang="hi" className="font-medium">· हम डेटा कैसे सुरक्षित रखते हैं</span></Link></p>
       </section>
+
+      {/* Community (shown only once the WhatsApp link is set) */}
+      <CommunitySection />
 
       {/* Closing */}
       <section className="bg-indigo text-cream">

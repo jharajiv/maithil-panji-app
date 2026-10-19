@@ -1,5 +1,6 @@
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import type { DFamily, DPerson } from "./family";
+import { isLiving } from "./living";
 
 /**
  * The read-only "view" link — printed as a QR code on a downloaded tree, or shared on WhatsApp / social media.
@@ -25,6 +26,22 @@ export const viewState = (row: { members: { role: string; view_epoch?: number; v
   return { epoch: o?.view_epoch ?? 0, off: !!o?.view_off };
 };
 
+/** the optional password on a view link: only a salted hash is kept (on the owner's member record) */
+export const PASS_MIN = 4, PASS_MAX = 40;
+export function hashPass(pw: string): string {
+  const salt = randomBytes(12).toString("hex");
+  return `${salt}:${scryptSync(pw, salt, 32).toString("hex")}`;
+}
+export function checkPass(stored: string | undefined, pw: string | null | undefined): boolean {
+  if (!stored) return true; // no password set
+  if (!pw || pw.length > 200) return false;
+  const [salt, hash] = stored.split(":");
+  if (!salt || !hash) return false;
+  const got = scryptSync(pw, salt, 32), want = Buffer.from(hash, "hex");
+  return got.length === want.length && timingSafeEqual(got, want);
+}
+export const viewPassOf = (row: { members: { role: string; view_pass?: string }[] }) => row.members.find((m) => m.role === "owner")?.view_pass;
+
 const same = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
 /** which kind of link this key is — or null when it is not valid for this tree */
@@ -38,15 +55,6 @@ export function viewMode(treeId: string, key: string | null | undefined, st: Vie
 export const viewKeyOk = (treeId: string, key: string | null | undefined, st?: ViewState) => viewMode(treeId, key, st) !== null;
 
 const first = (s: string) => s.trim().split(/\s+/)[0] ?? s;
-
-/** someone who has not been recorded as passed away is treated as living — when in doubt, protect.
- *  The one exception: no status recorded and born 100+ years ago, so certainly not living. */
-const isLiving = (p: DPerson) => {
-  if (p.status === "deceased") return false;
-  if (p.status === "living") return true;
-  const year = Number(/^\d{4}/.exec(p.birth ?? "")?.[0]);
-  return !(year && year <= new Date().getFullYear() - 100);
-};
 
 /** what a visitor with the link may see */
 export function publicFamily(f: DFamily, mode: ViewMode = "private"): DFamily {
