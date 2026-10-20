@@ -13,6 +13,7 @@ import { logEvent } from "@/lib/events";
 import { watchBudget } from "@/lib/ai-budget";
 import { AI_FREE_PEOPLE, aiPeopleLeft } from "@/lib/save-prompt";
 import { noteQuestion } from "@/lib/question-count";
+import { turnSignals } from "@/lib/turn-signals";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -70,6 +71,9 @@ export async function POST(req: Request) {
   }
 }
 
+/** count what happened in this turn (anonymous; see turn-signals.ts) */
+const count = (input: Parameters<typeof turnSignals>[0], out: Parameters<typeof turnSignals>[1]) => { for (const e of turnSignals(input, out)) logEvent(e); };
+
 async function handle(req: Request) {
   if (limited("chat", clientIp(req), Number(process.env.CHAT_RATE_LIMIT) || 60)) return NextResponse.json({ error: "Too many messages. Please wait a few minutes." }, { status: 429 });
 
@@ -104,7 +108,7 @@ async function handle(req: Request) {
   if (hasKey() && authEnabled() && !account && named >= AI_FREE_PEOPLE) {
     logEvent("ai_save_gate");
     const gated = await takeTurn(null, input);
-    noteQuestion(input.text, gated);
+    noteQuestion(input.text, gated); count(input, gated);
     return NextResponse.json({ ...gated, gate: "save" });
   }
 
@@ -112,7 +116,7 @@ async function handle(req: Request) {
   const perDevice = Number(process.env.CHAT_DAILY_LIMIT) || 150;
   const who = account ? `a:${account.id}` : DEVICE_RX.test(dev) ? dev : clientIp(req);
   const overLimit = hasKey() && (limited("chat-day-ip", clientIp(req), perDevice * 4, 24 * 3_600_000) || limited("chat-day", who, perDevice, 24 * 3_600_000));
-  if (overLimit) { logEvent("ai_day_limit"); const capped = await takeTurn(null, input); noteQuestion(input.text, capped); return NextResponse.json({ ...capped, notice: "You have used today’s AI answers on this phone, so I switched to simple questions. They work just as well for your tree." }); }
+  if (overLimit) { logEvent("ai_day_limit"); const capped = await takeTurn(null, input); noteQuestion(input.text, capped); count(input, capped); return NextResponse.json({ ...capped, notice: "You have used today’s AI answers on this phone, so I switched to simple questions. They work just as well for your tree." }); }
 
   if (hasKey()) {
     try {
@@ -125,17 +129,19 @@ async function handle(req: Request) {
         new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("AI turn took too long")), AI_BUDGET_MS); }),
       ]).finally(() => clearTimeout(timer));
       if (used.calls > 0) { logEvent("ai_turn"); for (let i = 0; i < Math.min(used.calls, 12); i++) logEvent(i < (used.light ?? 0) ? "ai_call_light" : "ai_call"); await watchBudget(); void getStore()?.addAiCalls((used.rows ?? []).slice(0, 12)).catch(() => {}); } // counted only when the AI model was really called
-      noteQuestion(input.text, out);
+      noteQuestion(input.text, out); count(input, out);
       // a tree that is not saved: say once, a little early, how many more people the AI helper will work for
       const left = authEnabled() && !account ? aiPeopleLeft(out.family.persons.filter((p) => !p.placeholder).length) : null;
       return NextResponse.json(left ? { ...out, left } : out);
     } catch (e) {
       console.error("AI turn failed, falling back to basic mode:", e instanceof Error ? e.message : e);
       const slow = e instanceof Error && /took too long|timed? ?out/i.test(e.message);
-      return NextResponse.json({ ...(await takeTurn(null, input)), notice: slow ? "That took longer than expected, so nothing from it was saved and I used simple questions for this one. Please try again." : "The AI assistant is unavailable right now, so I switched to simple questions." });
+      logEvent(slow ? "ai_timeout" : "ai_error");
+      const fallback = await takeTurn(null, input); count(input, fallback);
+      return NextResponse.json({ ...fallback, notice: slow ? "That took longer than expected, so nothing from it was saved and I used simple questions for this one. Please try again." : "The AI assistant is unavailable right now, so I switched to simple questions." });
     }
   }
   const plain = await takeTurn(null, input);
-  noteQuestion(input.text, plain);
+  noteQuestion(input.text, plain); count(input, plain);
   return NextResponse.json(plain);
 }

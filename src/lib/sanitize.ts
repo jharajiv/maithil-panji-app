@@ -37,7 +37,7 @@ export function sanitizeFamily(raw: unknown, opts: { stored?: boolean } = {}): D
       for (const [k, v] of Object.entries(o.flags as Record<string, unknown>)) if (v === "done" || v === "unknown" || v === "skipped") (flags as Record<string, string>)[k] = v;
     }
     persons.push({
-      id, name_roman: s(o.name_roman, 80) ?? "", name_dev: s(o.name_dev, 80),
+      id, name_roman: s(o.name_roman, 80) ?? "", name_dev: s(o.name_dev, 80), nickname: s(o.nickname, 40),
       gender: o.gender === "male" || o.gender === "female" || o.gender === "other" ? o.gender : undefined,
       birth: s(o.birth, 10), death: s(o.death, 10), status: o.status === "living" || o.status === "deceased" ? o.status : undefined,
       place: s(o.place, 120), notes: s(o.notes, 200), married_to: s(o.married_to, 120),

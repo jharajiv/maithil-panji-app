@@ -51,5 +51,26 @@ class Client {
   assert.ok(!JSON.stringify(pth.body).includes("whatsapp"), "no contact details");
   assert.equal((await admin.call(`/api/admin/graph?op=path&from=a:b&to=c:d`)).body.found, false);
   assert.equal((await admin.call(`/api/admin/graph?op=nope`)).status, 400);
+  // review of typed gotra / mool spellings: map to a list entry, approve with a corrected spelling
+  const typed = applyOps(emptyFamily(), [
+    { op: "add_person", ref: "a", name_roman: "Typed Jha", gender: "male", is_me: true, gotra: { roman: "Kashayp", custom: true }, mool: { roman: "Zzmoolpur", dev: "ज़ज़मूलपुर", custom: true } },
+    { op: "add_person", ref: "b", name_roman: "Typed Son", gender: "male", relation: { type: "child_of", to: "a" } },
+  ]).family;
+  const tt = await admin.call("/api/trees", "POST", { family: typed }); assert.equal(tt.status, 200);
+  let qq = (await admin.call("/api/admin/queue")).body.newRefs as { kind: string; roman: string }[];
+  assert.ok(qq.some((x) => x.kind === "gotra" && x.roman === "Kashayp") && qq.some((x) => x.kind === "mool" && x.roman === "Zzmoolpur"));
+  assert.equal((await user.call("/api/admin/refs", "POST", { action: "approve", kind: "gotra", from: "Kashayp" })).status, 404, "admin only");
+  assert.equal((await admin.call("/api/admin/refs", "POST", { action: "map", kind: "gotra", from: "Kashayp", id: "no-such" })).status, 400);
+  const g = (await admin.call("/api/admin/refs", "POST", { action: "map", kind: "gotra", from: "Kashayp", id: "g03" })).body;
+  assert.equal(g.ok, true); assert.equal(g.people, 2); assert.ok(g.now.roman);
+  const m = (await admin.call("/api/admin/refs", "POST", { action: "approve", kind: "mool", from: "Zzmoolpur", roman: "Zzmoolpura", dev: "ज़ज़मूलपुरा" })).body;
+  assert.equal(m.ok, true); assert.equal(m.people, 2);
+  const after = (await admin.call(`/api/trees/${tt.body.id}`)).body.family.persons as { gotra?: { id?: string; custom?: boolean }; mool?: { roman: string; custom?: boolean; id?: string } }[];
+  assert.ok(after.every((p) => p.gotra?.id === "g03" && !p.gotra.custom), "mapped to the list entry");
+  assert.ok(after.every((p) => p.mool?.roman === "Zzmoolpura" && !p.mool.custom && p.mool.id === "x-mool-zzmoolpura"), "approved with the corrected spelling");
+  qq = (await admin.call("/api/admin/queue")).body.newRefs;
+  assert.ok(!qq.some((x) => x.roman === "Kashayp" || x.roman === "Zzmoolpur" || x.roman === "Zzmoolpura"), "no longer in the review list");
+  const offered = ((await (await fetch(BASE + "/api/refs")).json()) as { refs: { roman: string }[] }).refs.map((x) => x.roman);
+  assert.ok(offered.includes("Zzmoolpura") && !offered.includes("Zzmoolpur"), "approved spelling is offered, the typo is not");
   console.log("admin API OK");
 })().catch((e) => { console.error(e); process.exit(1); });

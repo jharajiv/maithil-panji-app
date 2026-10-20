@@ -385,7 +385,7 @@ export function describeFamily(f: DFamily, focus?: Set<string>, only = false): s
   return head0 + f.persons
     .filter((p) => !(big && only && !focus!.has(p.id)))
     .map((p) => {
-      const head = `${p.id} ${nm(p)}${p.name_dev ? ` (${p.name_dev})` : ""} — ${lab[p.id]}${p.is_me ? " [THE USER]" : ""}`;
+      const head = `${p.id} ${nm(p)}${p.nickname ? ` “${p.nickname}”` : ""}${p.name_dev ? ` (${p.name_dev})` : ""} — ${lab[p.id]}${p.is_me ? " [THE USER]" : ""}`;
       if (big && !focus!.has(p.id)) return head;
       const bits = [
         p.gender, p.birth && `b.${p.birth}`, p.status === "deceased" ? `d.${p.death ?? "?"}` : p.status === "living" ? "living" : "",

@@ -50,6 +50,8 @@ export interface TurnOutput {
   faq?: string;
   /** the chat left its questions to carry out a command: "ask" = waiting for yes/no to go back, "paused" = the person said not now */
   detour?: "ask" | "paused";
+  /** a question asked three times was skipped by the loop guard */
+  loopSkipped?: boolean;
 }
 
 export interface AgentDeps {
@@ -96,6 +98,7 @@ HOW TO INTERVIEW
 - Each reply: at most one short sentence acknowledging what you saved, then the NEXT QUESTION in your own words. Under about 60 words. Ask exactly one question.
 - If the user volunteers more than was asked (several siblings, a father's village…), save everything first, then ask the next open question.
 - Accept English, Hindi (Devanagari), Hinglish and relationship words (bhai, beti, kaka, kaki, nana, dadi…). Reply in the language the user used last. Whenever you add or rename a person, also fill name_dev with the Devanagari spelling when you are confident ("Jha" → झा).
+- Many people are called by a pet name at home (ḍāk nām, e.g. "Bunty", "Guddu") and by a formal name in documents. Save the FORMAL name as name_roman and the pet name as nickname; never replace one by the other, and never ask for a nickname yourself. "Rohan, we call him Bunty" → name_roman Rohan, nickname Bunty.
 - If something looks inconsistent (two fathers, death before birth, a mother and son the same age), ask once, politely, to confirm.
 - "skip", "don't know", "pata nahi", "yaad nahi": record that with set_flag (unknown or skipped) and move on without pushing.
 - Corrections ("his name is spelled…", "that is my uncle, not my brother"): fix with update_person / remove_person and confirm in a few words.
@@ -126,6 +129,7 @@ const refSchema = {
 const personFields = {
   name_roman: { type: "string" },
   name_dev: { type: "string", description: "Devanagari" },
+  nickname: { type: "string", description: "the pet name the family uses at home (ḍāk nām), when different from the formal name" },
   gender: { type: "string", enum: ["male", "female", "other"] },
   birth: { type: "string", description: "YYYY, YYYY-MM or YYYY-MM-DD" },
   death: { type: "string", description: "year or date; implies deceased" },
@@ -249,6 +253,7 @@ function cleanFields(o: Record<string, unknown>) {
   const out: Record<string, unknown> = {};
   const n = str(o.name_roman); if (n !== undefined) out.name_roman = n;
   const d = str(o.name_dev); if (d !== undefined) out.name_dev = d;
+  const nk = str(o.nickname, 40); if (nk !== undefined) out.nickname = nk;
   if (typeof o.gender === "string" && GENDERS.has(o.gender)) out.gender = o.gender;
   const b = yearish(o.birth); if (b) out.birth = b;
   const de = yearish(o.death); if (de) out.death = de;
@@ -334,6 +339,7 @@ export async function runTurn(deps: AgentDeps, input: TurnInput): Promise<TurnOu
   const sameGoalAsBefore = (g: Goal | null) => !!g && g.id === input.prevGoalId;
   let totalOps = 0;
   let offTopic = false;
+  let loopSkipped = false;
   const command = input.command === true;
   const expected = command ? null : expectedNext(family, lastGoal, input.text, input.pending);
 
@@ -426,7 +432,7 @@ export async function runTurn(deps: AgentDeps, input: TurnInput): Promise<TurnOu
         // loop guard: the same question has now been asked too many times → skip it and move on
         family = applyOps(family, g.skip).family;
         g = nextGoal(family);
-        repeats = 0;
+        repeats = 0; loopSkipped = true;
         results.push(err(sayUse.id, `The previous question was skipped automatically because it was asked several times. Do NOT repeat it. ${nextBlock(g)}\nNow call say again.`));
       } else if (!msg) {
         results.push(err(sayUse.id, "message was empty"));
@@ -446,5 +452,5 @@ export async function runTurn(deps: AgentDeps, input: TurnInput): Promise<TurnOu
   const goal = nextGoal(family);
   repeats = command ? (input.repeats ?? 0) : goal && sameGoalAsBefore(goal) ? repeats + 1 : 0;
   const reply = say?.message ?? (command ? "Sorry, I could not do that. Please say it once more in a few words." : goal ? `Sorry, I did not catch that. ${goal.question}` : "Thank you — your family tree is ready to review.");
-  return { family, reply, quick: say?.quick ?? (command ? [] : goal?.quick ?? []), goal, repeats, offTopic, ops: totalOps };
+  return { family, reply, quick: say?.quick ?? (command ? [] : goal?.quick ?? []), goal, repeats, offTopic, ops: totalOps, ...(loopSkipped ? { loopSkipped } : {}) };
 }

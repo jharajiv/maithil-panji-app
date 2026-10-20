@@ -52,6 +52,7 @@ export function PersonSheet({
           </p>
 
           <dl className="mt-3">
+            <Row k="Also known as" v={person.nickname} />
             <Row k="Gotra" v={person.gotra} />
             <Row k="Mool" v={person.mool} />
             <Row k="Pravara" v={person.pravara} />

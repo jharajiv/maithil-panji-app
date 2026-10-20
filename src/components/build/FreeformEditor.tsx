@@ -186,6 +186,7 @@ export function FreeformEditor({ open, onClose, family, onFamily, onEdit }: {
         style={{ borderLeftWidth: 7 }}>
         <div className="truncate text-[13px] font-bold leading-tight text-[#1f2a5c]">{p.placeholder ? "(name not known)" : p.name_roman}{p.is_me && <span className="ml-1.5 rounded-full bg-[#a63a1d] px-1.5 py-px align-middle text-[9px] font-bold text-white">YOU</span>}</div>
         {p.name_dev && !p.placeholder && <div lang="hi" className="truncate text-[12px] leading-tight text-[#1f2a5c]/80">{p.name_dev}</div>}
+        {p.nickname && !p.placeholder && <div className="truncate text-[11px] italic leading-tight text-[#a63a1d]">“{p.nickname}”</div>}
         <div className="truncate text-[10.5px] leading-tight text-[#1f2a5c]/65">{[female ? "woman" : "man", born && `b. ${born}`, !connectedIds.has(p.id) && family.persons.length > 1 ? "not connected yet" : ""].filter(Boolean).join(" · ")}</div>
       </div>
     );

@@ -65,8 +65,8 @@ export function publicFamily(f: DFamily, mode: ViewMode = "private"): DFamily {
       void _w; void _n; void _l;
       if (mode === "full" || !isLiving(p as DPerson)) return p as DPerson;
       // living relatives: first name only; nothing that could locate or identify them further
-      const { birth: _b, place: _pl, photo: _ph, married_to: _m, death: _d, ...rest } = p as DPerson;
-      void _b; void _pl; void _ph; void _m; void _d;
+      const { birth: _b, place: _pl, photo: _ph, married_to: _m, death: _d, nickname: _nn, ...rest } = p as DPerson;
+      void _b; void _pl; void _ph; void _m; void _d; void _nn;
       return { ...rest, name_roman: first(rest.name_roman), name_dev: rest.name_dev ? first(rest.name_dev) : rest.name_dev } as DPerson;
     }),
   };

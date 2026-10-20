@@ -11,6 +11,7 @@ export interface Person {
   person_id: string;
   name_roman: string;
   name_devanagari?: string;
+  nickname?: string;
   gender: Gender;
   dob?: string; // ISO, partial allowed ("1958" or "1958-03")
   dod?: string;

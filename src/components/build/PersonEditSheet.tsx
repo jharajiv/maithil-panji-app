@@ -82,7 +82,7 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
 
   const save = () => {
     onSave(person.id, {
-      name_roman: draft.name_roman, name_dev: draft.name_dev ?? "", gender: draft.gender, birth: draft.birth ?? "", death: draft.death ?? "",
+      name_roman: draft.name_roman, name_dev: draft.name_dev ?? "", nickname: draft.nickname ?? "", gender: draft.gender, birth: draft.birth ?? "", death: draft.death ?? "",
       status: person.is_me ? "living" : draft.status, place: draft.place ?? "", gotra: draft.gotra ?? null, mool: draft.mool ?? null, photo: draft.photo ?? null,
       ...(draft.gender === "female" ? { married_to: draft.married_to ?? "" } : {}),
     });
@@ -113,6 +113,12 @@ export function PersonEditSheet({ family, personId, onClose, onSave, onDelete, o
 
         <NameField label="Name" roman={draft.placeholder ? "" : draft.name_roman} dev={draft.name_dev ?? ""} devTouched={devTouched}
           onChange={(v) => set({ name_roman: v.roman, name_dev: v.dev, placeholder: false })} />
+        <div>
+          <Label htmlFor="nick">Nickname <span lang="hi" className="font-normal text-muted-foreground">· घर का नाम / डाक नाम</span></Label>
+          <input id="nick" className={inputCls} value={draft.nickname ?? ""} maxLength={40} autoComplete="off" autoCapitalize="words" placeholder="The name the family calls them at home"
+            onChange={(e) => set({ nickname: e.target.value })} />
+          <p className="mt-1 text-xs text-muted-foreground">Many people are known by a pet name at home and by the formal name in documents. Add both, so the family and other trees can recognise them.</p>
+        </div>
         <Seg label="Gender" value={draft.gender as Gender | undefined} onChange={(v) => set({ gender: v })} options={[{ v: "male", l: "Male" }, { v: "female", l: "Female" }]} />
         <DateField label="Born" value={draft.birth ?? ""} onChange={(v) => set({ birth: v })} />
         {draft.status !== "deceased" && !draft.placeholder && !/^\d{4}-\d{2}-\d{2}$/.test(draft.birth ?? "") && (

@@ -94,3 +94,17 @@ export function parseBulk(text: string): BulkChange | null {
   if (m) { const f = field(m[3]!); if (f) return { field: f, from: m[1]!.trim(), to: m[2]!.trim() }; }
   return null;
 }
+
+/**
+ * Review of a spelling people typed that is not in the Panji list: every person who has it (kind = gotra or mool, matched by spelling) is
+ * given the reviewed entry instead. `to` is a list entry (map) or the approved spelling (approve); it is no longer marked as "custom".
+ */
+export function remapRef(f: DFamily, kind: "gotra" | "mool", from: string, to: PanjiRef): { family: DFamily; count: number } {
+  const next = structuredClone(f);
+  let count = 0;
+  for (const p of next.persons) {
+    const cur = p[kind];
+    if (cur?.custom && fold(cur.roman) === fold(from)) { p[kind] = { id: to.id, roman: to.roman, dev: to.dev }; count++; }
+  }
+  return { family: count ? next : f, count };
+}

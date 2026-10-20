@@ -36,6 +36,13 @@ export async function GET(req: Request) {
     { id: "donate", label: "Voluntary contribution (UPI / card link)", ok: set("NEXT_PUBLIC_DONATE_UPI_ID") || set("NEXT_PUBLIC_DONATE_CARD_URL"), detail: set("NEXT_PUBLIC_DONATE_UPI_ID") || set("NEXT_PUBLIC_DONATE_CARD_URL") ? "on" : "off: nothing is asked" },
     { id: "wa", label: "WhatsApp community button", ok: !!communityUrl(), detail: communityUrl() ? "on" : set("NEXT_PUBLIC_WA_COMMUNITY_URL") ? "set, but not a WhatsApp invite link (it must start with https://chat.whatsapp.com/)" : "off" },
   ];
+  // a missed SQL section fails quietly: say which one
+  if (store?.kind === "supabase") {
+    let missing: { table: string; section: number; what: string }[] = [];
+    try { missing = await store.missingTables(); } catch { /* could not check */ }
+    const sections = [...new Set(missing.map((m) => m.section))].sort((a, b) => a - b);
+    checks.push({ id: "schema", label: "Database tables", ok: missing.length === 0, detail: missing.length ? `missing: ${missing.map((m) => `${m.table} (${m.what})`).join(", ")}. In Supabase → SQL editor run section${sections.length > 1 ? "s" : ""} ${sections.join(", ")} of supabase/schema.sql, then refresh.` : "every table and column the app needs is there" });
+  }
   if (isStaging()) checks.unshift({ id: "env", label: "This is the STAGING copy", ok: true, detail: `Search engines are told to stay away. Email goes only to: ${process.env.STAGING_MAIL_ALLOW?.trim() || "nobody (STAGING_MAIL_ALLOW is empty)"}`, extra: undefined });
   return NextResponse.json({ env: envName(), checks }, { headers: { "cache-control": "no-store" } });
 }

@@ -218,3 +218,18 @@ create table if not exists public.ai_calls (
 );
 create index if not exists ai_calls_at_idx on public.ai_calls (at);
 alter table public.ai_calls enable row level security;
+
+-- 12. CHAT FEEDBACK — "Was this helpful?" under chat answers. A row exists ONLY when the person pressed the thumbs-down and then
+--     chose "Send this to the team": the question they typed and the answer they got, plus an optional note. Nothing else is stored.
+--     Admin → Usage lists them so the chat can be improved; each can be deleted there. Safe to run again.
+create table if not exists public.chat_feedback (
+  id        bigserial primary key,
+  at        timestamptz not null default now(),
+  lang      text,
+  goal      text,           -- the kind of question that was open (for example "father")
+  user_text text,
+  bot_text  text,
+  note      text
+);
+create index if not exists chat_feedback_at_idx on public.chat_feedback (at);
+alter table public.chat_feedback enable row level security;

@@ -1,6 +1,6 @@
 // Minimal PostgREST look-alike (tables: trees, custom_refs) to exercise the Supabase adapter without a real project.
 import http from "node:http";
-const events = []; const trees = new Map(); const refs = new Map(); const persons = new Map(); let rels = []; const consents = []; const accounts = new Map(); const stories = new Map(); const aiCalls = []; const sessions = new Map(); const codes = new Map();
+const events = []; const trees = new Map(); const refs = new Map(); const persons = new Map(); let rels = []; const consents = []; const accounts = new Map(); const stories = new Map(); const aiCalls = []; const feedback = []; const sessions = new Map(); const codes = new Map();
 const srv = http.createServer(async (req, res) => {
   const u = new URL(req.url, "http://x");
   const chunks = []; for await (const c of req) chunks.push(c);
@@ -63,10 +63,15 @@ const srv = http.createServer(async (req, res) => {
     const since = (u.searchParams.get("at") ?? "").replace(/^gte\./, ""); const off = +(u.searchParams.get("offset") ?? 0); const lim = Math.min(+(u.searchParams.get("limit") ?? 1000), 1000);
     return send(200, aiCalls.filter((e) => !since || e.at >= since).slice(off, off + lim));
   }
+  if (u.pathname === "/rest/v1/chat_feedback") {
+    if (req.method === "POST") { feedback.push({ id: feedback.length + 1, at: new Date().toISOString(), ...body }); return send(201); }
+    if (req.method === "DELETE") { const id = +(u.searchParams.get("id") ?? "").replace(/^eq\./, ""); const i = feedback.findIndex((x) => x.id === id); if (i >= 0) feedback.splice(i, 1); return send(204); }
+    return send(200, [...feedback].reverse());
+  }
   if (u.pathname === "/rest/v1/consents" && req.method === "POST") { consents.push(body); return send(201); }
   if (u.pathname === "/rest/v1/custom_refs") {
-    if (req.method === "POST") { for (const r of body) { const k = r.kind + ":" + r.key; if (!refs.has(k)) refs.set(k, r); } return send(201); }
-    if (req.method === "GET") return send(200, [...refs.values()]);
+    if (req.method === "POST") { const merge = /merge-duplicates/.test(req.headers.prefer ?? ""); for (const r of body) { const k = r.kind + ":" + r.key; if (merge || !refs.has(k)) refs.set(k, { status: "new", ...r }); } return send(201); }
+    if (req.method === "GET") return send(200, [...refs.values()].filter((r) => !/status=neq\.rejected/.test(u.search) || r.status !== "rejected"));
   }
   if (u.pathname === "/rest/v1/events") {
     if (req.method === "POST") { events.push({ id: events.length + 1, name: body.name, at: new Date().toISOString() }); return send(201); }

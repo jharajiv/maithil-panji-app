@@ -36,7 +36,7 @@ export interface CombinePlan {
   delta: CombineDelta;
 }
 
-const FIELDS = ["name_dev", "gender", "birth", "death", "status", "place", "married_to", "notes", "photo"] as const;
+const FIELDS = ["name_dev", "nickname", "gender", "birth", "death", "status", "place", "married_to", "notes", "photo"] as const;
 const relKey = (r: DRel) => (r.type === "spouse_of" ? `s|${[r.a, r.b].sort().join("|")}` : `p|${r.a}|${r.b}`);
 const num = (id: string) => { const n = Number(id.replace(/^p/, "")); return Number.isFinite(n) ? n : 0; };
 const isReal = (p: DPerson) => !p.placeholder && !p.name_roman.startsWith("(");

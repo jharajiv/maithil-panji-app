@@ -39,5 +39,16 @@ import { getStore, newAccountId, newTreeId, treeMeta } from "../src/lib/store";
   assert.equal(calls.length, 12 + 99 * 12); assert.equal(calls.filter((c) => c.model === "claude-sonnet-4-5").length, 12);
   assert.equal(calls[0]!.cache_read, 900); assert.ok(!Number.isNaN(Date.parse(calls[0]!.at)));
   assert.deepEqual(await s.listAiCalls(new Date(Date.now() + 86_400_000).toISOString()), []);
+  // chat feedback: stored, newest first, deletable
+  await s.addFeedback({ lang: "en", goal: "father", user_text: "first", bot_text: "A?", note: undefined });
+  await s.addFeedback({ lang: "hi", goal: undefined, user_text: "second", bot_text: "B?", note: "n" });
+  const fb = await s.listFeedback(40);
+  assert.deepEqual(fb.map((f) => f.user_text), ["second", "first"]); assert.equal(fb[0]!.note, "n"); assert.ok(fb[0]!.id > fb[1]!.id && !Number.isNaN(Date.parse(fb[0]!.at)));
+  await s.deleteFeedback(fb[0]!.id);
+  assert.deepEqual((await s.listFeedback(40)).map((f) => f.user_text), ["first"]);
+  // the database check names the tables the mock does not have (and none that it has)
+  const missing = (await s.missingTables()).map((m) => m.table);
+  assert.ok(missing.includes("newsletter") && missing.includes("suggestions"), `missing: ${missing}`);
+  for (const have of ["trees", "ai_calls", "chat_feedback", "custom_refs", "events"]) assert.ok(!missing.includes(have), `${have} is there`);
   console.log("supabase adapter OK");
 })().catch((e) => { console.error(e); process.exit(1); });

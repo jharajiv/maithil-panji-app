@@ -28,6 +28,8 @@ export interface DPerson {
   id: string;
   name_roman: string;
   name_dev?: string;
+  /** the name the family actually uses at home (ḍāk nām / pet name), when it differs from the formal name used in documents */
+  nickname?: string;
   gender?: Gender;
   birth?: string; // "1958" or "1958-03-14"
   status?: "living" | "deceased";
@@ -72,7 +74,7 @@ export type RelationSpec = {
 };
 
 export type PersonFields = Partial<
-  Pick<DPerson, "name_roman" | "name_dev" | "gender" | "birth" | "status" | "death" | "place" | "notes" | "married_to">
+  Pick<DPerson, "name_roman" | "name_dev" | "nickname" | "gender" | "birth" | "status" | "death" | "place" | "notes" | "married_to">
 > & { gotra?: PanjiRef | null; mool?: PanjiRef | null; /** client-only (never from the AI) */ photo?: string | null; whatsapp?: string | null };
 
 export type Op =
@@ -185,6 +187,7 @@ function ensureFather(f: DFamily, anchor: DPerson): DPerson[] {
 function setFields(p: DPerson, s: PersonFields) {
   if (s.name_roman !== undefined) p.name_roman = clean(s.name_roman);
   if (s.name_dev !== undefined) p.name_dev = clean(s.name_dev) || undefined;
+  if (s.nickname !== undefined) p.nickname = clean(s.nickname).slice(0, 40) || undefined;
   if (s.gender) p.gender = s.gender;
   if (s.birth !== undefined) p.birth = clean(s.birth) || undefined;
   if (s.death !== undefined) p.death = clean(s.death) || undefined;
@@ -512,6 +515,7 @@ export function toFamilyData(raw: DFamily): FamilyData | null {
     person_id: p.id,
     name_roman: p.placeholder ? "Name not known" : p.name_roman,
     name_devanagari: p.placeholder ? undefined : p.name_dev,
+    nickname: p.placeholder ? undefined : p.nickname,
     gender: p.gender ?? "male",
     dob: p.birth,
     dod: p.death,

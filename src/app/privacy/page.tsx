@@ -8,7 +8,7 @@ import { ConsentChoice } from "@/components/ConsentChoice";
 
 export const metadata: Metadata = withSocial({ title: "Privacy — PAAG Foundation", description: "What PAAG Foundation keeps, who can see it, and how to have it removed.", alternates: { canonical: "/privacy" } }, "/privacy");
 
-const UPDATED = "12 October 2026";
+const UPDATED = "20 October 2026";
 const contact = process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim();
 
 function H({ children }: { children: React.ReactNode }) { return <h2 className="font-display mt-9 text-xl font-semibold text-indigo">{children}</h2>; }
@@ -33,6 +33,7 @@ export default function Privacy() {
             <li>वंशावली को सोशल मीडिया या WhatsApp पर दिखाने के लिए “सिर्फ़ देखने वाला” लिंक बनता है। उसमें कोई बदलाव या डाउनलोड नहीं कर सकता। शुरू से जीवित लोगों का सिर्फ़ पहला नाम दिखता है; जन्म-तिथि, गाँव और फ़ोटो छिपे रहते हैं।</li>
             <li>समाचार-पत्र (newsletter) तभी आता है जब आप खुद नाम लिखवाएँ और ईमेल में दिए लिंक से पक्का करें। हर ईमेल में “सदस्यता छोड़ें” का लिंक रहता है।</li>
             <li>सार्वजनिक पन्नों पर एक छोटा सवाल आ सकता है कि क्या हम Google Analytics से विज़िट गिन सकते हैं। “ठीक है” दबाने पर ही गिनती होती है; आपका नाम, ईमेल या वंशावली Google को कभी नहीं जाती। बाद में यहीं नीचे अपना चुनाव बदल सकते हैं।</li>
+            <li>चैट में हम सिर्फ़ गिनती रखते हैं: कौन-सा सवाल पूछा गया, कितनी बार चैट समझ नहीं पाई, 👍/👎 कितनी बार दबे। आपके शब्द, नाम या वंशावली इसमें नहीं होते। 👎 दबाने के बाद, सिर्फ़ आपकी हाँ पर, वही एक संदेश और उसका जवाब हमारी टीम को जाता है; टीम उसे सुधार के बाद मिटा देती है।</li>
             <li>आपकी वंशावली और खाते की जानकारी भारत (मुंबई) के डेटा सेंटर में रखी जाती है। सिर्फ़ चैट सहायक आपके उत्तर समझने के लिए एक AI सेवा (विदेश में) को भेजता है।</li>
             <li>आप चाहें तो परिवार के जन्मदिन की याद ईमेल से पा सकते हैं। यह तभी शुरू होता है जब आप खुद चालू करें, और ईमेल सिर्फ़ आपको जाता है।</li>
             <li>आप जब चाहें अपनी ऑनलाइन वंशावली मिटा सकते हैं (Share → “Delete online copy”)।</li>
@@ -62,6 +63,7 @@ export default function Privacy() {
           <li><strong>Your consent</strong> — we record that you agreed to the terms of sharing a family tree, and when.</li>
           <li><strong>Birthday reminders</strong> — only if you switch them on: that choice (on or off, and how early), the date you switched them on, and a short list of which reminders were already sent. Birth dates come from your own tree.</li>
           <li><strong>Simple usage counts</strong> — we count how often the sample tree is opened, trees are started and saved, PDFs are downloaded, share buttons are used, corrections are suggested, women are linked, owners are put in touch, and people sign in with Google. Each count is only a name and a time: no name, no tree, no IP address, no cookie.</li>
+          <li><strong>Chat counts and feedback</strong> — for each chat answer we count only the kind of question that was reached or skipped, whether the chat understood, whether a typed instruction was carried out, and how often 👍 or 👎 was pressed. These counts hold no words, no name, no tree and no way to tell who you are. If you press 👎, you are asked whether to send that one exchange (your message, the chat’s answer and an optional note) to our team so we can fix it. Nothing is sent unless you press “Send it”; your tree is never part of it, but the message may contain a name if you typed one. We read it, learn from it and delete it.</li>
           <li><strong>Roughly where you are</strong> — the country your connection comes from, used only to suggest a sensible contribution amount. It is not stored.</li>
         </L>
 

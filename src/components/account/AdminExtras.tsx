@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, Circle, Download, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { DupPair, NewRef, Queue, QSide } from "@/lib/admin-queue";
+import type { DupPair, NewRef, Quality, Queue, QSide } from "@/lib/admin-queue";
+import { plainRoman, searchGotras, searchMools } from "@/lib/lookup";
 
 interface Check { id: string; label: string; ok: boolean; detail: string; extra?: string }
 
@@ -87,15 +88,71 @@ function Dup({ d }: { d: DupPair }) {
 }
 
 function Refs({ list }: { list: NewRef[] }) {
+  const [gone, setGone] = useState<Record<string, string>>({});
+  const [open, setOpen] = useState<{ key: string; mode: "approve" | "map" } | null>(null);
+  const [roman, setRoman] = useState("");
+  const [dev, setDev] = useState("");
+  const [find, setFind] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const keyOf = (r: NewRef) => `${r.kind}:${r.roman}`;
+  const start = (r: NewRef, mode: "approve" | "map") => { setOpen({ key: keyOf(r), mode }); setRoman(r.roman); setDev(r.dev ?? ""); setFind(mode === "map" ? r.roman : ""); setErr(""); };
+  const sugg = (r: NewRef) => {
+    const q = find.trim();
+    if (q.length < 2) return [];
+    return (r.kind === "gotra" ? searchGotras(q) : searchMools(q)).slice(0, 5).map((h) => ({ id: h.item.id, roman: plainRoman(h.item.roman), dev: h.item.dev }));
+  };
+  const send = async (r: NewRef, body: Record<string, unknown>) => {
+    setBusy(true); setErr("");
+    try {
+      const res = await fetch("/api/admin/refs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: r.kind, from: r.roman, ...body }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error ?? "Could not save that.");
+      setGone((g) => ({ ...g, [keyOf(r)]: `${j.now?.roman ?? ""}${j.now?.dev ? ` (${j.now.dev})` : ""} · ${j.people} ${j.people === 1 ? "person" : "people"} in ${j.trees} ${j.trees === 1 ? "tree" : "trees"} updated${j.failed ? `, ${j.failed} could not be saved: press the button again` : ""}` }));
+      setOpen(null);
+    } catch (e) { setErr(e instanceof Error ? e.message : "Could not save that."); } finally { setBusy(false); }
+  };
   return (
     <ul className="divide-y text-sm">
-      {list.map((r) => (
-        <li key={`${r.kind}:${r.roman}`} className="flex items-baseline gap-2 py-1.5">
-          <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] font-semibold uppercase">{r.kind}</span>
-          <span className="font-medium">{r.roman}</span>{r.dev && <span lang="hi" className="text-muted-foreground">{r.dev}</span>}
-          <span className="ml-auto shrink-0 text-xs text-muted-foreground">{r.trees} tree{r.trees === 1 ? "" : "s"}</span>
-        </li>
-      ))}
+      {list.map((r) => {
+        const k = keyOf(r), done = gone[k], o = open?.key === k ? open : null;
+        return (
+          <li key={k} className="py-2">
+            <div className="flex flex-wrap items-baseline gap-2">
+              <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] font-semibold uppercase">{r.kind}</span>
+              <span className={`font-medium ${done ? "line-through opacity-60" : ""}`}>{r.roman}</span>{r.dev && <span lang="hi" className="text-muted-foreground">{r.dev}</span>}
+              <span className="ml-auto shrink-0 text-xs text-muted-foreground">{r.trees} tree{r.trees === 1 ? "" : "s"}</span>
+            </div>
+            {done ? <p className="mt-1 text-xs text-green-800">Done → {done}</p> : (
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                <Button size="sm" variant={o?.mode === "approve" ? "default" : "outline"} onClick={() => start(r, "approve")}>Approve (or correct the spelling)</Button>
+                <Button size="sm" variant={o?.mode === "map" ? "default" : "outline"} onClick={() => start(r, "map")}>Same as one in the list</Button>
+              </div>
+            )}
+            {o?.mode === "approve" && !done && (
+              <div className="mt-2 space-y-2 rounded-xl bg-secondary/60 p-3">
+                <p className="text-xs text-muted-foreground">This becomes a real {r.kind} that people are offered from now on. Change the spelling if it is not right; everybody who typed it gets the approved spelling.</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <input aria-label="Spelling in English letters" value={roman} onChange={(e) => setRoman(e.target.value)} maxLength={60} className="h-11 rounded-xl border bg-card px-3" />
+                  <input aria-label="Spelling in Devanagari" lang="hi" placeholder="देवनागरी" value={dev} onChange={(e) => setDev(e.target.value)} maxLength={60} className="h-11 rounded-xl border bg-card px-3" />
+                </div>
+                <Button size="sm" disabled={busy || !roman.trim()} onClick={() => send(r, { action: "approve", roman, dev })}>{busy ? "Saving…" : "Approve and update all trees"}</Button>
+              </div>
+            )}
+            {o?.mode === "map" && !done && (
+              <div className="mt-2 space-y-2 rounded-xl bg-secondary/60 p-3">
+                <p className="text-xs text-muted-foreground">Search the list and tap the entry this really is. Everybody who typed “{r.roman}” gets that entry.</p>
+                <input aria-label="Search the Panji list" value={find} onChange={(e) => setFind(e.target.value)} className="h-11 w-full rounded-xl border bg-card px-3" />
+                <div className="flex flex-wrap gap-2">
+                  {sugg(r).map((x) => <Button key={x.id} size="sm" variant="outline" disabled={busy} onClick={() => send(r, { action: "map", id: x.id })}>{x.roman}{x.dev ? ` (${x.dev})` : ""}</Button>)}
+                  {find.trim().length >= 2 && sugg(r).length === 0 && <span className="text-xs text-muted-foreground">Nothing in the list looks like that.</span>}
+                </div>
+              </div>
+            )}
+            {o && err && <p role="alert" className="mt-1 text-xs text-terracotta">{err}</p>}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -125,7 +182,7 @@ export function ActionQueue() {
         <div className="space-y-2">
           <h3 className="text-sm font-medium">New gotra and mool spellings to review ({q.newRefs.length})</h3>
           <Refs list={q.newRefs} />
-          <p className="text-xs text-muted-foreground">People typed these because they were not in the Panji list. Check them with a panjikar or an elder before adding them to the list.</p>
+          <p className="text-xs text-muted-foreground">People typed these because they were not in the Panji list. For each one, either approve it (correcting the spelling if needed) or say it is the same as an entry already in the list. Check with a panjikar or an elder when unsure. Nothing changes until you press a button.</p>
         </div>
       )}
       {q.usage && (
@@ -134,8 +191,13 @@ export function ActionQueue() {
           {q.usage.failed ? <p role="alert" className="text-sm text-terracotta">The counts could not be read just now. Try again in a minute.</p> : null}
           <table className={`w-full text-sm ${q.usage.failed ? "hidden" : ""}`}><tbody>{q.usage.rows.map((r) => <tr key={r.name} className="border-b last:border-0"><td className="py-1 pr-3">{r.label}</td><td className="py-1 text-right font-medium tabular-nums">{r.count}</td></tr>)}</tbody></table>
           {q.usage.unsaved && !q.usage.failed && (
-            <p className="rounded-lg bg-secondary/60 px-3 py-2 text-sm">Built in a browser, not saved: roughly <strong>{q.usage.unsaved.waiting}</strong> {q.usage.unsaved.waiting === 1 ? "tree" : "trees"} reached 3 people ({q.usage.unsaved.reached3} did, {q.usage.unsaved.saved} were saved); {q.usage.unsaved.reached8} reached 8 people and {q.usage.unsaved.finished} finished the questions. These are anonymous counts: we cannot see who they are or contact them, so the only way to reach them is the in-app “save your tree” reminder. Counting started with v12.1.</p>
+            q.usage.unsaved.reached3 + q.usage.unsaved.reached8 + q.usage.unsaved.finished > 0 ? (
+              <p className="rounded-lg bg-secondary/60 px-3 py-2 text-sm">Built in a browser, not saved: roughly <strong>{q.usage.unsaved.waiting}</strong> {q.usage.unsaved.waiting === 1 ? "tree" : "trees"} reached 3 people ({q.usage.unsaved.reached3} did, {q.usage.unsaved.saved} were saved); {q.usage.unsaved.reached8} reached 8 people and {q.usage.unsaved.finished} finished the questions. These are anonymous counts: we cannot see who they are or contact them, so the only way to reach them is the in-app “save your tree” reminder.</p>
+            ) : (
+              <p className="rounded-lg bg-secondary/60 px-3 py-2 text-sm">Built in a browser, not saved: <strong>none counted yet</strong>. These three counts started with v12.1: a browser is counted the next time someone opens the app with a tree of 3 people or more that is not saved (once per browser), so older unsaved trees appear only when their owners return. A rough pointer from the older counts: {q.usage.unsaved.started} {q.usage.unsaved.started === 1 ? "tree was" : "trees were"} started and {q.usage.unsaved.saved} saved in these {q.usage.days} days, but “started” counts a person each visit, so it overstates.</p>
+            )
           )}
+          {!q.usage.failed && <ChatHealth q={q.usage.quality} days={q.usage.days} />}
           {!q.usage.failed && <TokenTable t={q.usage.tokens} />}
           {q.usage.ai && !q.usage.failed && (
             <p className="rounded-lg bg-secondary/60 px-3 py-2 text-sm">AI cost check: <strong>{q.usage.ai.perAnswer}</strong> model calls per AI answer ({q.usage.ai.calls} calls for {q.usage.ai.answers} answers); <strong>{q.usage.ai.lightShare}%</strong> of the calls went to the small, cheaper model. Lower is better for the first number; the second should be well above 0 once people answer the brothers, sisters and children questions. Counting started with v12, so older days are not included.</p>
@@ -158,6 +220,82 @@ export function ActionQueue() {
           <p className="text-xs text-muted-foreground">If many families come through invitations, you can announce that the site is by invitation and switch on invite codes.</p>
         </div>
       )}
+    </section>
+  );
+}
+
+const rate = (a: number, of: number) => (of ? `${Math.round((1000 * a) / of) / 10}%` : "–");
+/** How the chat is doing, from anonymous counts of every turn: where people stop, how often it did not understand, how the commands and thumbs are used */
+function ChatHealth({ q, days }: { q?: Quality; days: number }) {
+  if (!q) return (
+    <div className="rounded-lg bg-secondary/60 px-3 py-2 text-sm">
+      <p className="font-medium">How the chat is doing</p>
+      <p className="text-muted-foreground">Nothing counted yet. Counting starts with the first chat answer after v12.3 is live. Only numbers are kept: never what people type, and never who they are.</p>
+    </div>
+  );
+  const max = Math.max(1, ...q.questions.map((x) => x.reached));
+  const stat = (k: string, v: string, hint: string) => <div key={k} className="rounded-xl border bg-background p-2.5"><div className="text-lg font-bold text-indigo">{v}</div><div className="text-xs font-medium">{k}</div><div className="text-[11px] leading-snug text-muted-foreground">{hint}</div></div>;
+  const paceRows = (label: string, list: { label: string; count: number }[]) => <div><div className="text-xs font-medium">{label}</div><ul className="text-sm">{list.map((r) => <li key={r.label} className="flex justify-between border-b py-0.5 last:border-0"><span>{r.label}</span><span className="font-medium tabular-nums">{r.count}</span></li>)}</ul></div>;
+  return (
+    <div className="space-y-3 rounded-lg bg-secondary/60 px-3 py-2 text-sm">
+      <p className="font-medium">How the chat is doing <span className="font-normal text-muted-foreground">· last {days} days, anonymous counts</span></p>
+      <p>{q.turns} chat answers. Look at these numbers once a week: find the question where people stop, or a share that keeps rising.</p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {stat("Did not understand", rate(q.fallback, q.turns), `${q.fallback} times (“Sorry, I did not catch that”). Lower is better.`)}
+        {stat("Question skipped", rate(q.loopSkip, q.turns), `${q.loopSkip} times a question was asked 3 times and skipped.`)}
+        {stat("Off-topic", rate(q.offTopic, q.turns), `${q.offTopic} messages that were not about the tree.`)}
+        {stat("AI slow or failed", String(q.timeouts + q.errors), `${q.timeouts} too slow, ${q.errors} errors; simple questions took over.`)}
+        {stat("Commands run", String(q.cmdRun), `${q.cmdYes} then went back to the questions, ${q.cmdNo} chose not to.`)}
+        {stat("👍 Helpful", String(q.up), "Thumbs up under a chat answer.")}
+        {stat("👎 Not helpful", String(q.down), `${q.shared} of them also sent the exchange to us.`)}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm"><thead><tr className="border-b text-xs text-muted-foreground"><th className="py-1 pr-2 text-left font-medium">Question (in the order asked)</th><th className="py-1 pl-2 text-right font-medium">Reached</th><th className="py-1 pl-2 text-right font-medium">Skipped</th></tr></thead>
+          <tbody>{q.questions.map((r) => <tr key={r.kind} className="border-b last:border-0"><td className="py-1 pr-2"><div>{r.label}</div><div className="mt-0.5 h-1 rounded bg-primary/25" style={{ width: `${Math.round((100 * r.reached) / max)}%` }} aria-hidden /></td><td className="py-1 pl-2 text-right tabular-nums">{r.reached}</td><td className="py-1 pl-2 text-right tabular-nums">{r.skipped ? <>{r.skipped}<span className="block text-xs text-muted-foreground">{rate(r.skipped, r.reached)}</span></> : 0}</td></tr>)}</tbody>
+        </table>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">{paceRows("Time from first answer to 3 people", q.pace.three)}{paceRows("Time from first answer to 8 people", q.pace.eight)}</div>
+      <p className="text-xs text-muted-foreground">“Reached” counts how many times the chat asked that question; a big drop between two neighbouring questions shows where people give up. “Skipped” is how often the reply was “skip” or “don’t know”. Pace counts each browser once. These are visits and taps, not different people.</p>
+    </div>
+  );
+}
+
+interface Fb { id: number; at: string; lang: string; goal: string | null; user_text: string; bot_text: string; note: string | null }
+/** Admin: exchanges people chose to send after a 👎 (only with their agreement). Read them, improve the chat, delete them. */
+export function FeedbackAdmin() {
+  const [list, setList] = useState<Fb[] | null>(null);
+  const [missing, setMissing] = useState(false);
+  const load = () => fetch("/api/admin/feedback", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (!j) return; setList(j.items ?? []); setMissing(!!j.missing); }).catch(() => {});
+  useEffect(() => { void load(); }, []);
+  if (!list && !missing) return null;
+  const del = async (id: number) => { await fetch(`/api/admin/feedback?id=${id}`, { method: "DELETE" }).catch(() => {}); await load(); };
+  return (
+    <section aria-label="Chat feedback" className="space-y-2 rounded-2xl border bg-card p-4">
+      <h2 className="font-semibold">Chat feedback <span className="text-sm font-normal text-muted-foreground">· shared by users after 👎</span></h2>
+      {missing ? <p className="rounded-xl bg-secondary p-3 text-sm">This list needs one more table. In Supabase → SQL editor, run section 12 of <code>supabase/schema.sql</code>. Thumbs are still counted meanwhile.</p>
+        : !list?.length ? <p className="text-sm text-muted-foreground">Nothing shared yet. Only people who press 👎 <em>and</em> agree to send the exchange appear here.</p>
+        : <ul className="space-y-2">{list.map((f) => (
+          <li key={f.id} className="rounded-xl border bg-background p-3 text-sm">
+            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground"><span>{ago(f.at)} · {f.lang === "hi" ? "Hindi" : "English"}{f.goal ? ` · question: ${f.goal}` : ""}</span><Button variant="ghost" size="sm" onClick={() => del(f.id)}>Delete</Button></div>
+            <p className="mt-1"><span className="font-medium">They wrote:</span> {f.user_text}</p>
+            <p className="mt-1"><span className="font-medium">The chat said:</span> {f.bot_text}</p>
+            {f.note && <p className="mt-1"><span className="font-medium">Their note:</span> {f.note}</p>}
+          </li>))}</ul>}
+      <p className="text-xs text-muted-foreground">Shown only because the person agreed to send it. There is no name or tree with it, but people sometimes type a name in their message, so delete each one once you have learned from it.</p>
+    </section>
+  );
+}
+
+/** Admin: a copy of everything, because the free database plan has no automatic backups */
+export function BackupAdmin() {
+  return (
+    <section aria-label="Backup" className="space-y-2 rounded-2xl border bg-card p-4">
+      <h2 className="font-semibold">Backup <span className="text-sm font-normal text-muted-foreground">· do this every week</span></h2>
+      <p className="text-sm text-muted-foreground">The free Supabase plan keeps no automatic backups. Press the first button once a week and keep the file somewhere safe (it holds every family’s data, so keep it private). The second is a spreadsheet of all people, to read or share with a panjikar. After you move to a paid plan, the database makes daily backups itself and this stays as an extra copy.</p>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild size="sm"><a href="/api/admin/export?kind=trees"><Download /> Download all trees (backup file)</a></Button>
+        <Button asChild variant="outline" size="sm"><a href="/api/admin/export?kind=people"><Download /> Download all people (spreadsheet)</a></Button>
+      </div>
     </section>
   );
 }

@@ -48,6 +48,16 @@ import { useShare } from "./useShare";
 import { useAccount } from "@/components/account/useAccount";
 
 const KEY = "maithil-panji.session.v1";
+/** when this browser answered its first question (for the "how long did it take" counts) */
+const T0_KEY = "maithil-panji.t0";
+const paceName = (n: 3 | 8): "pace3_10m" | "pace3_1h" | "pace3_1d" | "pace3_later" | "pace8_1h" | "pace8_1d" | "pace8_1w" | "pace8_later" | null => {
+  try {
+    const t0 = Number(localStorage.getItem(T0_KEY));
+    if (!t0) return null;
+    const m = (Date.now() - t0) / 60_000;
+    return n === 3 ? (m <= 10 ? "pace3_10m" : m <= 60 ? "pace3_1h" : m <= 1440 ? "pace3_1d" : "pace3_later") : (m <= 60 ? "pace8_1h" : m <= 1440 ? "pace8_1d" : m <= 10080 ? "pace8_1w" : "pace8_later");
+  } catch { return null; }
+};
 type Tab = "chat" | "tree" | "matches";
 interface Session { family: DFamily; messages: ChatMessage[]; goalId?: string; section?: string; repeats: number; template: TemplateId; pending?: Pending; detour?: "ask" | "paused" }
 
@@ -231,7 +241,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const send = useCallback(async (text: string, display?: string) => {
     const history = messages.slice(-10).map((m) => ({ role: m.role, content: m.text }));
     const ctx = replyCtx;
-    if (!messages.some((m) => m.role === "user")) track("tree_started", "session");
+    if (!messages.some((m) => m.role === "user")) { track("tree_started", "session"); try { if (!localStorage.getItem(T0_KEY)) localStorage.setItem(T0_KEY, String(Date.now())); } catch { /* ignore */ } }
     const snap: Snap = { family: famRef.current, messages, goalId, section, repeats, pending, detour };
     setMessages((m) => [...m, { id: uid(), role: "user", text: display ?? text, answeredGoal: ctx?.goalId ?? goalId, replyTo: ctx ? { author: ctx.author, quote: ctx.quote, msgId: ctx.msgId, mode: ctx.isList ? ctx.mode : undefined } : undefined }]);
     setBusy(true);
@@ -366,8 +376,8 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   // anonymous milestone counts for a tree that is not saved (once per browser), so the admin can see how many are waiting
   useEffect(() => {
     if (inAccount || isHelper || auth.loading || !auth.enabled || sh.share || people === 0) return;
-    if (people >= 3) track("tree_3_people", "browser");
-    if (people >= 8) track("tree_8_people", "browser");
+    if (people >= 3) { track("tree_3_people", "browser"); const n = paceName(3); if (n) track(n, "browser"); }
+    if (people >= 8) { track("tree_8_people", "browser"); const n = paceName(8); if (n) track(n, "browser"); }
     if (people > 0 && !nextGoal(family) && family.persons.some((p) => p.is_me)) track("tree_complete", "browser");
   }, [inAccount, isHelper, auth.loading, auth.enabled, sh.share, people, family]);
   if (inAccount && sh.status === "invalid") return (

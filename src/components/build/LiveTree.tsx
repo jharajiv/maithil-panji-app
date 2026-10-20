@@ -106,7 +106,7 @@ export const LiveTree = forwardRef<LiveTreeHandle, {
   const hits = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return [];
-    return family.persons.filter((p) => !p.placeholder && (p.name_roman.toLowerCase().includes(s) || (p.name_dev ?? "").includes(s))).slice(0, 8);
+    return family.persons.filter((p) => !p.placeholder && (p.name_roman.toLowerCase().includes(s) || (p.name_dev ?? "").includes(s) || (p.nickname ?? "").toLowerCase().includes(s))).slice(0, 8);
   }, [q, family.persons]);
 
   return (

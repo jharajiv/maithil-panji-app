@@ -20,9 +20,10 @@ import { getStore } from "./store";
  *  save_card_shown    the "save your tree" reminder was shown (once per visit)
  *  save_card_clicked  someone tapped "Save my tree" (on the reminder or in the header)
  *  community_clicked  someone tapped "Join our WhatsApp community"
+ *  pace3_* / pace8_*   how long a browser took from the first answer to 3 / 8 people (10 minutes, 1 hour, 1 day, 1 week, or later; once per browser)
  *  tree_3_people / tree_8_people / tree_complete   a tree that is NOT saved online reached 3 people, 8 people, or the end of the questions (counted once per browser)
  */
-export const EVENT_NAMES = ["sample_opened", "tree_started", "tree_saved", "pdf_downloaded", "share_clicked", "view_opened", "correction_suggested", "woman_linked", "tree_connect_requested", "tree_connect_accepted", "google_signin", "tree_combined", "newsletter_confirmed", "invite_shared", "tree_from_invite", "save_card_shown", "save_card_clicked", "community_clicked", "tree_3_people", "tree_8_people", "tree_complete"] as const;
+export const EVENT_NAMES = ["sample_opened", "tree_started", "tree_saved", "pdf_downloaded", "share_clicked", "view_opened", "correction_suggested", "woman_linked", "tree_connect_requested", "tree_connect_accepted", "google_signin", "tree_combined", "newsletter_confirmed", "invite_shared", "tree_from_invite", "save_card_shown", "save_card_clicked", "community_clicked", "tree_3_people", "tree_8_people", "tree_complete", "pace3_10m", "pace3_1h", "pace3_1d", "pace3_later", "pace8_1h", "pace8_1d", "pace8_1w", "pace8_later"] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 /**
  * Counts only the server writes (a browser can never post these, so they cannot be faked):
@@ -32,11 +33,15 @@ export type EventName = (typeof EVENT_NAMES)[number];
  *  ai_day_limit  the AI helper stepped aside because this device used its day's answers
  *  story_added   a family member added a photo or memory to a person on a tree
  *  story_approved  a waiting story was approved (by the person or on their behalf)
+ *  ai_timeout / ai_error   the AI took too long / failed, so the simple questions answered instead
+ *  chat_fallback   the chat did not understand a reply ("Sorry, I did not catch that"); chat_offtopic  an off-topic message; chat_loop_skip  a question asked three times and skipped
+ *  cmd_run / cmd_resume_yes / cmd_resume_no   a typed command was carried out; the person then chose to go back to the questions or not
+ *  fb_up / fb_down / fb_shared   thumbs under a chat answer; fb_shared = the person agreed to send that one exchange to the team
  *  ai_alert_70 / ai_alert_100   the "AI use today" email was sent (so it is sent once a day)
  */
-export const SERVER_EVENTS = ["ai_turn", "ai_call", "ai_call_light", "ai_save_gate", "ai_day_limit", "ai_alert_70", "ai_alert_100", "story_added", "story_approved"] as const;
+export const SERVER_EVENTS = ["ai_turn", "ai_call", "ai_call_light", "ai_save_gate", "ai_day_limit", "ai_alert_70", "ai_alert_100", "story_added", "story_approved", "ai_timeout", "ai_error", "chat_fallback", "chat_offtopic", "chat_loop_skip", "cmd_run", "cmd_resume_yes", "cmd_resume_no", "fb_up", "fb_down", "fb_shared"] as const;
 /** "faq:<id>" = the ready-made answer with that id was given; "faq_unanswered" = a typed question we had no answer for (never the words themselves) */
-export type ServerEvent = (typeof SERVER_EVENTS)[number] | "faq_unanswered" | `faq:${string}`;
+export type ServerEvent = (typeof SERVER_EVENTS)[number] | "faq_unanswered" | `faq:${string}` | `goal:${string}` | `skip:${string}`;
 export const isEvent = (n: unknown): n is EventName => typeof n === "string" && (EVENT_NAMES as readonly string[]).includes(n);
 
 /** best effort: counting must never break (or slow down) anything else */

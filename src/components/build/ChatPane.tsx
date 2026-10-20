@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Camera, CloudUpload, CornerUpLeft, ExternalLink, Loader2, MessageCircle, Mic, MicOff, Send, Share2, Undo2, X } from "lucide-react";
+import { Camera, CloudUpload, CornerUpLeft, ExternalLink, Loader2, MessageCircle, Mic, MicOff, Send, Share2, ThumbsDown, ThumbsUp, Undo2, X } from "lucide-react";
 import { DATE_PLACEHOLDER, DATE_PLACEHOLDER_HI, GOTRA_SOURCES, HINT, HINT_HI } from "@/lib/help";
 import type { SugSet } from "@/lib/chips";
 import type { Bundle, HAnswer } from "@/lib/household";
@@ -62,6 +62,47 @@ function Bubble({ m, onReply }: { m: ChatMessage; onReply: (m: ChatMessage) => v
         <span className="whitespace-pre-wrap">{m.text}</span>
       </div>
       {btn}
+    </div>
+  );
+}
+
+/** 👍 / 👎 under the newest chat answer. A thumb alone is only counted. After 👎 the person may send that one exchange (and a note) to the team: the words leave the phone only after they press "Send". */
+function Thumbs({ lang, msg, userText }: { lang: Lang; msg: ChatMessage; userText: string }) {
+  const [st, setSt] = useState<"ask" | "up" | "down" | "sending" | "sent" | "no" | "fail">("ask");
+  const [note, setNote] = useState("");
+  const hi = lang === "hi";
+  const post = (body: Record<string, unknown>) => fetch("/api/feedback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ lang, ...body }) }).then((r) => r.ok).catch(() => false);
+  const up = () => { setSt("up"); void post({ helpful: true }); };
+  const down = () => { setSt("down"); void post({ helpful: false }); };
+  const send = async () => {
+    setSt("sending");
+    const ok = await post({ helpful: false, share: true, goal: msg.goalId?.split(":")[0], user_text: userText, bot_text: msg.text, note });
+    setSt(ok ? "sent" : "fail");
+  };
+  const btn = "inline-flex size-10 items-center justify-center rounded-full border text-muted-foreground hover:bg-secondary";
+  return (
+    <div className="pl-1 text-[14px] text-muted-foreground" data-testid="chat-thumbs" lang={hi ? "hi" : undefined}>
+      {st === "ask" && (
+        <div className="flex items-center gap-2"><span>{hi ? "क्या यह जवाब काम का था?" : "Was this answer helpful?"}</span>
+          <button type="button" onClick={up} aria-label={hi ? "हाँ, काम का था" : "Yes, helpful"} className={btn}><ThumbsUp className="size-[18px]" /></button>
+          <button type="button" onClick={down} aria-label={hi ? "नहीं, काम का नहीं था" : "No, not helpful"} className={btn}><ThumbsDown className="size-[18px]" /></button>
+        </div>
+      )}
+      {st === "up" && <p>{hi ? "धन्यवाद!" : "Thank you!"}</p>}
+      {(st === "down" || st === "sending" || st === "fail") && (
+        <div className="space-y-2 rounded-xl border bg-card p-3">
+          <p className="text-foreground">{hi ? "माफ़ कीजिए। क्या आप यह बातचीत (आपका संदेश और यह जवाब) हमारी टीम को भेजना चाहेंगे ताकि हम इसे सुधार सकें? आपकी वंशावली नहीं जाएगी; केवल यही संदेश और जवाब जाएगा (संदेश में कोई नाम हो तो वह भी)।" : "Sorry about that. May we see this one exchange (your message and this answer) so we can fix it? Your tree is not sent, only these two messages (including any name you typed in yours)."}</p>
+          <label className="block"><span className="sr-only">{hi ? "अपनी बात (वैकल्पिक)" : "Your note (optional)"}</span>
+            <input value={note} onChange={(e) => setNote(e.target.value.slice(0, 400))} placeholder={hi ? "क्या गड़बड़ थी? (वैकल्पिक)" : "What went wrong? (optional)"} className="h-11 w-full rounded-lg border bg-background px-3 text-[16px] text-foreground" /></label>
+          {st === "fail" && <p role="alert" className="text-terracotta">{hi ? "भेज नहीं पाए। कृपया फिर कोशिश कीजिए।" : "Could not send. Please try again."}</p>}
+          <div className="flex gap-2">
+            <button type="button" disabled={st === "sending"} onClick={send} className="h-11 rounded-lg bg-primary px-4 text-[15px] font-medium text-primary-foreground disabled:opacity-50">{hi ? "भेजिए" : "Send it"}</button>
+            <button type="button" onClick={() => setSt("no")} className="h-11 rounded-lg border px-4 text-[15px] font-medium">{hi ? "नहीं, रहने दीजिए" : "No thanks"}</button>
+          </div>
+        </div>
+      )}
+      {st === "sent" && <p>{hi ? "भेज दिया। धन्यवाद, इससे हमें सुधारने में मदद मिलेगी।" : "Sent. Thank you, this helps us improve."}</p>}
+      {st === "no" && <p>{hi ? "ठीक है, कुछ नहीं भेजा गया। धन्यवाद।" : "Okay, nothing was sent. Thank you."}</p>}
     </div>
   );
 }
@@ -342,9 +383,10 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
         </div>
       )}
       <div ref={log} className={cn("min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4", phone ? "py-3" : "py-4")} role="log" aria-live="polite">
-        {messages.map((m) => (
+        {messages.map((m, i) => (
           <div key={m.id} className="space-y-1.5">
             <Bubble m={m} onReply={(x) => onReply?.(x)} />
+            {m.id === last?.id && m.role === "assistant" && !busy && !reply && i > 0 && messages[i - 1]!.role === "user" && <Thumbs key={m.id} lang={lang} msg={m} userText={messages[i - 1]!.text} />}
             {!!m.added?.length && onSeeInTree && (
               <div className="flex flex-wrap gap-1.5 pl-1">
                 {(m.added.length > 3 ? [{ id: m.added[0]!.id, text: lang === "hi" ? `${m.added.length} लोग जोड़े गए` : `Added ${m.added.length} people` }] : m.added.map((a) => ({ id: a.id, text: lang === "hi" ? `${a.name} — ${hiRel(a.role)}` : a.role === "you" ? `Added ${a.name} (you)` : `Added ${a.name} — ${a.role}` }))).map((a) => (

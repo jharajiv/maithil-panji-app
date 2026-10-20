@@ -4,6 +4,7 @@
  *  - a JSON file in .data/ for local development (never in production — Vercel's disk is read-only).
  * Without either, sharing is "not configured" and the app keeps working on the device only.
  */
+import { SCHEMA_NEEDS } from "./schema-check";
 import { createHash, randomBytes } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -59,7 +60,11 @@ export interface ConsentRow { tree_id: string; member_id: string; kind: string; 
 export interface Subscriber { email: string; status: "pending" | "confirmed" | "unsubscribed"; lang: "en" | "hi"; source: string; created_at: string; last_sent_at?: string; confirmed_at?: string; unsubscribed_at?: string }
 /** the tokens one call to an AI model used (no text, no person: only numbers) */
 export interface AiCall { at: string; model: string; kind: string; input: number; cache_write: number; cache_read: number; output: number }
-export interface RefRow { kind: "gotra" | "mool"; key: string; roman: string; dev?: string }
+/** one exchange a person chose to send to the team after a thumbs-down (see /api/feedback) */
+export interface FeedbackRow { id: number; at: string; lang?: string; goal?: string; user_text?: string; bot_text?: string; note?: string }
+export interface RefRow { kind: "gotra" | "mool"; key: string; roman: string; dev?: string; /** new (default) | approved | rejected */ status?: "new" | "approved" | "rejected" }
+/** the key a typed gotra / mool is stored under */
+export const refKey = (roman: string) => roman.toLowerCase().replace(/[^a-z0-9ऀ-ॿ]+/g, "-").slice(0, 60);
 
 export interface Store {
   kind: "supabase" | "file";
@@ -87,6 +92,8 @@ export interface Store {
   /** trees this account has joined */
   listTreesFor(accountId: string): Promise<TreeSummary[]>;
   addRefs(refs: RefRow[]): Promise<void>;
+  /** the Panji team's decision on one entry: creates or replaces it (status approved or rejected) */
+  reviewRef(row: RefRow & { status: "approved" | "rejected" }): Promise<void>;
   listRefs(): Promise<RefRow[]>;
   /** rebuild the flat people/relations rows of a tree from its family (best effort; the JSON copy is the source of truth) */
   syncPeople(treeId: string, family: DFamily): Promise<void>;
@@ -114,6 +121,11 @@ export interface Store {
   /** how often each usage count happened since a time (for the admin page) */
   countEvents(sinceIso: string): Promise<Record<string, number>>;
   /** token counts of AI calls (for the admin page) */
+  addFeedback(row: Omit<FeedbackRow, "id" | "at">): Promise<void>;
+  listFeedback(limit?: number): Promise<FeedbackRow[]>;
+  deleteFeedback(id: number): Promise<void>;
+  /** the tables and columns the app needs that this database does not have yet: [{ table, section, what }] */
+  missingTables(): Promise<{ table: string; section: number; what: string }[]>;
   addAiCalls(rows: Omit<AiCall, "at">[]): Promise<void>;
   listAiCalls(sinceIso: string): Promise<AiCall[]>;
   /* newsletter */
@@ -188,6 +200,9 @@ function supabase(url: string, key: string): Store {
       if (!refs.length) return;
       await call("custom_refs?on_conflict=kind,key", { method: "POST", body: JSON.stringify(refs), prefer: "resolution=ignore-duplicates,return=minimal" });
     },
+    async reviewRef(row) {
+      await call("custom_refs?on_conflict=kind,key", { method: "POST", body: JSON.stringify([{ kind: row.kind, key: row.key, roman: row.roman, dev: row.dev ?? null, status: row.status }]), prefer: "resolution=merge-duplicates,return=minimal" });
+    },
     async listRefs() { return (await call("custom_refs?select=kind,key,roman,dev&status=neq.rejected&order=seen_at.desc&limit=500")) as RefRow[]; },
     async findWomen(prefixes, limit = 600) {
       const ps = [...new Set(prefixes.map((x) => x.replace(/[^A-Za-z]/g, "").slice(0, 3)).filter(Boolean))].slice(0, 8);
@@ -215,6 +230,14 @@ function supabase(url: string, key: string): Store {
         for (const r of rows) out[r.name] = (out[r.name] ?? 0) + 1;
         if (rows.length < 1000) break;
       }
+      return out;
+    },
+    async addFeedback(row) { await call("chat_feedback", { method: "POST", body: JSON.stringify(row), prefer: "return=minimal" }); },
+    async listFeedback(limit = 40) { return (await call(`chat_feedback?select=id,at,lang,goal,user_text,bot_text,note&order=at.desc&limit=${Math.min(100, limit)}`)) as FeedbackRow[]; },
+    async deleteFeedback(id) { await call(`chat_feedback?id=eq.${Math.floor(id)}`, { method: "DELETE", prefer: "return=minimal" }); },
+    async missingTables() {
+      const out: { table: string; section: number; what: string }[] = [];
+      for (const n of SCHEMA_NEEDS) { try { await call(`${n.table}?select=${n.select}&limit=1`); } catch { out.push({ table: n.table, section: n.section, what: n.what }); } }
       return out;
     },
     async addAiCalls(rows) { if (rows.length) await call("ai_calls", { method: "POST", body: JSON.stringify(rows.map((r) => ({ ...r, at: new Date().toISOString() }))), prefer: "return=minimal" }); },
@@ -265,7 +288,7 @@ function supabase(url: string, key: string): Store {
 function file(): Store {
   const dir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(process.cwd(), ".data"); // DATA_DIR: keep the dev file outside the project so editing/testing never makes the dev server recompile
   const f = path.join(dir, "store.json");
-  type Db = { ai_calls?: AiCall[]; stories?: Story[]; suggestions?: Suggestion[]; events?: { name: string; at: string }[]; subscribers?: Subscriber[]; trees: Record<string, TreeRow>; refs: Record<string, RefRow>; persons?: PersonRow[]; rels?: RelRow[]; consents?: ConsentRow[]; accounts?: AccountRow[]; sessions?: SessionRow[]; codes?: LoginCode[] };
+  type Db = { feedback?: FeedbackRow[]; ai_calls?: AiCall[]; stories?: Story[]; suggestions?: Suggestion[]; events?: { name: string; at: string }[]; subscribers?: Subscriber[]; trees: Record<string, TreeRow>; refs: Record<string, RefRow>; persons?: PersonRow[]; rels?: RelRow[]; consents?: ConsentRow[]; accounts?: AccountRow[]; sessions?: SessionRow[]; codes?: LoginCode[] };
   const read = async (): Promise<Db> => { try { return JSON.parse(await fs.readFile(f, "utf8")) as Db; } catch { return { trees: {}, refs: {} }; } };
   const write = async (db: Db) => { await fs.mkdir(dir, { recursive: true }); const tmp = `${f}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`; await fs.writeFile(tmp, JSON.stringify(db)); await fs.rename(tmp, f); }; // atomic: a reader never sees half a file
   let chain: Promise<unknown> = Promise.resolve();
@@ -304,7 +327,8 @@ function file(): Store {
       .filter((t) => t.members.some((m) => m.account_id === accountId))
       .map(({ id, title, people_count, members, updated_at }) => ({ id, title, people_count, members, updated_at })))),
     addRefs: (refs) => lock(async () => { const db = await read(); for (const r of refs) db.refs[`${r.kind}:${r.key}`] ??= r; await write(db); }),
-    listRefs: () => lock(async () => Object.values((await read()).refs)),
+    reviewRef: (row) => lock(async () => { const db = await read(); db.refs[`${row.kind}:${row.key}`] = { ...row }; await write(db); }),
+    listRefs: () => lock(async () => Object.values((await read()).refs).filter((r) => r.status !== "rejected")),
     findWomen: (prefixes, limit = 600) => lock(async () => {
       const ps = [...new Set(prefixes.map((x) => x.replace(/[^A-Za-z]/g, "").slice(0, 3).toLowerCase()).filter(Boolean))];
       if (!ps.length) return [];
@@ -322,6 +346,10 @@ function file(): Store {
     resolveSuggestion: (treeId, id, status) => lock(async () => { const db = await read(); const s = db.suggestions?.find((x) => x.tree_id === treeId && x.id === id); if (!s) return false; s.status = status; await write(db); return true; }),
     addEvent: (name) => lock(async () => { const db = await read(); db.events = [...(db.events ?? []).slice(-4999), { name, at: new Date().toISOString() }]; await write(db); }),
     countEvents: (sinceIso) => lock(async () => { const out: Record<string, number> = {}; for (const e of (await read()).events ?? []) if (e.at >= sinceIso) out[e.name] = (out[e.name] ?? 0) + 1; return out; }),
+    addFeedback: (row) => lock(async () => { const db = await read(); const list = db.feedback ?? []; db.feedback = [...list, { ...row, id: (list[list.length - 1]?.id ?? 0) + 1, at: new Date().toISOString() }].slice(-500); await write(db); }),
+    listFeedback: (limit = 40) => lock(async () => [...((await read()).feedback ?? [])].reverse().slice(0, Math.min(100, limit))),
+    deleteFeedback: (id) => lock(async () => { const db = await read(); db.feedback = (db.feedback ?? []).filter((x) => x.id !== id); await write(db); }),
+    missingTables: async () => [],
     addAiCalls: (rows) => lock(async () => { if (!rows.length) return; const db = await read(); const at = new Date().toISOString(); db.ai_calls = [...(db.ai_calls ?? []), ...rows.map((r) => ({ ...r, at }))].slice(-20000); await write(db); }),
     listAiCalls: (sinceIso) => lock(async () => ((await read()).ai_calls ?? []).filter((x) => x.at >= sinceIso)),
     getSubscriber: (email) => lock(async () => (await read()).subscribers?.find((x) => x.email === email) ?? null),
@@ -390,7 +418,7 @@ export function customRefs(f: DFamily): RefRow[] {
     for (const kind of ["gotra", "mool"] as const) {
       const r = p[kind];
       if (r?.custom && r.roman.trim()) {
-        const key = r.roman.toLowerCase().replace(/[^a-z0-9ऀ-ॿ]+/g, "-").slice(0, 60);
+        const key = refKey(r.roman);
         if (key) out.set(`${kind}:${key}`, { kind, key, roman: r.roman.trim().slice(0, 60), dev: r.dev?.slice(0, 60) });
       }
     }

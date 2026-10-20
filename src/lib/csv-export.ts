@@ -12,8 +12,8 @@ export function familyCsv(data: FamilyData): string {
     else if (r.type === "spouse_of") { (spouses.get(a) ?? spouses.set(a, []).get(a)!).push(b); (spouses.get(b) ?? spouses.set(b, []).get(b)!).push(a); }
   }
   const names = (ids: string[] | undefined, g?: "male" | "female") => (ids ?? []).map((i) => by.get(i)).filter((p) => p && (!g || (g === "male" ? p.gender === "male" : p.gender !== "male"))).map((p) => p!.name_roman).join(" / ");
-  const head = ["No.", "Name", "Name (Devanagari)", "Gender", "Born", "Died", "Living", "Village / place", "Gotra", "Mool", "Father", "Mother", "Spouse", "Husband (if a daughter)", "Notes"];
-  const rows = data.persons.map((p, i) => [i + 1, p.name_roman, p.name_devanagari ?? "", p.gender, p.dob ?? "", p.dod ?? "", p.is_living ? "yes" : "no", p.current_village ?? "", p.gotra ?? "", p.mool ?? "", names(parents.get(p.person_id), "male"), names(parents.get(p.person_id), "female"), names(spouses.get(p.person_id)), p.married_to ?? "", p.notes ?? ""]);
+  const head = ["No.", "Name", "Name (Devanagari)", "Nickname", "Gender", "Born", "Died", "Living", "Village / place", "Gotra", "Mool", "Father", "Mother", "Spouse", "Husband (if a daughter)", "Notes"];
+  const rows = data.persons.map((p, i) => [i + 1, p.name_roman, p.name_devanagari ?? "", p.nickname ?? "", p.gender, p.dob ?? "", p.dod ?? "", p.is_living ? "yes" : "no", p.current_village ?? "", p.gotra ?? "", p.mool ?? "", names(parents.get(p.person_id), "male"), names(parents.get(p.person_id), "female"), names(spouses.get(p.person_id)), p.married_to ?? "", p.notes ?? ""]);
   return "﻿" + [head, ...rows].map((r) => r.map(q).join(",")).join("\r\n");
 }
 

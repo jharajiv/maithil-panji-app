@@ -10,6 +10,7 @@ import { compareTrees, stockOf, type TreeMatch } from "./similar";
 import { refCodeOf } from "./invite";
 import { FAQ } from "./faq";
 import type { AiCall, Store, TreeRow } from "./store";
+import { GOAL_ORDER } from "./turn-signals";
 
 export interface QOwner { name: string; email?: string; phone?: string }
 export interface QSide { tree: string; title: string; people: number; updated: string; owner?: QOwner }
@@ -33,8 +34,18 @@ export interface Usage {
   /** the real token counts of the AI calls (v12.1 onwards), by day and by model */
   tokens?: Tokens;
   /** trees built in a browser and not (yet) saved: people who reached 3 people, minus trees saved in the same days. Anonymous counts, so no names, only a number. */
-  unsaved?: { reached3: number; reached8: number; finished: number; saved: number; waiting: number };
+  unsaved?: { reached3: number; reached8: number; finished: number; saved: number; started: number; waiting: number };
+  /** how the chat is doing, from anonymous counts of each turn (v12.3): where people stop, how often it did not understand, how the commands and thumbs are used */
+  quality?: Quality;
   /** the counts could not be read */ failed?: boolean;
+}
+export interface Quality {
+  turns: number; fallback: number; offTopic: number; loopSkip: number; timeouts: number; errors: number;
+  cmdRun: number; cmdYes: number; cmdNo: number; up: number; down: number; shared: number;
+  /** each question, in the order asked: how many times it was reached and how many answers were skipped */
+  questions: { kind: string; label: string; reached: number; skipped: number }[];
+  /** how long people took from the first answer to 3 / 8 people */
+  pace: { three: { label: string; count: number }[]; eight: { label: string; count: number }[] };
 }
 export interface TokenRow { key: string; calls: number; input: number; cache_read: number; cache_write: number; output: number; usd: number }
 export interface Tokens { days: TokenRow[]; models: TokenRow[]; total: TokenRow; answers: number; usdPerAnswer: number; cachePercent: number }
@@ -82,6 +93,25 @@ export const USAGE_ROWS: [string, string][] = [
   ["ai_day_limit", "AI helper stepped aside: a device used its day’s answers"],
   ["community_clicked", "Tapped “Join our WhatsApp community”"],
 ];
+const pct = (n: number, of: number) => (of ? Math.round((1000 * n) / of) / 10 : 0);
+export function buildQuality(c: Record<string, number>): Quality | undefined {
+  // the name question is asked by the greeting, before any chat turn, so its “reached” is the number of people who answered it
+  const questions = GOAL_ORDER.map((g) => ({ kind: g.kind, label: g.kind === "self_name" ? `${g.label} (answered)` : g.label, reached: g.kind === "self_name" ? c["tree_started"] ?? 0 : c[`goal:${g.kind}`] ?? 0, skipped: c[`skip:${g.kind}`] ?? 0 }));
+  const turns = questions.reduce((n, q) => n + (q.kind === "self_name" ? 0 : q.reached), 0);
+  const up = c["fb_up"] ?? 0, down = c["fb_down"] ?? 0;
+  const any = turns + (c["ai_timeout"] ?? 0) + (c["ai_error"] ?? 0) + (c["cmd_run"] ?? 0) + up + down;
+  if (!any) return undefined;
+  const pace = (names: [string, string][]) => names.map(([k, label]) => ({ label, count: c[k] ?? 0 }));
+  return {
+    turns, fallback: c["chat_fallback"] ?? 0, offTopic: c["chat_offtopic"] ?? 0, loopSkip: c["chat_loop_skip"] ?? 0, timeouts: c["ai_timeout"] ?? 0, errors: c["ai_error"] ?? 0,
+    cmdRun: c["cmd_run"] ?? 0, cmdYes: c["cmd_resume_yes"] ?? 0, cmdNo: c["cmd_resume_no"] ?? 0, up, down, shared: c["fb_shared"] ?? 0, questions,
+    pace: {
+      three: pace([["pace3_10m", "within 10 minutes"], ["pace3_1h", "within an hour"], ["pace3_1d", "within a day"], ["pace3_later", "later than a day"]]),
+      eight: pace([["pace8_1h", "within an hour"], ["pace8_1d", "within a day"], ["pace8_1w", "within a week"], ["pace8_later", "later than a week"]]),
+    },
+  };
+}
+export { pct };
 export async function buildUsage(store: Store, days = 30): Promise<Usage> {
   let c: Record<string, number> = {}; let failed = false;
   try { c = await store.countEvents(new Date(Date.now() - days * 86_400_000).toISOString()); } catch { failed = true; /* usage counts are optional */ }
@@ -91,8 +121,8 @@ export async function buildUsage(store: Store, days = 30): Promise<Usage> {
   let tokens: Tokens | undefined;
   try { tokens = sumTokens(await store.listAiCalls(new Date(Date.now() - days * 86_400_000).toISOString()), answers); } catch { /* the table may not exist yet: the section then says so */ }
   const reached3 = c["tree_3_people"] ?? 0, saved = c["tree_saved"] ?? 0;
-  const unsaved = reached3 || c["tree_8_people"] || c["tree_complete"] ? { reached3, reached8: c["tree_8_people"] ?? 0, finished: c["tree_complete"] ?? 0, saved, waiting: Math.max(0, reached3 - saved) } : undefined;
-  return { days, failed, ai, tokens, unsaved, rows: USAGE_ROWS.map(([name, label]) => ({ name, label, count: c[name] ?? 0 })), questions: { rows: asked, unanswered: c["faq_unanswered"] ?? 0 } };
+  const unsaved = { reached3, reached8: c["tree_8_people"] ?? 0, finished: c["tree_complete"] ?? 0, saved, started: c["tree_started"] ?? 0, waiting: Math.max(0, reached3 - saved) };
+  return { days, failed, ai, tokens, unsaved, quality: buildQuality(c), rows: USAGE_ROWS.map(([name, label]) => ({ name, label, count: c[name] ?? 0 })), questions: { rows: asked, unanswered: c["faq_unanswered"] ?? 0 } };
 }
 
 export interface Queue { duplicates: DupPair[]; newRefs: NewRef[]; scanned: number; optedIn: number; invites: Invites; usage?: Usage }

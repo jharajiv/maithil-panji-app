@@ -29,10 +29,16 @@ export interface PairScore { score: number; reasons: string[] }
 /** how likely two people (one from each tree) are the same person: 0–1.35, "same" from 0.7 */
 export function scorePair(a: DPerson, b: DPerson, fa: DFamily, fb: DFamily): PairScore | null {
   if (a.gender && b.gender && a.gender !== b.gender) return null;
-  const ns = nameSim(a.name_roman, b.name_roman);
+  let ns = nameSim(a.name_roman, b.name_roman);
+  let viaNick = false;
+  if (ns < 2) {
+    // the same person can be written by the formal name in one tree and by the family's pet name (ḍāk nām) in the other
+    const an = [a.name_roman, a.nickname].filter((x): x is string => !!x), bn = [b.name_roman, b.nickname].filter((x): x is string => !!x);
+    for (const x of an) for (const y of bn) if (x !== a.name_roman || y !== b.name_roman) { const v = nameSim(x, y); if (v >= 2 && v > ns) { ns = v; viaNick = true; } }
+  }
   if (ns < 2) return null;
-  const reasons: string[] = [ns === 3 ? "same first name" : "first name spelt slightly differently"];
-  let s = ns === 3 ? 0.5 : 0.35;
+  const reasons: string[] = [viaNick ? "known by a nickname in one of the trees" : ns === 3 ? "same first name" : "first name spelt slightly differently"];
+  let s = viaNick ? 0.4 : ns === 3 ? 0.5 : 0.35;
   const sa = surname(a.name_roman), sb = surname(b.name_roman);
   if (sa && sb) {
     if (sa === sb) { s += 0.25; reasons.push("same surname"); }
@@ -69,11 +75,15 @@ export const MIN_PERCENT = 30;
 /** one-to-one pairs of people who look like the same person in both trees (score ≥ 0.7), best first */
 export function pairPeople(mine: DFamily, theirs: DFamily): { a: DPerson; b: DPerson; r: PairScore }[] {
   const A = mine.persons.filter(real), B = theirs.persons.filter(real);
+  // people are grouped by the first letter of their name AND of their nickname, so "Rohan" can meet "Bunty"
+  const letters = (p: DPerson) => [...new Set([p.name_roman, p.nickname].filter((x): x is string => !!x).map((n) => fold(givenName(n)).slice(0, 1)))];
   const byGiven = new Map<string, DPerson[]>();
-  for (const q of B) { const k = fold(givenName(q.name_roman)).slice(0, 1); (byGiven.get(k) ?? byGiven.set(k, []).get(k)!).push(q); }
+  for (const q of B) for (const k of letters(q)) (byGiven.get(k) ?? byGiven.set(k, []).get(k)!).push(q);
   const cands: { a: DPerson; b: DPerson; r: PairScore }[] = [];
   for (const p of A) {
-    for (const q of byGiven.get(fold(givenName(p.name_roman)).slice(0, 1)) ?? []) {
+    const seen = new Set<string>();
+    for (const k of letters(p)) for (const q of byGiven.get(k) ?? []) {
+      if (seen.has(q.id)) continue; seen.add(q.id);
       const r = scorePair(p, q, mine, theirs);
       if (r && r.score >= MATCHED_FROM) cands.push({ a: p, b: q, r });
     }
