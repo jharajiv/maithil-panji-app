@@ -2,13 +2,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookHeart, ChevronLeft, Download, GitMerge, Globe2, MessageCircle, MessageSquareWarning, Network, Pencil, RotateCcw, Share2, Users } from "lucide-react";
+import { BookHeart, ChevronLeft, Download, GitMerge, Globe2, MessageCircle, MessageSquareWarning, Network, Pencil, Replace, RotateCcw, Share2, Users } from "lucide-react";
 import { PaagMark } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { ExportSheet } from "@/components/tree/ExportSheet";
 import { cn } from "@/lib/utils";
-import { applyOps, changeRelation, emptyFamily, labels, toFamilyData, type DFamily, type Gender, type Pending, type PersonFields, type RelationSpec, type RelationWord } from "@/lib/family";
+import { applyOps, changeRelation, emptyFamily, fillStock, labels, toFamilyData, type DFamily, type Gender, type Pending, type PersonFields, type RelationSpec, type RelationWord } from "@/lib/family";
 import { mergeFamilies } from "@/lib/merge";
 import { registerExtras, type ExtraRef } from "@/lib/lookup";
 import { romanToDevanagari } from "@/lib/translit";
@@ -36,6 +36,8 @@ import { useSuggestions } from "./useSuggestions";
 import { SuggestionsSheet } from "./SuggestionsSheet";
 import { useStories } from "./useStories";
 import { StoriesSheet } from "./StoriesSheet";
+import { BulkFixSheet } from "./BulkFixSheet";
+import { bulkRename, type BulkChange } from "@/lib/bulk";
 import { ChatRail, PaneDivider, FamiliesRail, usePaneLayout } from "./PaneDivider";
 import { PersonEditSheet } from "./PersonEditSheet";
 import { ShareSheet } from "./ShareSheet";
@@ -47,10 +49,10 @@ import { useAccount } from "@/components/account/useAccount";
 
 const KEY = "maithil-panji.session.v1";
 type Tab = "chat" | "tree" | "matches";
-interface Session { family: DFamily; messages: ChatMessage[]; goalId?: string; section?: string; repeats: number; template: TemplateId; pending?: Pending }
+interface Session { family: DFamily; messages: ChatMessage[]; goalId?: string; section?: string; repeats: number; template: TemplateId; pending?: Pending; detour?: "ask" | "paused" }
 
 /** everything the chat needs to step back one answer */
-interface Snap { family: DFamily; messages: ChatMessage[]; goalId?: string; section?: string; repeats: number; pending?: Pending }
+interface Snap { family: DFamily; messages: ChatMessage[]; goalId?: string; section?: string; repeats: number; pending?: Pending; detour?: "ask" | "paused" }
 
 /** "Your sisters" / "Ramesh’s sons" / "Your father" — what a reply is about */
 function replyTitle(f: DFamily, goalId: string): string {
@@ -113,11 +115,15 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const desktop = useIsDesktop();
   const [ready, setReady] = useState(false);
   const [family, setFamily] = useState<DFamily>(emptyFamily());
+  // the family's gotra and mool belong to the whole father's line: fill the blanks whenever a tree is opened or changed (older trees, trees from a link, hand edits)
+  useEffect(() => { const r = fillStock(family); if (r.filled) setFamily(r.family); }, [family]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [goalId, setGoalId] = useState<string | undefined>();
   const [section, setSection] = useState<string | undefined>();
   const [repeats, setRepeats] = useState(0);
   const [pending, setPending] = useState<Pending | undefined>();
+  /** the chat carried out a command and is waiting to hear whether to go back to its questions ("ask"), or the person said not now ("paused") */
+  const [detour, setDetour] = useState<"ask" | "paused" | undefined>();
   const [template, setTemplate] = useState<TemplateId>("madhubani");
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<"ai" | "basic" | undefined>();
@@ -127,6 +133,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const [unseen, setUnseen] = useState(0);
   const [selected, setSelected] = useState<string>();
   const [exportOpen, setExportOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [freeOpen, setFreeOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
@@ -183,7 +190,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
     try {
       const s = JSON.parse(localStorage.getItem(KEY) ?? "null") as Session | null;
       if (s?.family?.persons && s.messages?.length) {
-        setFamily(s.family); setMessages(s.messages); setGoalId(s.goalId); setSection(s.section); setRepeats(s.repeats ?? 0); setPending(s.pending); setTemplate(s.template ?? "madhubani");
+        setFamily(s.family); setMessages(s.messages); setGoalId(s.goalId); setSection(s.section); setRepeats(s.repeats ?? 0); setPending(s.pending); setDetour(s.detour); setTemplate(s.template ?? "madhubani");
         try { setSaveDismissed(Number(localStorage.getItem(SAVE_KEY) ?? 0)); setWelcomed(!!sessionStorage.getItem(WELCOME_KEY)); } catch { /* ignore */ }
         setReturning(s.family.persons.filter((p) => !p.placeholder).length >= 3);
         setReady(true); return;
@@ -197,8 +204,8 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   useEffect(() => {
     if (!ready) return;
     if (inAccount) { try { localStorage.setItem(TEMPLATE_KEY, template); } catch { /* ignore */ } return; } // never overwrite the guest draft with an account tree
-    try { localStorage.setItem(KEY, JSON.stringify({ family, messages, goalId, section, repeats, template, pending } satisfies Session)); } catch { /* quota */ }
-  }, [ready, inAccount, family, messages, goalId, section, repeats, template, pending]);
+    try { localStorage.setItem(KEY, JSON.stringify({ family, messages, goalId, section, repeats, template, pending, detour } satisfies Session)); } catch { /* quota */ }
+  }, [ready, inAccount, family, messages, goalId, section, repeats, template, pending, detour]);
   useEffect(() => { fetch("/api/refs").then((r) => r.json()).then((j: { refs: ExtraRef[] }) => registerExtras(j.refs ?? [])).catch(() => {}); }, []);
   useEffect(() => {
     const list: ExtraRef[] = [];
@@ -211,7 +218,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
     const g = nextGoal(famRef.current);
     const l = readLang();
     setMessages([{ id: uid(), role: "assistant", text: g ? `${l === "hi" ? WELCOME_BACK_HI : WELCOME_BACK}\n\n${askIn(famRef.current, g, l)}` : `${WELCOME_BACK} The tree is complete — tap anyone to correct details, or ask me to change something.`, quick: g?.quick ?? [], goalId: g?.id }]);
-    setGoalId(g?.id); setSection(g?.section); setRepeats(0); setPending(undefined); setTab(g && sh.share?.role === "owner" ? "chat" : "tree");
+    setGoalId(g?.id); setSection(g?.section); setRepeats(0); setPending(undefined); setDetour(undefined); setTab(g && sh.share?.role === "owner" ? "chat" : "tree");
   }, [sh.adopted]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { fetch("/api/chat").then((r) => r.json()).then((j: { ai: boolean }) => setMode(j.ai ? "ai" : "basic")).catch(() => {}); }, []);
   useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(null), 4000); return () => clearTimeout(t); }, [notice]);
@@ -225,16 +232,19 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
     const history = messages.slice(-10).map((m) => ({ role: m.role, content: m.text }));
     const ctx = replyCtx;
     if (!messages.some((m) => m.role === "user")) track("tree_started", "session");
-    const snap: Snap = { family: famRef.current, messages, goalId, section, repeats, pending };
+    const snap: Snap = { family: famRef.current, messages, goalId, section, repeats, pending, detour };
     setMessages((m) => [...m, { id: uid(), role: "user", text: display ?? text, answeredGoal: ctx?.goalId ?? goalId, replyTo: ctx ? { author: ctx.author, quote: ctx.quote, msgId: ctx.msgId, mode: ctx.isList ? ctx.mode : undefined } : undefined }]);
     setBusy(true);
     const sent = stripPrivate(famRef.current);
     try {
       const res = await fetch("/api/chat", {
         method: "POST", headers: { "content-type": "application/json", "x-device-id": deviceId() },
-        body: JSON.stringify({ family: sent, history, text, prevGoalId: goalId, repeats, pending, answerGoal: ctx?.goalId, mode: ctx?.mode, lang }),
+        body: JSON.stringify({ family: sent, history, text, prevGoalId: goalId, repeats, pending, answerGoal: ctx?.goalId, mode: ctx?.mode, lang, detour }),
       });
-      const j = await res.json();
+      // read the answer as text first: when the server is too slow the host sends a plain-text error page, not JSON
+      const raw = await res.text();
+      let j: Record<string, any> = {}; // eslint-disable-line @typescript-eslint/no-explicit-any
+      try { j = JSON.parse(raw); } catch { throw new Error(lang === "hi" ? "इसमें बहुत समय लग गया और कुछ नहीं बदला। कृपया फिर से भेजिए। बहुत से लोगों में एक ही गलती सुधारनी हो तो मेनू में “गलत वर्तनी सब जगह ठीक करें” चुनिए।" : "That took too long, so nothing was changed. Please send it again. To fix one wrong spelling in many people, use “Fix a spelling everywhere” in the menu."); }
       if (!res.ok) throw new Error(j?.error ?? "Something went wrong.");
       // someone else may have edited the tree while the assistant was thinking: merge instead of overwriting
       const next = mergeFamilies(sent, j.family as DFamily, famRef.current);
@@ -251,17 +261,17 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
       if (heads) headsTold.current = true;
       setAiPaused(j.gate === "save");
       setMessages((m) => [...m, { id: uid(), role: "assistant", text: `${told}${heads}${gotraHelp}${j.reply}`, quick: j.quick, goalId: j.goal?.id as string | undefined, added: addedPeople(sent, next) }]);
-      setGoalId(j.goal?.id); setSection(j.goal?.section); setRepeats(j.repeats ?? 0); setPending(j.pending);
+      setGoalId(j.goal?.id); setSection(j.goal?.section); setRepeats(j.repeats ?? 0); setPending(j.pending); setDetour(j.detour === "ask" || j.detour === "paused" ? j.detour : undefined);
       if (j.ops > 0) setUndo((u) => [...u.slice(-14), snap]);
       if (ctx && j.ops > 0) setReplyCtx(null); // an answer that was not understood keeps the reply open
       if (j.mode) setMode(j.mode);
       if (j.notice) setNotice(j.notice);
     } catch (e) {
-      setMessages((m) => [...m, { id: uid(), role: "assistant", text: `${e instanceof Error ? e.message : "I could not reach the server."} Please try sending that again.`, quick: [] }]);
+      setMessages((m) => [...m, { id: uid(), role: "assistant", text: e instanceof Error && /^(That took too long|इसमें बहुत)/.test(e.message) ? e.message : `${e instanceof Error ? e.message : "I could not reach the server."} ${lang === "hi" ? "कृपया फिर से भेजिए।" : "Please try sending that again."}`, quick: [] }]);
     } finally {
       setBusy(false);
     }
-  }, [messages, goalId, section, repeats, pending, desktop, tab, replyCtx, lang]);
+  }, [messages, goalId, section, repeats, pending, detour, desktop, tab, replyCtx, lang]);
 
   /** show one person in the tree: on a phone that is the My tree tab */
   const seeInTree = (id: string) => {
@@ -283,7 +293,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
     setMessages((m) => [...m,
       { id: uid(), role: "user", text: said.join("\n"), answeredGoal: bundle.goalId },
       { id: uid(), role: "assistant", text: reply, quick: r.next?.quick ?? [], goalId: r.next?.id, added: r.added.length ? r.added.slice(0, 20) : undefined }]);
-    setGoalId(r.next?.id); setSection(r.next?.section); setRepeats(0); setPending(undefined); setReplyCtx(null);
+    setGoalId(r.next?.id); setSection(r.next?.section); setRepeats(0); setPending(undefined); setDetour(undefined); setReplyCtx(null);
     if (r.added.length) setUndo((u) => [...u.slice(-14), snap]);
     if (r.added.length && !desktop && tab === "chat") setUnseen((n) => n + r.added.length);
   };
@@ -304,7 +314,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
     if (!snap) return;
     afterTurn.current = JSON.stringify(snap.family);
     setUndo((u) => u.slice(0, -1));
-    setFamily(snap.family); setMessages(snap.messages); setGoalId(snap.goalId); setSection(snap.section); setRepeats(snap.repeats); setPending(snap.pending); setReplyCtx(null);
+    setFamily(snap.family); setMessages(snap.messages); setGoalId(snap.goalId); setSection(snap.section); setRepeats(snap.repeats); setPending(snap.pending); setDetour(snap.detour); setReplyCtx(null);
     setNotice("Your last answer was undone.");
   };
   /** reply to an earlier message or a tree box: the next answer goes to THAT question */
@@ -331,6 +341,17 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
     const ops: Parameters<typeof applyOps>[1] = [{ op: "update_person", id, set: { ...set, name_roman: set.name_roman?.trim() || undefined } }];
     setFamily((f) => applyOps(f, ops).family);
   };
+  /** one wrong spelling corrected in everyone (from the menu); it can be undone like a chat answer */
+  const applyBulk = (ch: BulkChange) => {
+    const cur = famRef.current;
+    const r = bulkRename(cur, ch);
+    if (r.count) {
+      setUndo((u) => [...u.slice(-14), { family: cur, messages, goalId, section, repeats, pending, detour }]);
+      afterTurn.current = JSON.stringify(r.family);
+      setFamily(r.family);
+    }
+    return r;
+  };
   const deletePerson = (id: string) => setFamily((f) => applyOps(f, [{ op: "remove_person", id }]).family);
   const addRelative = (toId: string, type: RelationSpec["type"], name: string, gender?: Gender) =>
     setFamily((f) => applyOps(f, [{ op: "add_person", name_roman: name, name_dev: romanToDevanagari(name), gender, relation: { type, to: toId } }]).family);
@@ -338,10 +359,17 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
   const reset = () => {
     const f = firstMessage();
     sh.leave();
-    setFamily(emptyFamily()); setMessages(f.messages); setGoalId(f.goalId); setSection(f.section); setRepeats(0); setPending(undefined); setSelected(undefined); setResetOpen(false); setReplyCtx(null); setUndo([]);
+    setFamily(emptyFamily()); setMessages(f.messages); setGoalId(f.goalId); setSection(f.section); setRepeats(0); setPending(undefined); setDetour(undefined); setSelected(undefined); setResetOpen(false); setReplyCtx(null); setUndo([]);
   };
   const goTab = (t: Tab) => { setTab(t); if (t === "tree") setUnseen(0); };
 
+  // anonymous milestone counts for a tree that is not saved (once per browser), so the admin can see how many are waiting
+  useEffect(() => {
+    if (inAccount || isHelper || auth.loading || !auth.enabled || sh.share || people === 0) return;
+    if (people >= 3) track("tree_3_people", "browser");
+    if (people >= 8) track("tree_8_people", "browser");
+    if (people > 0 && !nextGoal(family) && family.persons.some((p) => p.is_me)) track("tree_complete", "browser");
+  }, [inAccount, isHelper, auth.loading, auth.enabled, sh.share, people, family]);
   if (inAccount && sh.status === "invalid") return (
     <div className="grid h-dvh place-content-center gap-4 bg-background px-6 text-center">
       <h1 className="font-display text-2xl font-bold text-indigo">This tree is not available</h1>
@@ -423,6 +451,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
           {stories.total > 0 && <Button size="sm" variant="outline" onClick={() => setStOpen("inbox")} aria-label={`${stories.total} stories waiting for you`} className="relative"><BookHeart /> <span className="hidden sm:inline">Stories</span><span className="ml-0.5 rounded-full bg-terracotta px-1.5 text-xs font-semibold text-white">{stories.total}</span></Button>}
           {sg.list.length > 0 && <Button size="sm" variant="outline" onClick={() => setSgOpen(true)} aria-label={`${sg.list.length} suggested corrections`} className="relative"><MessageSquareWarning /> <span className="hidden sm:inline">Corrections</span><span className="ml-0.5 rounded-full bg-terracotta px-1.5 text-xs font-semibold text-white">{sg.list.length}</span></Button>}
           {people > 0 && <Button size="sm" variant="outline" onClick={() => { setInviteFor(undefined); setShareOpen(true); }} aria-label="Share"><Share2 /> <span className="hidden sm:inline">Share</span></Button>}
+          {people > 0 && !isHelper && <Button size="sm" variant="outline" onClick={() => setBulkOpen(true)} aria-label="Fix a spelling everywhere" className="hidden lg:inline-flex"><Replace /> Fix spelling</Button>}
           {people > 1 && <Button size="sm" variant="outline" onClick={() => setMapOpen(true)} aria-label="Where we are today: a map of where the family lives" className="hidden md:inline-flex"><Globe2 /> Map</Button>}
           {people > 1 && <Button size="sm" variant="outline" onClick={openMatches} aria-label="Families: connect trees through married women" className="relative hidden md:inline-flex"><GitMerge /> Families{cx.matches.length > 0 && <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-terracotta" aria-label="Possible matches found" />}</Button>}
           <Button size="sm" onClick={() => setExportOpen(true)} disabled={!data} aria-label="Download PDF"><Download /> <span className="hidden min-[400px]:inline">PDF</span></Button>
@@ -437,7 +466,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
                 ))}
               </div>
             )}
-            <HeaderMenu lang={lang} corrections={sg.list.length} onCorrections={() => setSgOpen(true)} stories={stories.total} onStories={() => setStOpen("inbox")} onShare={people > 0 ? openShare : undefined} onPdf={data ? () => setExportOpen(true) : undefined} onMap={people > 1 ? () => setMapOpen(true) : undefined} onReset={!isHelper && !inAccount ? () => setResetOpen(true) : undefined} />
+            <HeaderMenu lang={lang} corrections={sg.list.length} onCorrections={() => setSgOpen(true)} stories={stories.total} onStories={() => setStOpen("inbox")} onShare={people > 0 ? openShare : undefined} onPdf={data ? () => setExportOpen(true) : undefined} onMap={people > 1 ? () => setMapOpen(true) : undefined} onBulk={people > 0 && !isHelper ? () => setBulkOpen(true) : undefined} onReset={!isHelper && !inAccount ? () => setResetOpen(true) : undefined} />
           </>
         )}
       </header>
@@ -490,6 +519,7 @@ export function BuildApp({ treeId }: { treeId?: string } = {}) {
         onDeleteOnline={async () => { await sh.deleteOnline(); if (inAccount) router.replace("/app"); }}
         onLeaveTree={async () => { await sh.leaveTree(); router.replace("/app"); }}
         viewUrl={sh.viewUrl} viewUrlFull={sh.viewUrlFull} viewOff={sh.viewOff} onViewLink={sh.viewLink} viewPass={sh.viewPass} onViewPass={sh.share?.role === "owner" ? sh.setViewPass : undefined} discoverable={sh.discoverable} onDiscoverable={sh.share?.role === "owner" ? sh.setDiscoverable : undefined} signInHref={auth.enabled && !sh.share ? "/app" : undefined} ownerName={family.persons.find((p) => p.is_me)?.name_roman ?? sh.share?.memberName} />
+      <BulkFixSheet open={bulkOpen} onClose={() => setBulkOpen(false)} family={family} lang={lang} onApply={applyBulk} />
       <StoriesSheet open={stOpen !== null} onClose={() => setStOpen(null)} family={family} share={sh.share} qs={sh.keyQs} body={sh.keyBody} personId={stOpen && stOpen !== "inbox" ? stOpen.person : undefined} onChanged={stories.reload} />
       <SuggestionsSheet open={sgOpen} onClose={() => setSgOpen(false)} family={family} sg={sg} onEdit={(id) => { setRelFor(undefined); setSelected(id); }} />
       <Sheet open={!!see} onClose={() => setSee(null)} title="Her family in the other tree">

@@ -1,7 +1,7 @@
 /** Admin to-do list: possible duplicate trees (only trees that agreed to be found) and new gotra / mool spellings. */
 import assert from "node:assert/strict";
 import { applyOps, emptyFamily, type DFamily, type Op } from "../src/lib/family";
-import { buildQueue } from "../src/lib/admin-queue";
+import { buildQueue, costOf, sumTokens } from "../src/lib/admin-queue";
 import { refCodeOf, REF_RX, captureRef } from "../src/lib/invite";
 import type { AccountRow, Member, Store, TreeRow } from "../src/lib/store";
 
@@ -79,5 +79,22 @@ const store = { getAccount: async (id: string) => accounts[id] ?? null, listAllT
   (globalThis as unknown as { localStorage: unknown }).localStorage = { setItem: (k: string, v: string) => { mem[k] = v; }, getItem: (k: string) => mem[k] ?? null };
   captureRef("?ref=<script>"); assert.deepEqual(mem, {});
   captureRef(`?utm=1&ref=${code.toUpperCase()}`); assert.equal(Object.values(mem)[0], code);
+  /* AI token sums */
+  {
+    assert.equal(sumTokens([], 0), undefined);
+    const calls = [
+      { at: "2026-10-18T10:00:00Z", model: "claude-sonnet-4-5", kind: "interview", input: 1000, cache_write: 0, cache_read: 4000, output: 100 },
+      { at: "2026-10-18T11:00:00Z", model: "claude-haiku-4-5", kind: "names", input: 500, cache_write: 0, cache_read: 0, output: 50 },
+      { at: "2026-10-19T09:00:00Z", model: "claude-sonnet-4-5", kind: "interview", input: 1000, cache_write: 4000, cache_read: 0, output: 100 },
+    ];
+    const t = sumTokens(calls, 2)!;
+    assert.deepEqual(t.days.map((d) => [d.key, d.calls]), [["2026-10-19", 1], ["2026-10-18", 2]], "newest day first");
+    assert.deepEqual(t.models.map((m) => m.key).sort(), ["claude-haiku-4-5", "claude-sonnet-4-5"]);
+    assert.equal(t.total.input, 2500); assert.equal(t.total.cache_read, 4000); assert.equal(t.total.output, 250);
+    assert.ok(Math.abs(costOf("claude-sonnet-4-5", calls[0]!) - (1000 * 3 + 4000 * 0.3 + 100 * 15) / 1e6) < 1e-9, "cache reads cost a tenth");
+    assert.ok(Math.abs(costOf("claude-haiku-4-5", calls[1]!) - (500 + 250) / 1e6) < 1e-9);
+    assert.equal(t.cachePercent, Math.round((100 * 4000) / (2500 + 4000 + 4000)));
+    assert.ok(Math.abs(t.usdPerAnswer - t.total.usd / 2) < 1e-12);
+  }
   console.log("admin queue OK");
 })().catch((e) => { console.error(e); process.exit(1); });

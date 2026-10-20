@@ -203,3 +203,18 @@ create table if not exists public.stories (
 );
 create index if not exists stories_tree_idx on public.stories (tree_id, person_id);
 alter table public.stories enable row level security;
+
+-- 11. AI TOKENS — one row per call to an AI model: only the model name and the token counts (no text, no person).
+--     The admin page adds them up by day and model. Safe to run again.
+create table if not exists public.ai_calls (
+  id           bigserial primary key,
+  at           timestamptz not null default now(),
+  model        text not null,
+  kind         text not null,               -- interview | names
+  input        integer not null default 0,  -- fresh input tokens (not from the cache)
+  cache_write  integer not null default 0,
+  cache_read   integer not null default 0,
+  output       integer not null default 0
+);
+create index if not exists ai_calls_at_idx on public.ai_calls (at);
+alter table public.ai_calls enable row level security;

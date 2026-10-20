@@ -1,15 +1,15 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { BookHeart, Download, Globe2, MessageSquareWarning, MoreHorizontal, RotateCcw, Share2 } from "lucide-react";
+import { BookHeart, Download, Globe2, MessageSquareWarning, MoreHorizontal, Replace, RotateCcw, Share2 } from "lucide-react";
 import { tr, type Lang } from "@/lib/hi";
 
 /**
  * Phone only: the "⋯" button at the end of the slim header. Corrections, Share, PDF and Start over live here
  * so the header stays one thin row and the chat gets the room.
  */
-export function HeaderMenu({ lang, corrections, onCorrections, stories = 0, onStories, onShare, onPdf, onMap, onReset }: {
+export function HeaderMenu({ lang, corrections, onCorrections, stories = 0, onStories, onShare, onPdf, onMap, onBulk, onReset }: {
   lang: Lang; corrections: number; stories?: number; onStories?: () => void;
-  onCorrections: () => void; onShare?: () => void; onPdf?: () => void; onMap?: () => void; onReset?: () => void;
+  onCorrections: () => void; onShare?: () => void; onPdf?: () => void; onMap?: () => void; onBulk?: () => void; onReset?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -36,6 +36,7 @@ export function HeaderMenu({ lang, corrections, onCorrections, stories = 0, onSt
           {stories > 0 && onStories && item("t", BookHeart, tr(lang, "Stories waiting for you"), onStories, <span className="rounded-full bg-terracotta px-2 text-xs font-semibold text-white">{stories}</span>)}
           {onShare && item("s", Share2, tr(lang, "Share and invite family"), onShare)}
           {onMap && item("m", Globe2, tr(lang, "Where we are today"), onMap)}
+          {onBulk && item("b", Replace, tr(lang, "Fix a spelling everywhere"), onBulk)}
           {onPdf && item("p", Download, tr(lang, "Download PDF"), onPdf)}
           {onReset && item("r", RotateCcw, tr(lang, "Start over"), onReset, undefined, true)}
         </div>

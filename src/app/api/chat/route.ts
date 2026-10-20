@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
-import type { ChatMsg } from "@/lib/agent";
+import type { AgentDeps, ChatMsg } from "@/lib/agent";
 import { takeTurn } from "@/lib/turn";
 import type { Pending } from "@/lib/family";
 import { sanitizeFamily } from "@/lib/sanitize";
@@ -15,7 +15,9 @@ import { AI_FREE_PEOPLE, aiPeopleLeft } from "@/lib/save-prompt";
 import { noteQuestion } from "@/lib/question-count";
 
 export const runtime = "nodejs";
-export const maxDuration = 45;
+export const maxDuration = 60;
+/** after this many seconds the AI is given up on and the simple questions answer instead, so the person always gets an answer (the host cuts the request off at maxDuration) */
+const AI_BUDGET_MS = 50_000;
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
 /** the smaller model that only READS names out of an answer (about a third of the price); set it to the main model to switch this off */
@@ -60,6 +62,15 @@ function cleanPending(v: unknown): Pending | undefined {
 }
 
 export async function POST(req: Request) {
+  try { return await handle(req); }
+  catch (e) {
+    // whatever goes wrong, the browser gets JSON it can show, never a plain-text error page
+    console.error("chat failed:", e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "Something went wrong on our side, and nothing was changed. Please try again." }, { status: 500 });
+  }
+}
+
+async function handle(req: Request) {
   if (limited("chat", clientIp(req), Number(process.env.CHAT_RATE_LIMIT) || 60)) return NextResponse.json({ error: "Too many messages. Please wait a few minutes." }, { status: 429 });
 
   let body: Record<string, unknown>;
@@ -79,6 +90,7 @@ export async function POST(req: Request) {
     answerGoal: typeof body.answerGoal === "string" && /^[a-z_]+(:p\d+)?$/.test(body.answerGoal) ? body.answerGoal : undefined,
     mode: body.mode === "replace" ? ("replace" as const) : ("add" as const),
     lang: body.lang === "hi" ? ("hi" as const) : ("en" as const),
+    detour: body.detour === "ask" || body.detour === "paused" ? (body.detour as "ask" | "paused") : undefined,
   };
   await loadExtras();
 
@@ -104,17 +116,23 @@ export async function POST(req: Request) {
 
   if (hasKey()) {
     try {
-      const client = new Anthropic({ timeout: 40_000, maxRetries: 1 });
-      const used: { calls: number; light?: number } = { calls: 0 };
-      const out = await takeTurn({ client, model: MODEL, lightModel: LIGHT_MODEL, used }, input);
-      if (used.calls > 0) { logEvent("ai_turn"); for (let i = 0; i < Math.min(used.calls, 12); i++) logEvent(i < (used.light ?? 0) ? "ai_call_light" : "ai_call"); await watchBudget(); } // counted only when the AI model was really called
+      const client = new Anthropic({ timeout: 30_000, maxRetries: 1 });
+      const used: { calls: number; light?: number; rows?: NonNullable<AgentDeps["used"]>["rows"] } = { calls: 0, rows: [] };
+      // one slow AI call must never turn into the host's plain-text "An error occurred" page: past the budget the simple reader answers
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const out = await Promise.race([
+        takeTurn({ client, model: MODEL, lightModel: LIGHT_MODEL, used }, input),
+        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("AI turn took too long")), AI_BUDGET_MS); }),
+      ]).finally(() => clearTimeout(timer));
+      if (used.calls > 0) { logEvent("ai_turn"); for (let i = 0; i < Math.min(used.calls, 12); i++) logEvent(i < (used.light ?? 0) ? "ai_call_light" : "ai_call"); await watchBudget(); void getStore()?.addAiCalls((used.rows ?? []).slice(0, 12)).catch(() => {}); } // counted only when the AI model was really called
       noteQuestion(input.text, out);
       // a tree that is not saved: say once, a little early, how many more people the AI helper will work for
       const left = authEnabled() && !account ? aiPeopleLeft(out.family.persons.filter((p) => !p.placeholder).length) : null;
       return NextResponse.json(left ? { ...out, left } : out);
     } catch (e) {
       console.error("AI turn failed, falling back to basic mode:", e instanceof Error ? e.message : e);
-      return NextResponse.json({ ...(await takeTurn(null, input)), notice: "The AI assistant is unavailable right now, so I switched to simple questions." });
+      const slow = e instanceof Error && /took too long|timed? ?out/i.test(e.message);
+      return NextResponse.json({ ...(await takeTurn(null, input)), notice: slow ? "That took longer than expected, so nothing from it was saved and I used simple questions for this one. Please try again." : "The AI assistant is unavailable right now, so I switched to simple questions." });
     }
   }
   const plain = await takeTurn(null, input);

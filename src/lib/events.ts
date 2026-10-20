@@ -20,8 +20,9 @@ import { getStore } from "./store";
  *  save_card_shown    the "save your tree" reminder was shown (once per visit)
  *  save_card_clicked  someone tapped "Save my tree" (on the reminder or in the header)
  *  community_clicked  someone tapped "Join our WhatsApp community"
+ *  tree_3_people / tree_8_people / tree_complete   a tree that is NOT saved online reached 3 people, 8 people, or the end of the questions (counted once per browser)
  */
-export const EVENT_NAMES = ["sample_opened", "tree_started", "tree_saved", "pdf_downloaded", "share_clicked", "view_opened", "correction_suggested", "woman_linked", "tree_connect_requested", "tree_connect_accepted", "google_signin", "tree_combined", "newsletter_confirmed", "invite_shared", "tree_from_invite", "save_card_shown", "save_card_clicked", "community_clicked"] as const;
+export const EVENT_NAMES = ["sample_opened", "tree_started", "tree_saved", "pdf_downloaded", "share_clicked", "view_opened", "correction_suggested", "woman_linked", "tree_connect_requested", "tree_connect_accepted", "google_signin", "tree_combined", "newsletter_confirmed", "invite_shared", "tree_from_invite", "save_card_shown", "save_card_clicked", "community_clicked", "tree_3_people", "tree_8_people", "tree_complete"] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 /**
  * Counts only the server writes (a browser can never post these, so they cannot be faked):

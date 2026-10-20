@@ -6,6 +6,7 @@ import { isListGoal, nextGoal, replyGoal } from "./interview";
 import { listTurn, type ListInput } from "./list-turn";
 import { hiReply } from "./hi";
 import { faqTurn } from "./faq-turn";
+import { commandTurn } from "./command-turn";
 
 export type TurnResult = TurnOutput & { mode: "ai" | "basic" };
 
@@ -16,7 +17,10 @@ export type TurnResult = TurnOutput & { mode: "ai" | "basic" };
 export async function takeTurn(deps: AgentDeps | null, input: ListInput): Promise<TurnResult> {
   // a known question (gotra of a married woman, what is a mool …) gets the ready-made answer, then the chat returns to its question
   const faq = faqTurn(input);
-  if (faq) return { ...faq, mode: deps ? "ai" : "basic" };
+  if (faq) return { ...faq, ...(input.detour ? { detour: input.detour } : {}), mode: deps ? "ai" : "basic" };
+  // an instruction (not an answer) is carried out first; then the person is asked whether to go back to the questions (already in their language)
+  const cmd = await commandTurn(deps, input);
+  if (cmd) return { ...cmd, mode: deps ? "ai" : "basic" };
   const out = await takeTurnEn(deps, input);
   if (input.lang !== "hi") return out;
   // Hindi: the app's own wording is replaced; anything the AI wrote itself is already Hindi

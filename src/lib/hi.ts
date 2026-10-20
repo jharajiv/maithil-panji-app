@@ -48,6 +48,7 @@ export const QUICK_HI: Record<string, string> = {
   "Why father’s gotra?": "पिता का ही गोत्र क्यों?", "I don’t know my gotra": "मुझे अपना गोत्र नहीं पता", "I don’t know my mool": "मुझे अपना मूल नहीं पता",
   "I don’t remember": "याद नहीं", "I don’t know any further": "इससे आगे पता नहीं",
   Male: "पुरुष", Female: "महिला", "Male (son / brother)": "पुरुष (बेटा / भाई)", "Female (daughter / sister)": "महिला (बेटी / बहन)", Yes: "हाँ", No: "नहीं",
+  "Yes, continue": "हाँ, आगे बढ़ें", "No, not now": "अभी नहीं", "Continue the questions": "प्रश्न जारी रखें", "Fix a spelling everywhere": "गलत वर्तनी सब जगह ठीक करें", "Show me what’s missing": "क्या बाकी है दिखाइए",
 };
 /** what a quick-reply button shows (what it SENDS stays the English word, which the rest of the app already understands) */
 export const quickLabel = (q: string, lang: Lang) => (lang === "hi" ? QUICK_HI[q] ?? q : q);
@@ -168,6 +169,7 @@ export function hiReply(reply: string, f: DFamily, goals: (Goal | null | undefin
 /* ───────────────────────── small pieces of the chat screen ───────────────────────── */
 
 const UI_HI: Record<string, string> = {
+  "Fix a spelling everywhere": "गलत वर्तनी सब जगह ठीक करें",
   "Don’t know your gotra? Where to find it": "अपना गोत्र नहीं पता? कहाँ मिलेगा",
   "your Kundli or janam patri (birth chart)": "आपकी कुंडली या जन्म-पत्री",
   "your parents or elders in the family": "आपके माता-पिता या परिवार के बड़े-बुज़ुर्ग",

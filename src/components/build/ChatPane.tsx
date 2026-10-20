@@ -236,6 +236,7 @@ export function ChatPane({ messages, busy, onSend, section, mode, className, rep
             <div className="min-w-0">
               <p className="font-display text-base font-semibold leading-tight" lang={lang === "hi" ? "hi" : undefined}>{saveCard.text.title}</p>
               <p className="mt-1 text-sm text-muted-foreground" lang={lang === "hi" ? "hi" : undefined}>{saveCard.text.body}</p>
+              {saveCard.text.perks && saveCard.text.perks.length > 0 && <ul className="mt-2 space-y-1 text-sm" lang={lang === "hi" ? "hi" : undefined}>{saveCard.text.perks.map((x) => <li key={x} className="flex gap-2"><span aria-hidden className="text-primary">✓</span><span>{x}</span></li>)}</ul>}
             </div>
           </div>
           <div className="mt-2.5 flex items-center gap-2">

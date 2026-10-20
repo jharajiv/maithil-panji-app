@@ -29,7 +29,15 @@ export function pickSaveCard(i: SaveCardIn): { kind: SaveKind; stage: 1 | 2 | 3 
   return null;
 }
 
-export interface SaveText { title: string; body: string; cta: string; later: string }
+export interface SaveText { title: string; body: string; cta: string; later: string; /** what saving gives, as a short list under the text */ perks?: string[] }
+
+/** what a saved tree can do that a tree on one phone cannot */
+export const SAVE_PERKS = {
+  en: ["Open it on any phone, and never lose it", "Invite relatives on WhatsApp to add their own branches", "Get birthday reminders for the family", "Add photos and memories to each person", "Connect with other Maithil families and see where everyone lives", "Download a PDF with a QR code", `AI helper for trees of more than ${AI_FREE_PEOPLE} people`],
+  hi: ["किसी भी फ़ोन पर खोलिए — कभी खोएगी नहीं", "WhatsApp पर रिश्तेदारों को बुलाइए, वे अपनी शाखा जोड़ेंगे", "परिवार के जन्मदिन की याद पाइए", "हर व्यक्ति के साथ फ़ोटो और यादें जोड़िए", "दूसरे मैथिल परिवारों से जुड़िए और देखिए सब कहाँ रहते हैं", "QR कोड वाली PDF डाउनलोड कीजिए", `${AI_FREE_PEOPLE} से अधिक लोगों की वंशावली के लिए AI सहायक`],
+} as const;
+/** the reminders that show the list (the first and the second: that is when people decide) */
+const withPerks = (lang: Lang, t: SaveText, n: number): SaveText => ({ ...t, perks: SAVE_PERKS[lang].slice(0, n) });
 export function saveCardText(lang: Lang, kind: SaveKind, people: number, signedIn: boolean): SaveText {
   const hi = lang === "hi";
   const how = hi ? "Google या ईमेल से मुफ़्त सहेजिए" : "Save it free with Google or email";
@@ -37,9 +45,9 @@ export function saveCardText(lang: Lang, kind: SaveKind, people: number, signedI
     const cta = signedIn ? "मेरे खाते में सहेजिए" : "वंशावली सहेजिए";
     const later = "बाद में";
     switch (kind) {
-      case "first": return { title: "अपनी वंशावली सहेज लीजिए", body: `अभी यह सिर्फ़ इसी फ़ोन में रखी है। ${how} — फिर किसी भी फ़ोन पर खोल सकेंगे और रिश्तेदारों को जोड़ सकेंगे। AI सहायक लगभग ${AI_FREE_PEOPLE} लोगों के बाद सिर्फ़ सहेजी हुई वंशावली के लिए चलता है।`, cta, later };
-      case "more": return { title: `${people} लोग जुड़ चुके हैं`, body: "इतनी मेहनत कहीं खो न जाए — इसे ऑनलाइन सहेज लीजिए। यह अभी सिर्फ़ इसी फ़ोन में है।", cta, later };
-      case "done": return { title: "आपकी वंशावली तैयार है!", body: "इसे ऑनलाइन सहेजिए, WhatsApp पर परिवार को भेजिए, और QR कोड वाली PDF पाइए।", cta, later };
+      case "first": return withPerks(lang, { title: "अपनी वंशावली सहेज लीजिए", body: `अभी यह सिर्फ़ इसी फ़ोन में रखी है। ${how} — फिर किसी भी फ़ोन पर खोल सकेंगे और रिश्तेदारों को जोड़ सकेंगे। AI सहायक लगभग ${AI_FREE_PEOPLE} लोगों के बाद सिर्फ़ सहेजी हुई वंशावली के लिए चलता है।`, cta, later }, 4);
+      case "more": return withPerks(lang, { title: `${people} लोग जुड़ चुके हैं`, body: "इतनी मेहनत कहीं खो न जाए — इसे ऑनलाइन सहेज लीजिए। यह अभी सिर्फ़ इसी फ़ोन में है।", cta, later }, 7);
+      case "done": return withPerks(lang, { title: "आपकी वंशावली तैयार है!", body: "इसे ऑनलाइन सहेजिए, WhatsApp पर परिवार को भेजिए, और QR कोड वाली PDF पाइए।", cta, later }, 7);
       case "paused": return { title: "AI सहायक रुका है", body: "AI सहायक उन्हीं वंशावलियों के लिए चलता है जो खाते में सहेजी गई हों। जब तक सहेजेंगे नहीं, सरल सवाल पूछे जाते रहेंगे — आपके जवाब उसी तरह दर्ज होंगे। वंशावली सहेजते ही AI सहायक वापस आ जाएगा। Google या ईमेल से सहेजना मुफ़्त है।", cta, later: "अभी नहीं" };
       case "back": return { title: "फिर स्वागत है!", body: `आपकी वंशावली (${people} लोग) अब भी सिर्फ़ इसी फ़ोन में है। इसे सहेज लीजिए ताकि कभी खोए नहीं।`, cta, later };
     }
@@ -47,9 +55,9 @@ export function saveCardText(lang: Lang, kind: SaveKind, people: number, signedI
   const cta = signedIn ? "Save to my account" : "Save my tree";
   const later = "Later";
   switch (kind) {
-    case "first": return { title: "Save your tree so you do not lose it", body: `Right now it is kept only on this phone. ${how} — then you can open it on any phone and invite relatives to help. The AI helper keeps working after about ${AI_FREE_PEOPLE} people only for saved trees.`, cta, later };
-    case "more": return { title: `${people} people so far`, body: "This much work should not be lost. Save it online — it is kept only on this phone right now.", cta, later };
-    case "done": return { title: "Your tree is ready!", body: "Save it online to keep it safe, share it with your family on WhatsApp, and get a PDF with a QR code.", cta, later };
+    case "first": return withPerks(lang, { title: "Save your tree so you do not lose it", body: `Right now it is kept only on this phone. ${how} — then you can open it on any phone and invite relatives to help. The AI helper keeps working after about ${AI_FREE_PEOPLE} people only for saved trees.`, cta, later }, 4);
+    case "more": return withPerks(lang, { title: `${people} people so far`, body: "This much work should not be lost. Save it online — it is kept only on this phone right now.", cta, later }, 7);
+    case "done": return withPerks(lang, { title: "Your tree is ready!", body: "Save it online to keep it safe, share it with your family on WhatsApp, and get a PDF with a QR code.", cta, later }, 7);
     case "paused": return { title: "The AI helper is paused", body: "The AI helper works for trees that are saved to an account. Until you save, I will keep asking simple questions — your answers are recorded the same way. Save your tree and the AI helper comes back. It is free, with Google or email.", cta, later: "Not now" };
     case "back": return { title: "Welcome back!", body: `Your tree (${people} ${people === 1 ? "person" : "people"}) is still only on this phone. Save it so it is never lost.`, cta, later };
   }

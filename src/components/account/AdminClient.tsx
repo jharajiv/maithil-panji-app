@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowDown, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { inputCls } from "@/components/build/widgets";
-import { ActionQueue, SetupStatus, SubscribersAdmin } from "./AdminExtras";
+import { ActionQueue, SetupStatus, StockFix, SubscribersAdmin } from "./AdminExtras";
 import { useAccount } from "./useAccount";
 
 interface P { id: string; tree: string; title: string; name: string; gender?: string; born?: number; deceased: boolean; gotra?: string; mool?: string; place?: string; steps?: number; via?: string }
@@ -81,6 +81,7 @@ export function AdminClient() {
         )}
 
         <ActionQueue />
+        <StockFix />
         <SubscribersAdmin />
         <SetupStatus />
 

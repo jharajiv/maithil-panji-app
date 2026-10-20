@@ -9,7 +9,7 @@ import { fold } from "./lookup";
 import { compareTrees, stockOf, type TreeMatch } from "./similar";
 import { refCodeOf } from "./invite";
 import { FAQ } from "./faq";
-import type { Store, TreeRow } from "./store";
+import type { AiCall, Store, TreeRow } from "./store";
 
 export interface QOwner { name: string; email?: string; phone?: string }
 export interface QSide { tree: string; title: string; people: number; updated: string; owner?: QOwner }
@@ -30,10 +30,42 @@ export interface Usage {
   questions?: { rows: { id: string; q: string; count: number }[]; unanswered: number };
   /** how many model calls one AI answer needs, and how much of the work the small model does — the two numbers that decide the AI bill */
   ai?: { answers: number; calls: number; light: number; perAnswer: number; lightShare: number };
+  /** the real token counts of the AI calls (v12.1 onwards), by day and by model */
+  tokens?: Tokens;
+  /** trees built in a browser and not (yet) saved: people who reached 3 people, minus trees saved in the same days. Anonymous counts, so no names, only a number. */
+  unsaved?: { reached3: number; reached8: number; finished: number; saved: number; waiting: number };
   /** the counts could not be read */ failed?: boolean;
+}
+export interface TokenRow { key: string; calls: number; input: number; cache_read: number; cache_write: number; output: number; usd: number }
+export interface Tokens { days: TokenRow[]; models: TokenRow[]; total: TokenRow; answers: number; usdPerAnswer: number; cachePercent: number }
+
+/** US dollars per million tokens (input, output). Estimates only: the Anthropic console is the truth. Cache writes cost 1.25x and cache reads 0.1x the input price. */
+const PRICE: [RegExp, number, number][] = [[/haiku/i, 1, 5], [/opus/i, 5, 25], [/sonnet|./i, 3, 15]];
+export const costOf = (model: string, c: Pick<AiCall, "input" | "cache_write" | "cache_read" | "output">) => {
+  const [, pin, pout] = PRICE.find(([rx]) => rx.test(model))!;
+  return (c.input * pin + c.cache_write * pin * 1.25 + c.cache_read * pin * 0.1 + c.output * pout) / 1e6;
+};
+const blank = (key: string): TokenRow => ({ key, calls: 0, input: 0, cache_read: 0, cache_write: 0, output: 0, usd: 0 });
+const add = (r: TokenRow, c: AiCall) => { r.calls++; r.input += c.input; r.cache_read += c.cache_read; r.cache_write += c.cache_write; r.output += c.output; r.usd += costOf(c.model, c); };
+/** adds the calls up by day (newest first) and by model */
+export function sumTokens(calls: AiCall[], answers: number): Tokens | undefined {
+  if (!calls.length) return undefined;
+  const byDay = new Map<string, TokenRow>(), byModel = new Map<string, TokenRow>(), total = blank("total");
+  for (const c of calls) {
+    const d = c.at.slice(0, 10);
+    add(byDay.get(d) ?? byDay.set(d, blank(d)).get(d)!, c); add(byModel.get(c.model) ?? byModel.set(c.model, blank(c.model)).get(c.model)!, c); add(total, c);
+  }
+  const read = total.cache_read, all = total.input + total.cache_read + total.cache_write;
+  return {
+    days: [...byDay.values()].sort((a, b) => b.key.localeCompare(a.key)).slice(0, 14), models: [...byModel.values()].sort((a, b) => b.usd - a.usd), total, answers,
+    usdPerAnswer: answers ? total.usd / answers : 0, cachePercent: all ? Math.round((100 * read) / all) : 0,
+  };
 }
 export const USAGE_ROWS: [string, string][] = [
   ["tree_started", "Started a tree (answered the first question)"],
+  ["tree_3_people", "Not saved: reached 3 people in a browser"],
+  ["tree_8_people", "Not saved: reached 8 people in a browser"],
+  ["tree_complete", "Not saved: finished all the questions in a browser"],
   ["save_card_shown", "Saw the “save your tree” reminder"],
   ["save_card_clicked", "Tapped “Save my tree”"],
   ["tree_saved", "Trees saved online"],
@@ -56,7 +88,11 @@ export async function buildUsage(store: Store, days = 30): Promise<Usage> {
   const asked = FAQ.map((f) => ({ id: f.id, q: f.q.en, count: c[`faq:${f.id}`] ?? 0 })).filter((r) => r.count > 0).sort((a, b) => b.count - a.count);
   const answers = c["ai_turn"] ?? 0, calls = (c["ai_call"] ?? 0) + (c["ai_call_light"] ?? 0), light = c["ai_call_light"] ?? 0;
   const ai = answers ? { answers, calls, light, perAnswer: +(calls / answers).toFixed(2), lightShare: calls ? Math.round((100 * light) / calls) : 0 } : undefined;
-  return { days, failed, ai, rows: USAGE_ROWS.map(([name, label]) => ({ name, label, count: c[name] ?? 0 })), questions: { rows: asked, unanswered: c["faq_unanswered"] ?? 0 } };
+  let tokens: Tokens | undefined;
+  try { tokens = sumTokens(await store.listAiCalls(new Date(Date.now() - days * 86_400_000).toISOString()), answers); } catch { /* the table may not exist yet: the section then says so */ }
+  const reached3 = c["tree_3_people"] ?? 0, saved = c["tree_saved"] ?? 0;
+  const unsaved = reached3 || c["tree_8_people"] || c["tree_complete"] ? { reached3, reached8: c["tree_8_people"] ?? 0, finished: c["tree_complete"] ?? 0, saved, waiting: Math.max(0, reached3 - saved) } : undefined;
+  return { days, failed, ai, tokens, unsaved, rows: USAGE_ROWS.map(([name, label]) => ({ name, label, count: c[name] ?? 0 })), questions: { rows: asked, unanswered: c["faq_unanswered"] ?? 0 } };
 }
 
 export interface Queue { duplicates: DupPair[]; newRefs: NewRef[]; scanned: number; optedIn: number; invites: Invites; usage?: Usage }

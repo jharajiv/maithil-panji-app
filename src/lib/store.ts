@@ -57,6 +57,8 @@ export interface SessionRow { token_hash: string; account_id: string; expires_at
 export interface ConsentRow { tree_id: string; member_id: string; kind: string; version: string; given_at: string }
 /** a newsletter subscriber: "pending" until the link in the confirmation email is opened */
 export interface Subscriber { email: string; status: "pending" | "confirmed" | "unsubscribed"; lang: "en" | "hi"; source: string; created_at: string; last_sent_at?: string; confirmed_at?: string; unsubscribed_at?: string }
+/** the tokens one call to an AI model used (no text, no person: only numbers) */
+export interface AiCall { at: string; model: string; kind: string; input: number; cache_write: number; cache_read: number; output: number }
 export interface RefRow { kind: "gotra" | "mool"; key: string; roman: string; dev?: string }
 
 export interface Store {
@@ -111,6 +113,9 @@ export interface Store {
   addEvent(name: string): Promise<void>;
   /** how often each usage count happened since a time (for the admin page) */
   countEvents(sinceIso: string): Promise<Record<string, number>>;
+  /** token counts of AI calls (for the admin page) */
+  addAiCalls(rows: Omit<AiCall, "at">[]): Promise<void>;
+  listAiCalls(sinceIso: string): Promise<AiCall[]>;
   /* newsletter */
   getSubscriber(email: string): Promise<Subscriber | null>;
   /** create or replace the subscriber with this email */
@@ -212,6 +217,16 @@ function supabase(url: string, key: string): Store {
       }
       return out;
     },
+    async addAiCalls(rows) { if (rows.length) await call("ai_calls", { method: "POST", body: JSON.stringify(rows.map((r) => ({ ...r, at: new Date().toISOString() }))), prefer: "return=minimal" }); },
+    async listAiCalls(sinceIso) {
+      const out: AiCall[] = [];
+      for (let off = 0; off < 40000; off += 1000) {
+        const rows = (await call(`ai_calls?select=at,model,kind,input,cache_write,cache_read,output&at=gte.${encodeURIComponent(sinceIso)}&order=at.asc&limit=1000&offset=${off}`)) as AiCall[];
+        out.push(...rows);
+        if (rows.length < 1000) break;
+      }
+      return out;
+    },
     async getSubscriber(email) { return ((await call(`newsletter?email=eq.${encodeURIComponent(email)}&select=*&limit=1`)) as Subscriber[])[0] ?? null; },
     async putSubscriber(row) { await call("newsletter?on_conflict=email", { method: "POST", body: JSON.stringify(row), prefer: "resolution=merge-duplicates,return=minimal" }); },
     async listSubscribers() { return (await call("newsletter?select=*&order=created_at.desc&limit=20000")) as Subscriber[]; },
@@ -250,7 +265,7 @@ function supabase(url: string, key: string): Store {
 function file(): Store {
   const dir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(process.cwd(), ".data"); // DATA_DIR: keep the dev file outside the project so editing/testing never makes the dev server recompile
   const f = path.join(dir, "store.json");
-  type Db = { stories?: Story[]; suggestions?: Suggestion[]; events?: { name: string; at: string }[]; subscribers?: Subscriber[]; trees: Record<string, TreeRow>; refs: Record<string, RefRow>; persons?: PersonRow[]; rels?: RelRow[]; consents?: ConsentRow[]; accounts?: AccountRow[]; sessions?: SessionRow[]; codes?: LoginCode[] };
+  type Db = { ai_calls?: AiCall[]; stories?: Story[]; suggestions?: Suggestion[]; events?: { name: string; at: string }[]; subscribers?: Subscriber[]; trees: Record<string, TreeRow>; refs: Record<string, RefRow>; persons?: PersonRow[]; rels?: RelRow[]; consents?: ConsentRow[]; accounts?: AccountRow[]; sessions?: SessionRow[]; codes?: LoginCode[] };
   const read = async (): Promise<Db> => { try { return JSON.parse(await fs.readFile(f, "utf8")) as Db; } catch { return { trees: {}, refs: {} }; } };
   const write = async (db: Db) => { await fs.mkdir(dir, { recursive: true }); const tmp = `${f}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`; await fs.writeFile(tmp, JSON.stringify(db)); await fs.rename(tmp, f); }; // atomic: a reader never sees half a file
   let chain: Promise<unknown> = Promise.resolve();
@@ -307,6 +322,8 @@ function file(): Store {
     resolveSuggestion: (treeId, id, status) => lock(async () => { const db = await read(); const s = db.suggestions?.find((x) => x.tree_id === treeId && x.id === id); if (!s) return false; s.status = status; await write(db); return true; }),
     addEvent: (name) => lock(async () => { const db = await read(); db.events = [...(db.events ?? []).slice(-4999), { name, at: new Date().toISOString() }]; await write(db); }),
     countEvents: (sinceIso) => lock(async () => { const out: Record<string, number> = {}; for (const e of (await read()).events ?? []) if (e.at >= sinceIso) out[e.name] = (out[e.name] ?? 0) + 1; return out; }),
+    addAiCalls: (rows) => lock(async () => { if (!rows.length) return; const db = await read(); const at = new Date().toISOString(); db.ai_calls = [...(db.ai_calls ?? []), ...rows.map((r) => ({ ...r, at }))].slice(-20000); await write(db); }),
+    listAiCalls: (sinceIso) => lock(async () => ((await read()).ai_calls ?? []).filter((x) => x.at >= sinceIso)),
     getSubscriber: (email) => lock(async () => (await read()).subscribers?.find((x) => x.email === email) ?? null),
     putSubscriber: (row) => lock(async () => { const db = await read(); db.subscribers = [...(db.subscribers ?? []).filter((x) => x.email !== row.email), row]; await write(db); }),
     listSubscribers: () => lock(async () => [...((await read()).subscribers ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at))),

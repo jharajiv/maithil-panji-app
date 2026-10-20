@@ -120,6 +120,53 @@ const inherit = (from: DPerson | undefined, to: DPerson) => {
 
 
 /**
+ * Who is on the user's FATHER'S line: the user, the father, grandfathers, brothers and sisters, uncles and aunts, sons and daughters, and
+ * the sons' children. Not on it: a wife or husband, a mother, the mother's family, a daughter's husband and children.
+ * Returned in the order a value can be handed on (each entry says whom it takes it from).
+ */
+function stockOrder(f: DFamily): { id: string; from?: string }[] {
+  const root = me(f);
+  if (!root) return [];
+  const dad = (id: string) => fatherOf(f, id)?.id;
+  const chain = [root.id]; const seen = new Set(chain);
+  for (let id = dad(root.id); id && !seen.has(id); id = dad(id)) { chain.push(id); seen.add(id); }
+  const out: { id: string; from?: string }[] = [{ id: root.id }];
+  for (let i = 1; i < chain.length; i++) out.push({ id: chain[i]!, from: chain[i - 1] });
+  const top = chain[chain.length - 1]!;
+  const done = new Set<string>([top]); const queue = [top];
+  while (queue.length) {
+    const x = queue.shift()!;
+    for (const c of childrenOf(f, x)) {
+      if (done.has(c.id) || fatherOf(f, c.id)?.id !== x) continue; // only through the father
+      done.add(c.id); out.push({ id: c.id, from: x });
+      if (c.gender !== "female") queue.push(c.id); // a daughter keeps the line, her children do not
+    }
+  }
+  return out;
+}
+export const stockLine = (f: DFamily): Set<string> => new Set(stockOrder(f).map((x) => x.id));
+
+/**
+ * The family's gotra and mool belong to the whole father's line (see stockOrder), not to each person. Only blanks are filled, never an
+ * existing value, so a person who really has a different mool keeps it, and that person's own descendants take it from him.
+ * Returns the same object when nothing needed filling.
+ */
+export function fillStock(f: DFamily): { family: DFamily; filled: number } {
+  const order = stockOrder(f);
+  if (!order.length) return { family: f, filled: 0 };
+  const next = structuredClone(f);
+  const n = new Map(next.persons.map((p) => [p.id, p]));
+  let filled = 0;
+  for (const { id, from } of order) {
+    const to = n.get(id), src = from ? n.get(from) : undefined;
+    if (!to || !src) continue;
+    if (!to.gotra && src.gotra) { to.gotra = { ...src.gotra }; filled++; }
+    if (!to.mool && src.mool) { to.mool = { ...src.mool }; filled++; }
+  }
+  return filled ? { family: next, filled } : { family: f, filled: 0 };
+}
+
+/**
  * Brothers and sisters must share a father. If this person's father is not recorded yet (the user does not know his name),
  * create an unnamed one — and marry him to the mother when only she is known — so the siblings hang from the same couple.
  */
@@ -303,7 +350,7 @@ export function applyOps(prev: DFamily, ops: Op[], opts: ApplyOptions = {}): { f
       results.push({ ok: false, message: String(e) });
     }
   }
-  return { family: normalizeCouples(f), results };
+  return { family: fillStock(normalizeCouples(f)).family, results };
 }
 
 /* ───────────────────────── repairing a wrong tree ───────────────────────── */

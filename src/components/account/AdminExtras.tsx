@@ -133,6 +133,10 @@ export function ActionQueue() {
           <h3 className="text-sm font-medium">Usage <span className="font-normal text-muted-foreground">· last {q.usage.days} days</span></h3>
           {q.usage.failed ? <p role="alert" className="text-sm text-terracotta">The counts could not be read just now. Try again in a minute.</p> : null}
           <table className={`w-full text-sm ${q.usage.failed ? "hidden" : ""}`}><tbody>{q.usage.rows.map((r) => <tr key={r.name} className="border-b last:border-0"><td className="py-1 pr-3">{r.label}</td><td className="py-1 text-right font-medium tabular-nums">{r.count}</td></tr>)}</tbody></table>
+          {q.usage.unsaved && !q.usage.failed && (
+            <p className="rounded-lg bg-secondary/60 px-3 py-2 text-sm">Built in a browser, not saved: roughly <strong>{q.usage.unsaved.waiting}</strong> {q.usage.unsaved.waiting === 1 ? "tree" : "trees"} reached 3 people ({q.usage.unsaved.reached3} did, {q.usage.unsaved.saved} were saved); {q.usage.unsaved.reached8} reached 8 people and {q.usage.unsaved.finished} finished the questions. These are anonymous counts: we cannot see who they are or contact them, so the only way to reach them is the in-app “save your tree” reminder. Counting started with v12.1.</p>
+          )}
+          {!q.usage.failed && <TokenTable t={q.usage.tokens} />}
           {q.usage.ai && !q.usage.failed && (
             <p className="rounded-lg bg-secondary/60 px-3 py-2 text-sm">AI cost check: <strong>{q.usage.ai.perAnswer}</strong> model calls per AI answer ({q.usage.ai.calls} calls for {q.usage.ai.answers} answers); <strong>{q.usage.ai.lightShare}%</strong> of the calls went to the small, cheaper model. Lower is better for the first number; the second should be well above 0 once people answer the brothers, sisters and children questions. Counting started with v12, so older days are not included.</p>
           )}
@@ -154,6 +158,60 @@ export function ActionQueue() {
           <p className="text-xs text-muted-foreground">If many families come through invitations, you can announce that the site is by invitation and switch on invite codes.</p>
         </div>
       )}
+    </section>
+  );
+}
+
+const n = (x: number) => (x >= 10_000 ? `${(x / 1000).toFixed(x >= 100_000 ? 0 : 1)}K` : String(x));
+const usd = (x: number) => `$${x < 1 ? x.toFixed(3) : x.toFixed(2)}`;
+/** The real token counts of the AI calls, by day and by model, with a price estimate */
+function TokenTable({ t }: { t?: import("@/lib/admin-queue").Tokens }) {
+  if (!t) return (
+    <div className="rounded-lg bg-secondary/60 px-3 py-2 text-sm">
+      <p className="font-medium">AI tokens</p>
+      <p className="text-muted-foreground">No token counts yet. They start with the first AI answer after this version is live. If this stays empty after people have used the AI helper, run section 11 of <code>supabase/schema.sql</code> in Supabase.</p>
+    </div>
+  );
+  const head = "py-1 pl-2 text-right font-medium";
+  const rows = (list: import("@/lib/admin-queue").TokenRow[]) => list.map((r) => (
+    <tr key={r.key} className="border-b last:border-0"><td className="py-1 pr-2">{r.key}</td><td className="py-1 pl-2 text-right tabular-nums">{r.calls}</td><td className="py-1 pl-2 text-right tabular-nums">{n(r.input)}</td><td className="py-1 pl-2 text-right tabular-nums">{n(r.cache_read)}</td><td className="py-1 pl-2 text-right tabular-nums">{n(r.cache_write)}</td><td className="py-1 pl-2 text-right tabular-nums">{n(r.output)}</td><td className="py-1 pl-2 text-right font-medium tabular-nums">{usd(r.usd)}</td></tr>
+  ));
+  const cols = <tr className="border-b text-xs text-muted-foreground"><th className="py-1 pr-2 text-left font-medium"> </th><th className={head}>Calls</th><th className={head}>New in</th><th className={head}>Cached in</th><th className={head}>Cache write</th><th className={head}>Out</th><th className={head}>Est. cost</th></tr>;
+  return (
+    <div className="space-y-2 rounded-lg bg-secondary/60 px-3 py-2 text-sm">
+      <p className="font-medium">AI tokens and estimated cost</p>
+      <p>Last {t.days.length} days with AI use: <strong>{n(t.total.input + t.total.cache_read + t.total.cache_write)}</strong> tokens in, <strong>{n(t.total.output)}</strong> out, about <strong>{usd(t.total.usd)}</strong> in all, <strong>{usd(t.usdPerAnswer)}</strong> per AI answer. <strong>{t.cachePercent}%</strong> of the input came from the cache (cached input costs a tenth, so higher is better).</p>
+      <div className="overflow-x-auto"><table className="w-full min-w-[30rem] text-sm"><thead>{cols}</thead><tbody>{rows(t.days)}</tbody></table></div>
+      <div className="overflow-x-auto"><table className="w-full min-w-[30rem] text-sm"><thead>{cols}</thead><tbody>{rows(t.models)}</tbody></table></div>
+      <p className="text-xs text-muted-foreground">“New in” is input that was not cached. Prices are my estimate (Sonnet $3 in / $15 out, Haiku $1 / $5 per million tokens; cache writes cost 1.25 times and cache reads 0.1 times the input price), so check the real bill in the Anthropic console. Only numbers are kept here: no text and no person.</p>
+    </div>
+  );
+}
+
+/** Admin: fill the blank gotra and mool of trees saved by older versions (the family rule: everyone on the father's line) */
+export function StockFix() {
+  const [n, setN] = useState<{ trees: number; affected: number; entries: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState("");
+  const check = () => fetch("/api/admin/fix-stock", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then(setN).catch(() => {});
+  useEffect(() => { void check(); }, []);
+  if (!n) return null;
+  const run = async () => {
+    setBusy(true); setDone("");
+    try {
+      const r = await fetch("/api/admin/fix-stock", { method: "POST" });
+      const j = await r.json().catch(() => ({}));
+      setDone(r.ok ? `Done: ${j.entries} blank gotra / mool entries filled in ${j.fixed} trees${j.failed ? `; ${j.failed} could not be saved, try again` : ""}.` : "Could not do that. Please try again.");
+      await check();
+    } finally { setBusy(false); }
+  };
+  return (
+    <section aria-label="Family gotra and mool" className="space-y-2 rounded-2xl border bg-card p-4">
+      <h2 className="font-semibold">Family gotra and mool</h2>
+      <p className="text-sm text-muted-foreground">Everyone on the user’s father’s line (father, grandfathers, brothers, sisters, uncles, aunts, sons, daughters and the sons’ children) carries the family’s gotra and mool. Wives, husbands, mothers and the mother’s and daughters’ families do not. The app now fills this in by itself whenever a tree is opened or changed. This button does the same for saved trees nobody has opened yet. It only fills blanks and never changes a value that is already there.</p>
+      <p className="text-sm">{n.affected ? <>Blanks found in <strong>{n.affected}</strong> of {n.trees} trees ({n.entries} entries).</> : <>All {n.trees} saved trees are already complete.</>}</p>
+      {n.affected > 0 && <Button size="sm" disabled={busy} onClick={run}>{busy ? "Filling…" : "Fill the blanks now"}</Button>}
+      {done && <p role="status" className="text-sm text-green-800">{done}</p>}
     </section>
   );
 }

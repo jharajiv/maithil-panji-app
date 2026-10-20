@@ -8,6 +8,7 @@
  *  - the SERVER validates every change and refuses anything off-task.
  */
 import type Anthropic from "@anthropic-ai/sdk";
+import { bulkRename } from "./bulk";
 import { applyOps, me, type DFamily, type Op, type PanjiRef, type Pending } from "./family";
 import { describeFamily, focusIds, FULL_BELOW, isListGoal, nextGoal, type Goal } from "./interview";
 import { faqById, faqIndexBlock } from "./faq";
@@ -30,6 +31,10 @@ export interface TurnInput {
   pending?: Pending;
   /** the language the user chose for the questions (default English) */
   lang?: "en" | "hi";
+  /** the message is a COMMAND (change, fix, remove…), not an answer to the question: carry it out, do not ask the interview question */
+  command?: boolean;
+  /** where a chat stands after a command: "ask" = we just asked "shall we go back to the questions?", "paused" = the person said not now */
+  detour?: "ask" | "paused";
 }
 
 export interface TurnOutput {
@@ -43,6 +48,8 @@ export interface TurnOutput {
   pending?: Pending;
   /** set when the reply is a ready-made answer from the FAQ (src/lib/faq.ts) */
   faq?: string;
+  /** the chat left its questions to carry out a command: "ask" = waiting for yes/no to go back, "paused" = the person said not now */
+  detour?: "ask" | "paused";
 }
 
 export interface AgentDeps {
@@ -51,13 +58,14 @@ export interface AgentDeps {
   /** a smaller, cheaper model for the one job that only reads names from an answer (see list-turn.ts); falls back to `model` */
   lightModel?: string;
   /** counts the real calls made to the AI model during this one turn (a turn that was answered from fixed rules makes none) */
-  used?: { calls: number; /** how many of them went to the smaller model */ light?: number };
+  used?: { calls: number; /** how many of them went to the smaller model */ light?: number; /** the token counts of each call, for the admin page */ rows?: { model: string; kind: string; input: number; cache_write: number; cache_read: number; output: number }[] };
 }
 
 /** one line per AI call in the server log: what was read fresh, what came from the cache, what was written. Lets you see (in Vercel → Logs, search "ai_usage") whether caching works. */
 export function logUsage(deps: AgentDeps, kind: string, model: string, u: Anthropic.Messages.Usage | undefined): void {
   if (deps.used) { deps.used.calls++; if (deps.lightModel && model === deps.lightModel && model !== deps.model) deps.used.light = (deps.used.light ?? 0) + 1; }
   if (!u) return;
+  deps.used?.rows?.push({ model, kind, input: u.input_tokens ?? 0, cache_write: u.cache_creation_input_tokens ?? 0, cache_read: u.cache_read_input_tokens ?? 0, output: u.output_tokens ?? 0 });
   console.log(`ai_usage ${JSON.stringify({ kind, model, in: u.input_tokens, cache_read: u.cache_read_input_tokens ?? 0, cache_write: u.cache_creation_input_tokens ?? 0, out: u.output_tokens })}`);
 }
 
@@ -77,7 +85,7 @@ SCOPE (strict, no exceptions)
 - Never invent people, names, dates, gotras or mools. Save only what the user actually said. Do not ask for or store phone numbers, street or house addresses, ID numbers or health information about anyone. Places are only "Village, District, State" (or "City, Country" abroad).
 
 PANJI CONVENTIONS
-- The lineage is patrilineal: gotra and mool pass from father to children (the app copies them automatically). Record daughters too.
+- The lineage is patrilineal: gotra and mool are asked ONCE, for the user, and the app copies them to everyone on the father's line (the father, his father, brothers, sisters, sons, daughters, uncles, cousins in the male line) by itself — never ask for the gotra or mool of anyone else, and never leave them empty for the line. Only if the user says one person's mool is different, save that person's own value (update_person) and his descendants follow it. Record daughters too.
 - The Panji follows the FATHER'S LINE. The interview goes BACKWARDS first: the user's father, his father, his father's father… one generation at a time, until the user says they do not know any further. Then the app itself runs a fixed series of steps — brothers, sisters, brothers' wives, sisters' husbands, brothers' children — as separate questions; you are not involved in those, you only ever see the questions before them.
 - Women are recorded BY NAME ONLY. NEVER ask about a woman's parents or family — not for the user's wife, mother, grandmothers, aunts or daughters-in-law. A sister, daughter or aunt is a "connect" to her husband's family chart: record her name and STOP. Do NOT ask for, or save, a sister's/daughter's husband, in-laws or children, even if the user volunteers them — politely say the Panji keeps those in her husband's family chart, and move on. (The server refuses such entries anyway.)
 - NEVER decide a relationship yourself. Never record a brother's or uncle's sibling as a wife, or a sister as anything but a sister. If the user's words are unclear about how someone is related, ask once — do not guess.
@@ -200,6 +208,21 @@ export const TOOLS = [
 
 /* ───────────────────────── sanitising model output ───────────────────────── */
 
+/** only offered when the person gives a command: change one spelling everywhere (see bulk.ts) */
+const BULK_TOOL: Anthropic.Messages.Tool = {
+  name: "bulk_change",
+  description: "Change ONE spelling everywhere it is used in the tree (a gotra, a mool or a place typed wrongly in several people), or set the gotra / mool of the whole father's line. Use this instead of update_family when the change touches more than a few people.",
+  input_schema: {
+    type: "object",
+    properties: {
+      field: { type: "string", enum: ["gotra", "mool", "place"] },
+      from: { type: "string", description: "the spelling to replace; leave out (gotra / mool only) to set it for the whole father's line" },
+      to: { type: "string", description: "the correct spelling" },
+    },
+    required: ["field", "to"],
+  },
+};
+
 const str = (v: unknown, max = 80) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : undefined);
 const GENDERS = new Set(["male", "female", "other"]);
 const FLAGS = new Set(["father", "mother", "details", "gotra", "mool", "place", "birth"]);
@@ -311,10 +334,14 @@ export async function runTurn(deps: AgentDeps, input: TurnInput): Promise<TurnOu
   const sameGoalAsBefore = (g: Goal | null) => !!g && g.id === input.prevGoalId;
   let totalOps = 0;
   let offTopic = false;
-  const expected = expectedNext(family, lastGoal, input.text, input.pending);
+  const command = input.command === true;
+  const expected = command ? null : expectedNext(family, lastGoal, input.text, input.pending);
 
-  const dynamic =
-    `THE USER IS NOW ANSWERING THIS QUESTION (the one you asked last):\n${lastGoal ? lastGoal.instruction : "(none — interview complete)"}` +
+  const dynamic = command
+    ? `THE USER HAS GIVEN YOU A COMMAND — it is NOT an answer to your last question. Carry it out now, whatever it is about the family tree (fix a spelling, rename someone, change a gotra / mool / place / year, remove a person, set something for several people). Use update_family (update_person / remove_person ops) for a few people and bulk_change for one spelling used by several people. Do NOT ask the interview question and do NOT ask a question back unless the command is truly unclear; the app asks "shall we continue?" by itself after your reply. Then call say with a confirmation of what changed, in at most 40 words, no quick_replies. If the command is about something outside the family tree, decline in one sentence (off_topic=true).\n\nFor the person's gotra and mool: it is recorded once for the family and copied to everyone on the father's line automatically, so a change to the father line's gotra / mool is a bulk_change with no "from".` +
+      `\n\nFAMILY SAVED SO FAR (ids you may reference; names, gotra, mool, places):\n${describeFamily(family, focusIds(family, [lastGoal]))}` +
+      (input.lang === "hi" ? "\n\nLANGUAGE: The user has chosen Hindi. Reply in simple, respectful Hindi in Devanagari script (use आप)." : "")
+    : `THE USER IS NOW ANSWERING THIS QUESTION (the one you asked last):\n${lastGoal ? lastGoal.instruction : "(none — interview complete)"}` +
     priorLookup(family, lastGoal, input.text) + "\n\n" +
     `FAMILY SAVED SO FAR (ids you may reference${family.persons.length > FULL_BELOW ? "; the people closest to this question are in full detail, everyone else on one short line" : ""}):\n${describeFamily(family, focusIds(family, [lastGoal]))}` +
     (expected ? `\n\nLIKELY NEXT STEP — if the user's message is a plain, complete answer to the question above (no correction, no question, no extra people), call update_family AND say TOGETHER in one reply.\n${nextBlock(expected)}` : "") +
@@ -339,11 +366,11 @@ export async function runTurn(deps: AgentDeps, input: TurnInput): Promise<TurnOu
         { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
         { type: "text", text: dynamic },
       ],
-      tools: TOOLS,
+      tools: command ? [...(TOOLS as Anthropic.Messages.Tool[]), BULK_TOOL] : TOOLS,
       tool_choice: { type: "any" },
       messages,
     });
-    logUsage(deps, "interview", deps.model, res.usage);
+    logUsage(deps, command ? "command" : "interview", deps.model, res.usage);
     messages.push({ role: "assistant", content: res.content });
     const uses = res.content.filter((b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use");
     if (!uses.length) break;
@@ -373,6 +400,15 @@ export async function runTurn(deps: AgentDeps, input: TurnInput): Promise<TurnOu
         }
       } else if (isRead) {
         result = runLookup(use.name, inp);
+      } else if (use.name === "bulk_change" && command) {
+        const field = inp.field === "gotra" || inp.field === "mool" || inp.field === "place" ? inp.field : null;
+        const to = str(inp.to, 80);
+        if (!field || !to) result = { error: "field and to are required" };
+        else {
+          const r = bulkRename(family, { field, from: str(inp.from, 80), to });
+          if (r.count) { family = r.family; updated = true; totalOps += r.count; }
+          result = { changed: r.count, message: r.message };
+        }
       } else {
         result = { error: `unknown tool ${use.name}` };
       }
@@ -384,9 +420,9 @@ export async function runTurn(deps: AgentDeps, input: TurnInput): Promise<TurnOu
       const msg = str(inp.message, 900);
       let g = nextGoal(family);
       // saved and asked in one reply: only valid when the question that now follows is the one the AI was told about
-      if (updated && (!expected || !g || g.id !== expected.id)) {
+      if (!command && updated && (!expected || !g || g.id !== expected.id)) {
         results.push(err(sayUse.id, `What you saved leads to a different question than expected, so your reply was not sent. ${nextBlock(g)}\nNow call say again.`));
-      } else if (g && sameGoalAsBefore(g) && repeats + 1 >= 3) {
+      } else if (!command && g && sameGoalAsBefore(g) && repeats + 1 >= 3) {
         // loop guard: the same question has now been asked too many times → skip it and move on
         family = applyOps(family, g.skip).family;
         g = nextGoal(family);
@@ -398,7 +434,8 @@ export async function runTurn(deps: AgentDeps, input: TurnInput): Promise<TurnOu
         offTopic = inp.off_topic === true;
         const quick = Array.isArray(inp.quick_replies) ? inp.quick_replies.map((q) => str(q, 40)).filter((q): q is string => !!q).slice(0, 4) : [];
         // the fixed steps are asked in the app's own words, never rephrased: the relationship in each question must not drift
-        if (g && isListGoal(g)) say = { message: `${totalOps ? "Noted. " : ""}${g.question}`, quick: g.quick };
+        if (command) say = { message: msg, quick: [] };
+        else if (g && isListGoal(g)) say = { message: `${totalOps ? "Noted. " : ""}${g.question}`, quick: g.quick };
         else say = { message: msg, quick: quick.length ? quick : (g?.quick ?? []) };
         break;
       }
@@ -407,7 +444,7 @@ export async function runTurn(deps: AgentDeps, input: TurnInput): Promise<TurnOu
   }
 
   const goal = nextGoal(family);
-  repeats = goal && sameGoalAsBefore(goal) ? repeats + 1 : 0;
-  const reply = say?.message ?? (goal ? `Sorry, I did not catch that. ${goal.question}` : "Thank you — your family tree is ready to review.");
-  return { family, reply, quick: say?.quick ?? goal?.quick ?? [], goal, repeats, offTopic, ops: totalOps };
+  repeats = command ? (input.repeats ?? 0) : goal && sameGoalAsBefore(goal) ? repeats + 1 : 0;
+  const reply = say?.message ?? (command ? "Sorry, I could not do that. Please say it once more in a few words." : goal ? `Sorry, I did not catch that. ${goal.question}` : "Thank you — your family tree is ready to review.");
+  return { family, reply, quick: say?.quick ?? (command ? [] : goal?.quick ?? []), goal, repeats, offTopic, ops: totalOps };
 }

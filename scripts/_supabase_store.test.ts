@@ -31,5 +31,13 @@ import { getStore, newAccountId, newTreeId, treeMeta } from "../src/lib/store";
   const counts = await s.countEvents(new Date(Date.now() - 86_400_000).toISOString());
   assert.equal(counts.tree_started, 1005); assert.equal(counts.tree_saved, 1);
   assert.deepEqual(await s.countEvents(new Date(Date.now() + 86_400_000).toISOString()), {});
+  // the AI token log: written in one batch, read back by date, more than one page
+  const row = { model: "claude-sonnet-4-5", kind: "interview", input: 100, cache_write: 0, cache_read: 900, output: 50 };
+  await s.addAiCalls(Array.from({ length: 12 }, () => row));
+  for (let i = 0; i < 99; i++) await s.addAiCalls(Array.from({ length: 12 }, () => ({ ...row, model: "claude-haiku-4-5" })));
+  const calls = await s.listAiCalls(new Date(Date.now() - 86_400_000).toISOString());
+  assert.equal(calls.length, 12 + 99 * 12); assert.equal(calls.filter((c) => c.model === "claude-sonnet-4-5").length, 12);
+  assert.equal(calls[0]!.cache_read, 900); assert.ok(!Number.isNaN(Date.parse(calls[0]!.at)));
+  assert.deepEqual(await s.listAiCalls(new Date(Date.now() + 86_400_000).toISOString()), []);
   console.log("supabase adapter OK");
 })().catch((e) => { console.error(e); process.exit(1); });
